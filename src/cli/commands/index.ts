@@ -1,20 +1,16 @@
-import type { CLICommand } from "@/types";
-import { features } from "@/features";
-import { featureToCLICommand } from "@/cli/adapter";
-import { serveCommand } from "./serve.command";
-import { helpCommand } from "./help.command";
-import { versionCommand } from "./version.command";
+import { features } from "@features";
+import { featureToCittyCommand } from "@cli/adapter";
+import { serveCommand } from "@cli/commands/serve.command";
+import { versionCommand } from "@cli/commands/version.command";
 
-const systemCommands: CLICommand[] = [
-  serveCommand,
-  helpCommand,
-  versionCommand,
-];
+// Feature commands converted from features
+const featureCommands = Object.fromEntries(
+  features.map((f) => [f.name, featureToCittyCommand(f)]),
+);
 
-const featureCommands: CLICommand[] = features.map(featureToCLICommand);
-
-export const commands: CLICommand[] = [...systemCommands, ...featureCommands];
-
-export function findCommand(name: string): CLICommand | undefined {
-  return commands.find((cmd) => cmd.name === name);
-}
+// All subcommands
+export const subCommands = {
+  serve: serveCommand,
+  version: versionCommand,
+  ...featureCommands,
+};

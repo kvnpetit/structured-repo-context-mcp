@@ -1,16 +1,13 @@
-export * from "./types";
-export { echoFeature } from "./echo";
-export { infoFeature, getServerInfo } from "./info";
+export type * from "@features/types";
+export { infoFeature, getServerInfo } from "@features/info";
 
-import type { Feature } from "./types";
-import { echoFeature } from "./echo";
-import { infoFeature } from "./info";
+import type { Feature } from "@features/types";
+import { infoFeature } from "@features/info";
 
-// Registre de toutes les features
+// Registry of all features
 export const features: Feature[] = [
-  echoFeature,
   infoFeature,
-  // Ajoute tes features ici
+  // Add your features here
 ];
 
 export function getFeature(name: string): Feature | undefined {

@@ -1,19 +1,20 @@
 import { z } from "zod";
-import type { Feature, FeatureResult } from "@/features/types";
-import { config } from "@/config";
+import type { Feature, FeatureResult } from "@features/types";
+import { config } from "@config";
 
 export const infoSchema = z.object({
   format: z
     .enum(["json", "text"])
     .optional()
     .default("text")
-    .describe("Format de sortie"),
+    .describe("Output format"),
 });
 
 export type InfoInput = z.infer<typeof infoSchema>;
 
 export interface ServerInfo {
   name: string;
+  fullName: string;
   version: string;
   description: string | undefined;
 }
@@ -21,6 +22,7 @@ export interface ServerInfo {
 export function getServerInfo(): ServerInfo {
   return {
     name: config.name,
+    fullName: config.fullName,
     version: config.version,
     description: config.description,
   };
@@ -38,7 +40,8 @@ export function execute(input: InfoInput): FeatureResult {
   }
 
   const description = info.description ?? "";
-  const text = `${info.name} v${info.version}\n${description}`.trim();
+  const text =
+    `${info.fullName} (${info.name}) v${info.version}\n${description}`.trim();
 
   return {
     success: true,
@@ -48,8 +51,8 @@ export function execute(input: InfoInput): FeatureResult {
 }
 
 export const infoFeature: Feature<typeof infoSchema> = {
-  name: "info",
-  description: "Affiche les informations du serveur",
+  name: "get_server_info",
+  description: "Get server information and version",
   schema: infoSchema,
   execute,
 };

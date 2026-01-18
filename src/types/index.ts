@@ -1,7 +1,8 @@
-export type { Feature, FeatureResult } from "@/features/types";
+export type { Feature, FeatureResult } from "@features/types";
 
 export interface ServerConfig {
   name: string;
+  fullName: string;
   version: string;
   description?: string;
 }

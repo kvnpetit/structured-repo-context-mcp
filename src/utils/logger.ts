@@ -1,4 +1,5 @@
-import { ENV } from "@/config";
+import { ENV } from "@config";
+import pc from "picocolors";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -7,6 +8,13 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   info: 1,
   warn: 2,
   error: 3,
+};
+
+const LEVEL_COLORS: Record<LogLevel, (s: string) => string> = {
+  debug: pc.dim,
+  info: pc.blue,
+  warn: pc.yellow,
+  error: pc.red,
 };
 
 function isValidLogLevel(level: string): level is LogLevel {
@@ -22,8 +30,9 @@ function shouldLog(level: LogLevel): boolean {
 }
 
 function formatMessage(level: LogLevel, message: string): string {
-  const timestamp = new Date().toISOString();
-  return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+  const timestamp = pc.dim(new Date().toISOString());
+  const levelTag = LEVEL_COLORS[level](level.toUpperCase().padEnd(5));
+  return `${timestamp} ${levelTag} ${message}`;
 }
 
 export const logger = {
@@ -35,13 +44,14 @@ export const logger = {
 
   info(message: string, ...args: unknown[]): void {
     if (shouldLog("info")) {
-      console.error(formatMessage("info", message), ...args);
+      // eslint-disable-next-line no-console
+      console.log(formatMessage("info", message), ...args);
     }
   },
 
   warn(message: string, ...args: unknown[]): void {
     if (shouldLog("warn")) {
-      console.error(formatMessage("warn", message), ...args);
+      console.warn(formatMessage("warn", message), ...args);
     }
   },
 
@@ -49,5 +59,10 @@ export const logger = {
     if (shouldLog("error")) {
       console.error(formatMessage("error", message), ...args);
     }
+  },
+
+  success(message: string, ...args: unknown[]): void {
+    // eslint-disable-next-line no-console
+    console.log(pc.green("✓ ") + message, ...args);
   },
 };

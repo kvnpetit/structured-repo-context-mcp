@@ -1,18 +1,20 @@
-import type { CLICommand } from "@/types";
+import { defineCommand } from "citty";
 import { startServer } from "@/server";
 
-export const serveCommand: CLICommand = {
-  name: "serve",
-  description: "Démarre le serveur MCP",
-  options: [
-    {
-      flag: "--transport, -t",
-      description: "Type de transport (stdio)",
-      defaultValue: "stdio",
-    },
-  ],
-
-  action(_args, _options): void {
-    void startServer();
+export const serveCommand = defineCommand({
+  meta: {
+    name: "serve",
+    description: "Start the MCP server",
   },
-};
+  args: {
+    transport: {
+      type: "string",
+      alias: "t",
+      description: "Transport type (stdio)",
+      default: "stdio",
+    },
+  },
+  async run() {
+    await startServer();
+  },
+});

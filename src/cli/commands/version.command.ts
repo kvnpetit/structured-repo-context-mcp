@@ -1,11 +1,12 @@
-import type { CLICommand } from "@/types";
-import { config } from "@/config";
+import { defineCommand } from "citty";
+import { config } from "@config";
 
-export const versionCommand: CLICommand = {
-  name: "version",
-  description: "Affiche la version",
-
-  action(): void {
+export const versionCommand = defineCommand({
+  meta: {
+    name: "version",
+    description: "Display version information",
+  },
+  run() {
     console.log(`${config.name} v${config.version}`);
   },
-};
+});

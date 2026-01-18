@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Feature } from "@/features/types";
+import type { Feature } from "@features/types";
 import { z } from "zod";
 
 function zodToMcpSchema(schema: z.ZodType): Record<string, z.ZodType> {
@@ -11,16 +11,16 @@ function zodToMcpSchema(schema: z.ZodType): Record<string, z.ZodType> {
 
 export function registerFeatureAsTool(
   server: McpServer,
-  feature: Feature
+  feature: Feature,
 ): void {
   const mcpSchema = zodToMcpSchema(feature.schema);
 
   // eslint-disable-next-line @typescript-eslint/no-deprecated
-  server.tool(feature.name, feature.description, mcpSchema, (params) => {
+  server.tool(feature.name, feature.description, mcpSchema, async (params) => {
     const result = feature.execute(params);
 
     const formatResult = (
-      res: Awaited<ReturnType<typeof feature.execute>>
+      res: Awaited<ReturnType<typeof feature.execute>>,
     ): {
       content: { type: "text"; text: string }[];
       isError: boolean;
@@ -35,7 +35,7 @@ export function registerFeatureAsTool(
     });
 
     if (result instanceof Promise) {
-      return result.then(formatResult);
+      return await result.then(formatResult);
     }
     return formatResult(result);
   });

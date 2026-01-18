@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
-import { runCLI } from "./cli";
+#!/usr/bin/env node
+import { runCLI } from "@cli";
 
 runCLI();
