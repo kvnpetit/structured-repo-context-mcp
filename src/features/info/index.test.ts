@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { execute, getServerInfo, infoSchema } from "./index";
+import { describe, expect, test } from "vitest";
+import { execute, getServerInfo, infoSchema } from "@features/info";
 
 describe("info feature", () => {
   test("should return server info as text", () => {
@@ -7,7 +7,7 @@ describe("info feature", () => {
     const result = execute(input);
 
     expect(result.success).toBe(true);
-    expect(result.message).toContain("my-mcp-server");
+    expect(result.message).toContain("src-mcp");
   });
 
   test("should return server info as JSON", () => {
@@ -22,13 +22,15 @@ describe("info feature", () => {
       unknown
     >;
     expect(parsed).toHaveProperty("name");
+    expect(parsed).toHaveProperty("fullName");
     expect(parsed).toHaveProperty("version");
   });
 
   test("getServerInfo should return config values", () => {
     const info = getServerInfo();
 
-    expect(info.name).toBe("my-mcp-server");
+    expect(info.name).toBe("src-mcp");
+    expect(info.fullName).toBe("SRC (Structured Repo Context)");
     expect(info.version).toBe("1.0.0");
   });
 });
