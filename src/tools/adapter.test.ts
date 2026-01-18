@@ -136,4 +136,105 @@ describe("Tool Adapter", () => {
 
     expect(result.isError).toBe(true);
   });
+
+  test("handler handles async feature execute", async () => {
+    const asyncFeature: Feature<typeof testSchema> = {
+      ...mockFeature,
+      execute: async (input: TestInput) =>
+        Promise.resolve({
+          success: true,
+          message: `Async: ${input.param1}`,
+        }),
+    };
+
+    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
+    const toolMock = vi.fn(
+      (
+        _name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: (params: unknown) => Promise<unknown>,
+      ) => {
+        capturedHandler = handler;
+      },
+    );
+    const mockServer = { tool: toolMock };
+
+    registerFeatureAsTool(mockServer as never, asyncFeature);
+
+    if (capturedHandler === undefined) {
+      throw new Error("Handler should be defined");
+    }
+    const result = (await capturedHandler({ param1: "test" })) as {
+      content: { type: string; text: string }[];
+      isError: boolean;
+    };
+
+    expect(result.isError).toBe(false);
+    expect(result.content[0]?.text).toBe("Async: test");
+  });
+
+  test("handles non-ZodObject schema by wrapping in input key", () => {
+    const simpleSchema = z.string();
+    const simpleFeature: Feature<typeof simpleSchema> = {
+      name: "simple_tool",
+      description: "Simple tool",
+      schema: simpleSchema,
+      execute: () => ({ success: true, data: "ok" }),
+    };
+
+    let capturedSchema: Record<string, unknown> | undefined;
+    const toolMock = vi.fn(
+      (
+        _name: string,
+        _desc: string,
+        schema: Record<string, unknown>,
+        _handler: unknown,
+      ) => {
+        capturedSchema = schema;
+      },
+    );
+    const mockServer = { tool: toolMock };
+
+    registerFeatureAsTool(mockServer as never, simpleFeature);
+
+    expect(capturedSchema).toBeDefined();
+    expect(capturedSchema).toHaveProperty("input");
+  });
+
+  test("handler returns data as JSON when no message", async () => {
+    const dataFeature: Feature<typeof testSchema> = {
+      ...mockFeature,
+      execute: () => ({
+        success: true,
+        data: { key: "value" },
+      }),
+    };
+
+    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
+    const toolMock = vi.fn(
+      (
+        _name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: (params: unknown) => Promise<unknown>,
+      ) => {
+        capturedHandler = handler;
+      },
+    );
+    const mockServer = { tool: toolMock };
+
+    registerFeatureAsTool(mockServer as never, dataFeature);
+
+    if (capturedHandler === undefined) {
+      throw new Error("Handler should be defined");
+    }
+    const result = (await capturedHandler({ param1: "test" })) as {
+      content: { type: string; text: string }[];
+      isError: boolean;
+    };
+
+    expect(result.content[0]?.text).toContain('"key"');
+    expect(result.content[0]?.text).toContain('"value"');
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { createSpinner, withSpinner } from "@utils/spinner";
 
 describe("Spinner Utilities", () => {
@@ -43,6 +43,51 @@ describe("Spinner Utilities", () => {
 
     await expect(withSpinner("Processing...", testFn)).rejects.toThrow(
       "Test error",
+    );
+  });
+});
+
+describe("Spinner with TTY", () => {
+  const originalIsTTY = process.stdout.isTTY;
+
+  beforeEach(() => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: originalIsTTY,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  test("withSpinner shows spinner in TTY mode", async () => {
+    const testFn = vi.fn().mockResolvedValue("tty result");
+
+    const result = await withSpinner("Loading...", testFn);
+
+    expect(testFn).toHaveBeenCalled();
+    expect(result).toBe("tty result");
+  });
+
+  test("withSpinner shows spinner with custom success text in TTY", async () => {
+    const testFn = vi.fn().mockResolvedValue("done");
+
+    const result = await withSpinner("Working...", testFn, "Completed!");
+
+    expect(result).toBe("done");
+  });
+
+  test("withSpinner handles errors in TTY mode", async () => {
+    const testFn = vi.fn().mockRejectedValue(new Error("TTY error"));
+
+    await expect(withSpinner("Processing...", testFn)).rejects.toThrow(
+      "TTY error",
     );
   });
 });

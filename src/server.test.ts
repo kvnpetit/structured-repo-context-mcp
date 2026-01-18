@@ -23,4 +23,9 @@ describe("MCP Server", () => {
     const server = createServer();
     expect(typeof server.connect).toBe("function");
   });
+
+  test("server has close method", () => {
+    const server = createServer();
+    expect(typeof server.close).toBe("function");
+  });
 });

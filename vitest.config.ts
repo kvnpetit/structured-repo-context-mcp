@@ -32,6 +32,12 @@ export default defineConfig({
         "src/**/*.test.ts",
         "src/**/*.config.*",
         "src/types/**",
+        "src/**/types.ts",
+        "src/bin.ts",
+        "src/index.ts",
+        "src/prompts/index.ts",
+        "src/utils/index.ts",
+        "src/server.ts",
       ],
       thresholds: {
         lines: 80,
