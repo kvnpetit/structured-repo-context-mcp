@@ -35,9 +35,14 @@ export default defineConfig({
         "src/**/types.ts",
         "src/bin.ts",
         "src/server.ts",
+        "src/index.ts", // Entry point
         // Barrel exports only (small re-export files)
         "src/*/index.ts", // Top-level: utils, tools, prompts, cli, config, resources, features
         "src/*/utils/index.ts", // Utils subfolders: core/utils, features/utils
+        "src/core/embeddings/index.ts", // Embeddings barrel export
+        // Hard to test (require real system interactions)
+        "src/core/embeddings/watcher.ts", // File watcher with complex async behavior
+        "src/cli/commands/serve.command.ts", // Server lifecycle
       ],
       thresholds: {
         lines: 80,

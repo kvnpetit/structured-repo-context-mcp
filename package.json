@@ -1,6 +1,6 @@
 {
   "name": "src-mcp",
-  "version": "1.0.0-SNAPSHOT",
+  "version": "1.0.0-dev",
   "description": "MCP server for semantic code search and codebase analysis — Treesitter parsing, AST extraction, and embedding-based indexing for any LLM that supports MCP",
   "type": "module",
   "main": "./dist/index.js",
