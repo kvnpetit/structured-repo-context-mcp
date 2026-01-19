@@ -13,17 +13,19 @@
 
 1. [Naming Conventions](#naming-conventions)
 2. [Project Structure](#project-structure)
-3. [Creating Features](#creating-features)
-4. [Testing Strategy](#testing-strategy)
-5. [MCP Protocol](#mcp-protocol)
-6. [CLI Integration](#cli-integration)
-7. [Configuration](#configuration)
-8. [MCP Client Setup](#mcp-client-setup)
-9. [Security](#security)
-10. [Versioning](#versioning)
-11. [Releasing](#releasing)
-12. [SEO & Publishing](#seo--publishing)
-13. [Best Practices](#best-practices)
+3. [Available MCP Tools](#available-mcp-tools)
+4. [Supported Languages](#supported-languages)
+5. [Creating Features](#creating-features)
+6. [Testing Strategy](#testing-strategy)
+7. [MCP Protocol](#mcp-protocol)
+8. [CLI Integration](#cli-integration)
+9. [Configuration](#configuration)
+10. [MCP Client Setup](#mcp-client-setup)
+11. [Security](#security)
+12. [Versioning](#versioning)
+13. [Releasing](#releasing)
+14. [SEO & Publishing](#seo--publishing)
+15. [Best Practices](#best-practices)
 
 ---
 
@@ -64,12 +66,26 @@ src/
 ├── index.ts              # MCP server entry point
 ├── bin.ts                # CLI entry point
 ├── server.ts             # Server configuration
-├── features/             # Shared business logic
-│   ├── index.ts          # Feature exports
-│   ├── types.ts          # Feature types
-│   └── info/             # Server info feature
-│       ├── index.ts
-│       └── index.test.ts
+├── features/             # Business logic (exposed as MCP tools + CLI)
+│   ├── index.ts          # Feature registry
+│   ├── types.ts          # Feature interfaces
+│   ├── utils/            # Shared feature utilities
+│   │   ├── content.ts    # File/content reading helpers
+│   │   └── result.ts     # Result formatting helpers
+│   ├── info/             # Server info feature
+│   ├── analyze-file/     # Comprehensive file analysis
+│   ├── parse-ast/        # AST parsing
+│   ├── query-code/       # SCM query execution
+│   └── list-symbols/     # Symbol extraction
+├── core/                 # Parsing & analysis engines
+│   ├── parser/           # Tree-sitter WASM parser
+│   ├── symbols/          # Symbol extraction engine
+│   ├── queries/          # SCM query execution
+│   ├── unified/          # Unified parser with fallback
+│   ├── fallback/         # LangChain text splitter
+│   ├── ast/              # AST type definitions
+│   ├── utils/            # Asset loading, caching
+│   └── constants.ts      # Configuration constants
 ├── tools/                # MCP tools adapter
 ├── resources/            # MCP resources
 ├── prompts/              # MCP prompts
@@ -77,6 +93,11 @@ src/
 ├── config/               # Configuration
 ├── types/                # Shared TypeScript types
 └── utils/                # Utilities (logger, colors, spinner)
+
+assets/                   # Runtime assets
+├── wasm/                 # Tree-sitter WASM parsers (18 languages)
+├── queries/              # Official SCM query files per language
+└── languages.json        # Language configuration
 ```
 
 ### Key Principles
@@ -100,28 +121,52 @@ graph TB
         CLI_ADAPT[cli/adapter.ts<br/>Zod → citty]
     end
 
-    subgraph Core["Business Logic"]
-        FEATURES[features/index.ts]
+    subgraph Features["Business Logic"]
+        FEAT_REG[features/index.ts]
         INFO[info/]
-        YOUR[your-feature/]
+        ANALYZE[analyze-file/]
+        PARSE[parse-ast/]
+        QUERY[query-code/]
+        SYMBOLS[list-symbols/]
+    end
+
+    subgraph Core["Parsing Engines"]
+        PARSER[parser/<br/>Tree-sitter WASM]
+        UNIFIED[unified/<br/>Fallback system]
+        QUERIES[queries/<br/>SCM execution]
+        SYMEXT[symbols/<br/>Extraction]
+    end
+
+    subgraph Assets["Assets"]
+        WASM[wasm/<br/>18 parsers]
+        SCM[queries/<br/>SCM files]
+        LANG[languages.json]
     end
 
     subgraph Shared["Shared"]
         CONFIG[config/]
         TYPES[types/]
         UTILS[utils/]
-        PROMPTS[prompts/]
     end
 
     INDEX --> TOOLS
     BIN --> CLI_ADAPT
-    TOOLS --> FEATURES
-    CLI_ADAPT --> FEATURES
-    FEATURES --> INFO
-    FEATURES --> YOUR
+    TOOLS --> FEAT_REG
+    CLI_ADAPT --> FEAT_REG
+    FEAT_REG --> INFO
+    FEAT_REG --> ANALYZE
+    FEAT_REG --> PARSE
+    FEAT_REG --> QUERY
+    FEAT_REG --> SYMBOLS
 
-    INFO -.-> CONFIG
-    INFO -.-> UTILS
+    ANALYZE --> UNIFIED
+    PARSE --> PARSER
+    QUERY --> QUERIES
+    SYMBOLS --> SYMEXT
+
+    PARSER --> WASM
+    QUERIES --> SCM
+    UNIFIED --> LANG
 ```
 
 ### Data Flow
@@ -150,6 +195,103 @@ flowchart LR
     TERM --> CLIBIN --> CLIADAPT --> FEAT
     FEAT -->|FeatureResult| MCPRES
     FEAT -->|FeatureResult| CLIOUT
+```
+
+---
+
+## Available MCP Tools
+
+SRC provides 4 code analysis tools automatically exposed as MCP tools:
+
+### `analyze_file`
+
+Comprehensive file analysis returning symbols, imports, exports, and metrics.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `file_path` | string (required) | Path to file to analyze |
+| `include_ast` | boolean | Include AST in response |
+| `include_symbols` | boolean | Include extracted symbols |
+| `include_imports` | boolean | Include import statements |
+| `include_exports` | boolean | Include export statements |
+| `ast_max_depth` | number | Maximum AST depth |
+| `include_chunks` | boolean | Include text chunks (fallback) |
+
+### `parse_ast`
+
+Parse code and return Abstract Syntax Tree.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `file_path` | string | Path to file (or use `content`) |
+| `content` | string | Direct code content |
+| `language` | string | Language (auto-detected if not provided) |
+| `max_depth` | number | Maximum AST traversal depth |
+
+### `query_code`
+
+Execute Tree-sitter SCM queries on code.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `file_path` | string | Path to file (or use `content`) |
+| `content` | string | Direct code content |
+| `language` | string | Language (auto-detected) |
+| `query` | string | Custom SCM query pattern |
+| `preset` | enum | Preset query: `functions`, `classes`, `imports`, `exports`, `comments`, `strings`, `variables`, `types` |
+| `max_matches` | number | Maximum matches to return |
+
+### `list_symbols`
+
+Extract structured symbol information from code.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `file_path` | string | Path to file (or use `content`) |
+| `content` | string | Direct code content |
+| `language` | string | Language (auto-detected) |
+| `types` | array | Filter by symbol types: `function`, `class`, `variable`, `constant`, `interface`, `type`, `enum`, `method`, `property` |
+
+---
+
+## Supported Languages
+
+### Full AST Support (Tree-sitter)
+
+18 languages with complete AST parsing and symbol extraction:
+
+| Category | Languages |
+|----------|-----------|
+| **Web** | JavaScript, TypeScript, TSX, HTML, Svelte |
+| **Compiled** | C, C++, C#, Java, Go, Rust |
+| **Dynamic** | Python, Ruby, PHP |
+| **JVM** | Kotlin, Scala |
+| **Other** | OCaml, Swift |
+
+### Fallback Support (LangChain)
+
+~30 additional languages supported via intelligent text splitting.
+
+### Language Configuration
+
+Languages are configured in `assets/languages.json`:
+
+```json
+{
+  "treesitter": {
+    "javascript": {
+      "wasm": "tree-sitter-javascript.wasm",
+      "queries": "javascript",
+      "extensions": [".js", ".mjs", ".cjs"]
+    }
+  },
+  "langchain": {
+    "supported": ["markdown", "latex", "rst", ...]
+  },
+  "fallbackExtensions": { ".dockerfile": "dockerfile" },
+  "specialFilenames": { "Dockerfile": "dockerfile" },
+  "binaryExtensions": [".exe", ".dll", ...]
+}
 ```
 
 ---

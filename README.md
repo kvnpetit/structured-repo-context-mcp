@@ -132,12 +132,35 @@ Your AI assistant gets:
 
 ---
 
+## 🛠️ Available MCP Tools
+
+SRC provides **4 powerful code analysis tools**:
+
+| Tool | Description |
+| ---- | ----------- |
+| **`analyze_file`** | Comprehensive file analysis — symbols, imports, exports, metrics |
+| **`parse_ast`** | Parse code and return Abstract Syntax Tree with depth control |
+| **`query_code`** | Execute Tree-sitter SCM queries (8 presets + custom patterns) |
+| **`list_symbols`** | Extract structured symbols (functions, classes, variables, etc.) |
+
+### Supported Languages
+
+**Full AST Support (18 languages):**
+JavaScript, TypeScript, TSX, Python, Go, Rust, Java, C, C++, C#, PHP, Ruby, HTML, Svelte, Kotlin, Scala, OCaml, Swift
+
+**Intelligent Fallback (~30+ additional languages):**
+Language-aware text splitting for any language not in the AST list
+
+---
+
 ## ✨ Features
 
 | Feature                | Benefit                                                           |
 | ---------------------- | ----------------------------------------------------------------- |
 | **Treesitter Parsing** | Fast, accurate syntax parsing with SCM query support              |
 | **AST Analysis**       | Deep code structure understanding (symbols, relationships, scope) |
+| **Symbol Extraction**  | Functions, classes, variables, imports, exports with position info |
+| **SCM Queries**        | Preset queries (functions, classes, imports) + custom patterns    |
 | **Vector Embeddings**  | Semantic search that understands code meaning                     |
 | **Context Enrichment** | Metadata, types, imports, and cross-references                    |
 | **MCP Protocol**       | Works with any MCP-compatible client                              |
