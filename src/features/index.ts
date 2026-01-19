@@ -1,24 +1,27 @@
 export type * from "@features/types";
 export { infoFeature, getServerInfo } from "@features/info";
+export { indexCodebaseFeature } from "@features/index-codebase";
+export { searchCodeFeature } from "@features/search-code";
+export { getIndexStatusFeature } from "@features/get-index-status";
+
+// Internal exports (not exposed via CLI/MCP)
 export { parseAstFeature } from "@features/parse-ast";
 export { queryCodeFeature } from "@features/query-code";
 export { listSymbolsFeature } from "@features/list-symbols";
 export { analyzeFileFeature } from "@features/analyze-file";
 
 import type { Feature } from "@features/types";
-import { analyzeFileFeature } from "@features/analyze-file";
+import { getIndexStatusFeature } from "@features/get-index-status";
+import { indexCodebaseFeature } from "@features/index-codebase";
 import { infoFeature } from "@features/info";
-import { listSymbolsFeature } from "@features/list-symbols";
-import { parseAstFeature } from "@features/parse-ast";
-import { queryCodeFeature } from "@features/query-code";
+import { searchCodeFeature } from "@features/search-code";
 
-// Registry of all features
+// Registry of features exposed via CLI and MCP
 export const features: Feature[] = [
   infoFeature,
-  parseAstFeature,
-  queryCodeFeature,
-  listSymbolsFeature,
-  analyzeFileFeature,
+  indexCodebaseFeature,
+  searchCodeFeature,
+  getIndexStatusFeature,
 ];
 
 export function getFeature(name: string): Feature | undefined {
