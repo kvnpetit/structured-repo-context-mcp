@@ -17,6 +17,7 @@
   },
   "files": [
     "dist",
+    "assets",
     "README.md",
     "LICENSE"
   ],
@@ -41,10 +42,12 @@
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s"
   },
   "dependencies": {
+    "@langchain/textsplitters": "^1.0.1",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "citty": "^0.1.6",
     "ora": "^9.0.0",
     "picocolors": "^1.1.1",
+    "web-tree-sitter": "^0.26.3",
     "zod": "^4.3.5"
   },
   "devDependencies": {

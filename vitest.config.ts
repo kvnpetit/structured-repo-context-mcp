@@ -34,10 +34,10 @@ export default defineConfig({
         "src/types/**",
         "src/**/types.ts",
         "src/bin.ts",
-        "src/index.ts",
-        "src/prompts/index.ts",
-        "src/utils/index.ts",
         "src/server.ts",
+        // Barrel exports only (small re-export files)
+        "src/*/index.ts", // Top-level: utils, tools, prompts, cli, config, resources, features
+        "src/*/utils/index.ts", // Utils subfolders: core/utils, features/utils
       ],
       thresholds: {
         lines: 80,
@@ -50,6 +50,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@core": path.resolve(__dirname, "./src/core"),
       "@features": path.resolve(__dirname, "./src/features"),
       "@tools": path.resolve(__dirname, "./src/tools"),
       "@resources": path.resolve(__dirname, "./src/resources"),

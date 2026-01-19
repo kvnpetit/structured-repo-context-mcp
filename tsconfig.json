@@ -36,6 +36,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "@core": ["src/core"],
+      "@core/*": ["src/core/*"],
       "@features": ["src/features"],
       "@features/*": ["src/features/*"],
       "@tools": ["src/tools"],
