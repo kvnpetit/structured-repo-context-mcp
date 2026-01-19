@@ -1,49 +1,20 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execute, indexCodebaseSchema } from "@features/index-codebase";
+import * as embeddings from "@core/embeddings";
 
 // Mock the entire embeddings module
-vi.mock("@core/embeddings", () => ({
-  createOllamaClient: vi.fn().mockImplementation(() => ({
-    healthCheck: vi.fn().mockResolvedValue({ ok: true }),
-    embedBatch: vi
-      .fn()
-      .mockImplementation(async (texts: string[]) =>
-        Promise.resolve(
-          texts.map(() => new Array(768).fill(0).map(() => Math.random())),
-        ),
-      ),
-  })),
-  createVectorStore: vi.fn().mockImplementation(() => ({
-    exists: vi.fn().mockReturnValue(false),
-    connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
-    clear: vi.fn().mockResolvedValue(undefined),
-    addChunks: vi.fn().mockResolvedValue(undefined),
-  })),
-  chunkFile: vi
-    .fn()
-    .mockImplementation(async (filePath: string, content: string) =>
-      Promise.resolve([
-        {
-          id: "chunk_1",
-          content,
-          filePath,
-          language: "typescript",
-          startLine: 1,
-          endLine: 1,
-        },
-      ]),
-    ),
-  shouldIndexFile: vi
-    .fn()
-    .mockImplementation(
-      (filePath: string) =>
-        filePath.endsWith(".ts") || filePath.endsWith(".js"),
-    ),
-}));
+vi.mock("@core/embeddings");
 
 describe("indexCodebaseSchema", () => {
   test("applies default directory", () => {
@@ -91,9 +62,64 @@ describe("indexCodebaseSchema", () => {
 
 describe("execute", () => {
   let tempDir: string;
+  let mockHealthCheck: Mock;
+  let mockEmbedBatch: Mock;
+  let mockExists: Mock;
+  let mockConnect: Mock;
+  let mockClose: Mock;
+  let mockClear: Mock;
+  let mockAddChunks: Mock;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "index-test-"));
+    vi.clearAllMocks();
+
+    // Setup mocks
+    mockHealthCheck = vi.fn().mockResolvedValue({ ok: true });
+    mockEmbedBatch = vi
+      .fn()
+      .mockImplementation(async (texts: string[]) =>
+        Promise.resolve(
+          texts.map(() => new Array(768).fill(0).map(() => Math.random())),
+        ),
+      );
+    mockExists = vi.fn().mockReturnValue(false);
+    mockConnect = vi.fn().mockResolvedValue(undefined);
+    mockClose = vi.fn().mockResolvedValue(undefined);
+    mockClear = vi.fn().mockResolvedValue(undefined);
+    mockAddChunks = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(embeddings.createOllamaClient).mockReturnValue({
+      healthCheck: mockHealthCheck,
+      embedBatch: mockEmbedBatch,
+    } as unknown as embeddings.OllamaClient);
+
+    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+      exists: mockExists,
+      connect: mockConnect,
+      close: mockClose,
+      clear: mockClear,
+      addChunks: mockAddChunks,
+    } as unknown as embeddings.VectorStore);
+
+    vi.mocked(embeddings.chunkFile).mockImplementation(
+      async (filePath: string, content: string) =>
+        Promise.resolve([
+          {
+            id: "chunk_1",
+            content,
+            filePath,
+            language: "typescript",
+            startLine: 1,
+            endLine: 1,
+          },
+        ]),
+    );
+
+    vi.mocked(embeddings.shouldIndexFile).mockImplementation(
+      (filePath: string) =>
+        filePath.endsWith(".ts") || filePath.endsWith(".js"),
+    );
   });
 
   afterEach(() => {
@@ -198,5 +224,188 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveProperty("filesIndexed", 1);
+  });
+
+  test("returns error when Ollama health check fails", async () => {
+    mockHealthCheck.mockResolvedValue({
+      ok: false,
+      error: "Ollama unavailable",
+    });
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Ollama unavailable");
+  });
+
+  test("returns error when Ollama health check fails without message", async () => {
+    mockHealthCheck.mockResolvedValue({ ok: false });
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Ollama is not available");
+  });
+
+  test("returns error when index exists and force is false", async () => {
+    mockExists.mockReturnValue(true);
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Index already exists");
+  });
+
+  test("clears existing index when force is true", async () => {
+    mockExists.mockReturnValue(true);
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    const result = await execute({
+      directory: tempDir,
+      force: true,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockClear).toHaveBeenCalled();
+  });
+
+  test("handles file processing errors", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    vi.mocked(embeddings.chunkFile).mockRejectedValueOnce(
+      new Error("Parse error"),
+    );
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { errors: string[] };
+    expect(data.errors.length).toBeGreaterThan(0);
+    expect(data.errors[0]).toContain("Error processing");
+  });
+
+  test("handles embedding batch errors", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    mockEmbedBatch.mockRejectedValueOnce(new Error("Embedding failed"));
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { errors: string[] };
+    expect(data.errors.length).toBeGreaterThan(0);
+    expect(data.errors[0]).toContain("Embedding batch error");
+  });
+
+  test("reports message with errors when partial success", async () => {
+    fs.writeFileSync(path.join(tempDir, "test1.ts"), "export const a = 1;");
+    fs.writeFileSync(path.join(tempDir, "test2.ts"), "export const b = 2;");
+
+    vi.mocked(embeddings.chunkFile)
+      .mockResolvedValueOnce([
+        {
+          id: "1",
+          content: "a",
+          filePath: "test1.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+      ])
+      .mockRejectedValueOnce(new Error("Parse error"));
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("with");
+    expect(result.message).toContain("errors");
+  });
+
+  test("handles global indexing errors", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    mockConnect.mockRejectedValueOnce(new Error("Connection failed"));
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Indexing failed");
+    expect(result.error).toContain("Connection failed");
+  });
+
+  test("handles non-Error exceptions in file processing", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    vi.mocked(embeddings.chunkFile).mockRejectedValueOnce("string error");
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { errors: string[] };
+    expect(data.errors[0]).toContain("string error");
+  });
+
+  test("handles non-Error exceptions in embedding batch", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    mockEmbedBatch.mockRejectedValueOnce("embedding string error");
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { errors: string[] };
+    expect(data.errors[0]).toContain("embedding string error");
+  });
+
+  test("handles non-Error exceptions in global catch", async () => {
+    fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
+
+    mockConnect.mockRejectedValueOnce("connection string error");
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("connection string error");
   });
 });

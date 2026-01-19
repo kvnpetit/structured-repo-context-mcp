@@ -200,3 +200,116 @@ describe("getIndexPath", () => {
     expect(indexPath).toBe(path.join("/test/dir", ".src-index"));
   });
 });
+
+describe("VectorStore advanced operations", () => {
+  let tempDir: string;
+
+  const mockConfig = {
+    embeddingDimensions: 768,
+  };
+
+  const createMockChunk = (id: string, filePath: string) => ({
+    id,
+    content: `function ${id}() { return true; }`,
+    filePath,
+    language: "typescript",
+    startLine: 1,
+    endLine: 3,
+    symbolName: id,
+    symbolType: "function",
+    vector: new Array(768).fill(0).map(() => Math.random()),
+  });
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("reopens existing table on connect", async () => {
+    // First connection - create table
+    const store1 = new VectorStore(tempDir, mockConfig);
+    await store1.connect();
+    await store1.addChunks([createMockChunk("func1", "/test/file1.ts")]);
+    store1.close();
+
+    // Second connection - should reopen existing table
+    const store2 = new VectorStore(tempDir, mockConfig);
+    await store2.connect();
+    const status = await store2.getStatus(tempDir);
+
+    expect(status.totalChunks).toBe(1);
+    store2.close();
+  });
+
+  test("adds chunks to existing table", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    // First batch
+    await store.addChunks([createMockChunk("func1", "/test/file1.ts")]);
+
+    // Second batch - should add to existing table
+    await store.addChunks([createMockChunk("func2", "/test/file2.ts")]);
+
+    const status = await store.getStatus(tempDir);
+    expect(status.totalChunks).toBe(2);
+
+    store.close();
+  });
+
+  test("getIndexedFiles returns empty when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    const files = await store.getIndexedFiles();
+    expect(files).toEqual([]);
+
+    store.close();
+  });
+
+  test("getStatus returns default when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    const status = await store.getStatus(tempDir);
+    expect(status.totalChunks).toBe(0);
+    expect(status.totalFiles).toBe(0);
+
+    store.close();
+  });
+
+  test("clear does nothing when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    // Should not throw
+    await store.clear();
+    expect(true).toBe(true);
+
+    store.close();
+  });
+
+  test("handles chunks without optional symbol fields", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    const chunkWithoutSymbol = {
+      id: "chunk1",
+      content: "const x = 1;",
+      filePath: "/test/file.ts",
+      language: "typescript",
+      startLine: 1,
+      endLine: 1,
+      vector: new Array(768).fill(0),
+    };
+
+    await store.addChunks([chunkWithoutSymbol]);
+    const status = await store.getStatus(tempDir);
+    expect(status.totalChunks).toBe(1);
+
+    store.close();
+  });
+});

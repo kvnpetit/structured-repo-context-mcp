@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { execute, getServerInfo, infoSchema } from "@features/info";
 
 describe("info feature", () => {
@@ -35,15 +35,11 @@ describe("info feature", () => {
   });
 
   test("should handle description in text format", () => {
-    // Note: Dynamic module mocking (vi.doMock) is not supported in Bun's test runner.
-    // The undefined description case is handled by the nullish coalescing operator (??)
-    // in the implementation: `const description = info.description ?? ""`
     const input = infoSchema.parse({ format: "text" });
     const result = execute(input);
 
     expect(result.success).toBe(true);
     expect(result.message).toBeDefined();
-    // Verify the message format includes the expected components
     expect(result.message).toContain("SRC");
     expect(result.message).toContain("src-mcp");
   });
@@ -53,5 +49,34 @@ describe("info feature", () => {
     expect(() => infoSchema.parse({ format: "text" })).not.toThrow();
     expect(() => infoSchema.parse({ format: "json" })).not.toThrow();
     expect(() => infoSchema.parse({ format: "invalid" })).toThrow();
+  });
+});
+
+describe("info feature with undefined description", () => {
+  test("handles undefined description gracefully", async () => {
+    // Mock config to return undefined description
+    vi.doMock("@config", () => ({
+      config: {
+        name: "test-server",
+        fullName: "Test Server",
+        version: "1.0.0",
+        description: undefined,
+      },
+    }));
+
+    vi.resetModules();
+    const { execute: freshExecute, infoSchema: freshSchema } =
+      await import("@features/info");
+
+    const input = freshSchema.parse({ format: "text" });
+    const result = freshExecute(input);
+
+    expect(result.success).toBe(true);
+    // When description is undefined, the nullish coalescing operator returns ""
+    // and .trim() removes trailing newline from empty description
+    expect(result.message).toBeDefined();
+
+    vi.doUnmock("@config");
+    vi.resetModules();
   });
 });

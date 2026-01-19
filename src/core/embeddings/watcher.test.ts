@@ -1,43 +1,25 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { IndexWatcher } from "@core/embeddings/watcher";
 import type { EmbeddingConfig } from "@core/embeddings/types";
+import { watch } from "chokidar";
+import { OllamaClient } from "@core/embeddings/client";
+import { VectorStore } from "@core/embeddings/store";
 
-// Mock chokidar
-const mockOn = vi.fn();
-const mockClose = vi.fn().mockResolvedValue(undefined);
-vi.mock("chokidar", () => ({
-  watch: vi.fn().mockReturnValue({
-    on: mockOn,
-    close: mockClose,
-  }),
-}));
-
-// Mock OllamaClient
-vi.mock("@core/embeddings/client", () => ({
-  OllamaClient: vi.fn().mockImplementation(() => ({
-    healthCheck: vi.fn().mockResolvedValue({ ok: true }),
-    embed: vi.fn().mockResolvedValue(new Array<number>(768).fill(0)),
-    embedBatch: vi.fn().mockImplementation((texts: string[]): number[][] => {
-      return texts.map(() => new Array<number>(768).fill(0));
-    }),
-  })),
-}));
-
-// Mock VectorStore
-vi.mock("@core/embeddings/store", () => ({
-  VectorStore: vi.fn().mockImplementation(() => ({
-    exists: vi.fn().mockReturnValue(true),
-    connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn(),
-    addChunks: vi.fn().mockResolvedValue(undefined),
-    deleteByFilePath: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-// Mock chunker
+// Mock modules
+vi.mock("chokidar");
+vi.mock("@core/embeddings/client");
+vi.mock("@core/embeddings/store");
 vi.mock("@core/embeddings/chunker", () => ({
   chunkFile: vi.fn().mockResolvedValue([
     {
@@ -55,10 +37,14 @@ vi.mock("@core/embeddings/chunker", () => ({
       (filePath: string) =>
         filePath.endsWith(".ts") || filePath.endsWith(".js"),
     ),
+  SUPPORTED_EXTENSIONS: [".ts", ".js"],
 }));
 
 describe("IndexWatcher", () => {
   let tempDir: string;
+  let mockOn: Mock;
+  let mockClose: Mock;
+
   const mockConfig: EmbeddingConfig = {
     ollamaBaseUrl: "http://localhost:11434",
     embeddingModel: "nomic-embed-text",
@@ -72,14 +58,42 @@ describe("IndexWatcher", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "watcher-test-"));
     vi.clearAllMocks();
 
-    // Reset mockOn to capture event handlers
-    mockOn.mockImplementation(function (
-      this: { on: typeof mockOn },
+    // Setup chokidar mock
+    mockOn = vi.fn().mockImplementation(function (
+      this: { on: Mock },
       _event: string,
       _handler: () => void,
     ) {
       return this;
     });
+    mockClose = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(watch).mockReturnValue({
+      on: mockOn,
+      close: mockClose,
+    } as unknown as ReturnType<typeof watch>);
+
+    // Setup OllamaClient mock - use regular function so it can be used as constructor
+    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+      this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
+      this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
+      this.embedBatch = vi
+        .fn()
+        .mockImplementation((texts: string[]): number[][] => {
+          return texts.map(() => new Array<number>(768).fill(0));
+        });
+      return this;
+    } as unknown as typeof OllamaClient);
+
+    // Setup VectorStore mock - use regular function so it can be used as constructor
+    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+      this.exists = vi.fn().mockReturnValue(true);
+      this.connect = vi.fn().mockResolvedValue(undefined);
+      this.close = vi.fn();
+      this.addChunks = vi.fn().mockResolvedValue(undefined);
+      this.deleteByFilePath = vi.fn().mockResolvedValue(undefined);
+      return this;
+    } as unknown as typeof VectorStore);
   });
 
   afterEach(() => {
@@ -144,7 +158,7 @@ describe("IndexWatcher", () => {
     // Setup mockOn to capture and call the ready handler
     let readyHandler: (() => void) | undefined;
     mockOn.mockImplementation(function (
-      this: { on: typeof mockOn },
+      this: { on: Mock },
       event: string,
       handler: () => void,
     ) {
@@ -177,7 +191,7 @@ describe("IndexWatcher", () => {
     // Setup mockOn to capture and call the error handler
     let errorHandler: ((error: Error) => void) | undefined;
     mockOn.mockImplementation(function (
-      this: { on: typeof mockOn },
+      this: { on: Mock },
       event: string,
       handler: (error: Error) => void,
     ) {

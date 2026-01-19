@@ -1,7 +1,7 @@
 import { unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { hasContentSource, readContent } from "@features/utils";
 
@@ -94,5 +94,79 @@ describe("Content Utilities", () => {
     test("returns false when both undefined", () => {
       expect(hasContentSource(undefined, undefined)).toBe(false);
     });
+  });
+});
+
+describe("Content Utilities - Error Handling", () => {
+  test("handles non-Error thrown values", async () => {
+    // Mock fs.readFileSync to throw a non-Error value
+    vi.doMock("fs", () => ({
+      readFileSync: () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw "string error"; // Throw a string instead of Error
+      },
+    }));
+
+    vi.resetModules();
+    const { readContent: freshReadContent } =
+      await import("@features/utils/content");
+
+    const result = freshReadContent("/some/path.ts");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Failed to read file");
+      expect(result.error).toContain("string error");
+    }
+
+    vi.doUnmock("fs");
+    vi.resetModules();
+  });
+
+  test("handles thrown numbers", async () => {
+    vi.doMock("fs", () => ({
+      readFileSync: () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 42; // Throw a number
+      },
+    }));
+
+    vi.resetModules();
+    const { readContent: freshReadContent } =
+      await import("@features/utils/content");
+
+    const result = freshReadContent("/some/path.ts");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Failed to read file");
+      expect(result.error).toContain("42");
+    }
+
+    vi.doUnmock("fs");
+    vi.resetModules();
+  });
+
+  test("handles thrown objects", async () => {
+    vi.doMock("fs", () => ({
+      readFileSync: () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw { code: "EACCES", message: "Permission denied" };
+      },
+    }));
+
+    vi.resetModules();
+    const { readContent: freshReadContent } =
+      await import("@features/utils/content");
+
+    const result = freshReadContent("/some/path.ts");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Failed to read file");
+    }
+
+    vi.doUnmock("fs");
+    vi.resetModules();
   });
 });

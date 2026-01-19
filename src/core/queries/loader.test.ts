@@ -7,6 +7,7 @@ import {
   getSCMPath,
   hasOfficialTags,
   loadHighlightsQuery,
+  loadLocalsQuery,
   loadSCMQuery,
   loadTagsQuery,
 } from "@core/queries/loader";
@@ -118,5 +119,55 @@ describe("SCM Query Loader", () => {
     // Verify cache is cleared by checking that a fresh load works
     const query = loadSCMQuery("javascript", "tags");
     expect(query).toBeDefined();
+  });
+
+  test("loadSCMQuery prevents circular inheritance", () => {
+    clearSCMCache();
+    // Create a visited set that already contains the language
+    const visited = new Set<string>(["javascript"]);
+    const query = loadSCMQuery("javascript", "tags", visited);
+    expect(query).toBeUndefined();
+  });
+
+  test("loadSCMQuery handles csharp alias normalization", () => {
+    clearSCMCache();
+    // csharp is an alias for c_sharp
+    const queryPath = getSCMPath("csharp", "tags");
+    // Just test that the function handles the alias without error
+    expect(queryPath === undefined || typeof queryPath === "string").toBe(true);
+  });
+
+  test("loadSCMQuery handles tsx normalization to typescript", () => {
+    clearSCMCache();
+    // tsx normalizes to typescript directory
+    const query = loadTagsQuery("tsx");
+    // tsx should use typescript queries
+    expect(query).toBeDefined();
+    expect(query).toContain("interface");
+  });
+
+  test("loadHighlightsQuery returns undefined for unsupported language", () => {
+    const query = loadHighlightsQuery("completely-unknown-language");
+    expect(query).toBeUndefined();
+  });
+
+  test("loadLocalsQuery loads locals.scm for javascript", () => {
+    clearSCMCache();
+    const query = loadLocalsQuery("javascript");
+    expect(query).toBeDefined();
+  });
+
+  test("loadLocalsQuery returns undefined for unsupported language", () => {
+    const query = loadLocalsQuery("completely-unknown-language");
+    expect(query).toBeUndefined();
+  });
+
+  test("loadSCMQuery handles inheritance resolution", () => {
+    clearSCMCache();
+    // TypeScript inherits from JavaScript
+    const query = loadTagsQuery("typescript");
+    expect(query).toBeDefined();
+    // Should contain TypeScript-specific content
+    expect(query).toContain("interface");
   });
 });

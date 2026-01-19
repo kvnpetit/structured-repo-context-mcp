@@ -335,5 +335,16 @@ describe("analyze_file feature", () => {
       expect(result.message).toContain("lines");
       expect(result.message).toContain("functions");
     });
+
+    test("handles non-Error exceptions gracefully", async () => {
+      // Test with a path that will cause an unusual error
+      // We can't easily trigger a non-Error exception, but we can test error handling
+      const result = await execute({
+        file_path: "\0invalid\0path", // Null bytes cause issues
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
   });
 });

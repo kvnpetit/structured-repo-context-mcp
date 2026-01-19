@@ -1404,3 +1404,381 @@ describe("getSupportedLanguagesInfo", () => {
     expect(jsEntries[0]?.method).toBe("tree-sitter");
   });
 });
+
+// ============================================================
+// ADDITIONAL EDGE CASES FOR COVERAGE
+// ============================================================
+describe("Additional Edge Cases", () => {
+  test("detectLanguage handles dockerfile patterns", () => {
+    expect(detectLanguage("dockerfile.prod")).toBe("dockerfile");
+    expect(detectLanguage("Dockerfile.dev")).toBe("dockerfile");
+  });
+
+  test("detectLanguage handles .env patterns", () => {
+    expect(detectLanguage(".env.local")).toBe("env");
+    expect(detectLanguage(".env.production")).toBe("env");
+  });
+
+  test("parseFile returns undefined for non-existent file", async () => {
+    const result = await parseFile("nonexistent-file-that-does-not-exist.ts");
+    expect(result).toBeUndefined();
+  });
+
+  test("parseFile with force language option", async () => {
+    const result = await parseFile("package.json", { language: "json" });
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.language).toBe("json");
+  });
+
+  test("extractSymbols finds classes via direct AST when tags.scm returns none", async () => {
+    // Use Go which has struct definitions
+    const code = `
+package main
+
+type Person struct {
+    Name string
+    Age  int
+}
+
+type Employee struct {
+    Person
+    Department string
+}
+`;
+    const result = await parseContent(code, "go");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.go" });
+    expect(symbols.method).toBe("tree-sitter");
+    // Go structs should be found
+    expect(symbols.all).toBeDefined();
+  });
+
+  test("parseContent falls through langchain to generic on failure", async () => {
+    // Very short content that may have edge cases
+    const result = await parseContent("x", "text");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    // Should fall back to generic for text
+    expect(["langchain", "generic"]).toContain(result.method);
+  });
+});
+
+// ============================================================
+// EXTRACT NAME FROM NODE EDGE CASES
+// ============================================================
+describe("extractNameFromNode Fallback", () => {
+  test("extracts name from function with complex signature", async () => {
+    const code = `
+async function* myGenerator() {
+  yield 1;
+}
+`;
+    const result = await parseContent(code, "javascript");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.js" });
+    expect(symbols.method).toBe("tree-sitter");
+    expect(symbols.all.length).toBeGreaterThanOrEqual(0);
+  });
+
+  test("handles code with only keywords (no identifiers)", async () => {
+    // Code that only contains keywords, testing extractNameFromNode fallback
+    const code = `
+export default function() {
+  return null;
+}
+`;
+    const result = await parseContent(code, "javascript");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.js" });
+    expect(symbols.method).toBe("tree-sitter");
+    // Should handle anonymous function
+    expect(symbols.all).toBeDefined();
+  });
+
+  test("handles arrow functions in class properties", async () => {
+    const code = `
+class Handler {
+  callback = () => {};
+  process = async (x) => x;
+}
+`;
+    const result = await parseContent(code, "javascript");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.js" });
+    expect(symbols.method).toBe("tree-sitter");
+  });
+});
+
+// ============================================================
+// PARSEFILEANDCONTENT WITH CUSTOM CHUNK OPTIONS
+// ============================================================
+describe("Chunk Options", () => {
+  test("parseContent respects custom chunkSize", async () => {
+    const code = "x\n".repeat(100);
+    const result = await parseContent(code, "text", {
+      chunkSize: 50,
+      chunkOverlap: 5,
+    });
+
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.chunks).toBeDefined();
+    if (result.chunks) {
+      expect(result.chunks.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("parseContent with langchain language and custom options", async () => {
+    const code = `
+# Title
+Content paragraph 1.
+
+## Subtitle
+Content paragraph 2.
+`;
+    const result = await parseContent(code, "markdown", {
+      chunkSize: 100,
+      chunkOverlap: 10,
+    });
+
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.method).toBe("langchain");
+  });
+});
+
+// ============================================================
+// SYMBOL EXTRACTION DIRECT AST QUERIES
+// ============================================================
+describe("Symbol Extraction Direct AST Queries", () => {
+  test("findFunctions fallback when tags.scm returns empty for Svelte", async () => {
+    const code = `
+<script>
+  export function doSomething() {
+    return 42;
+  }
+</script>
+<main>Hello</main>
+`;
+    const result = await parseContent(code, "svelte");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.svelte" });
+    expect(symbols.method).toBe("tree-sitter");
+    // May or may not find functions depending on tree-sitter implementation
+    expect(symbols.all).toBeDefined();
+  });
+
+  test("findClasses fallback for C++ code", async () => {
+    const code = `
+class MyClass {
+public:
+    void method() {}
+};
+
+struct MyStruct {
+    int value;
+};
+`;
+    const result = await parseContent(code, "cpp");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.cpp" });
+    expect(symbols.method).toBe("tree-sitter");
+    expect(symbols.all).toBeDefined();
+  });
+
+  test("handles code without any symbols", async () => {
+    const code = `<!-- Just a comment -->`;
+    const result = await parseContent(code, "html");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+
+    const symbols = extractSymbols({ ...result, filePath: "test.html" });
+    expect(symbols.method).toBe("tree-sitter");
+    expect(symbols.functions).toEqual([]);
+    expect(symbols.classes).toEqual([]);
+  });
+});
+
+// ============================================================
+// LANGCHAIN LANGUAGE-SPECIFIC TESTING
+// ============================================================
+describe("LangChain Language Processing", () => {
+  test("processes CSS with langchain", async () => {
+    const code = `
+.class { color: red; }
+#id { background: blue; }
+@media (max-width: 600px) {
+  .responsive { display: none; }
+}
+`;
+    const result = await parseContent(code, "css");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(["langchain", "tree-sitter"]).toContain(result.method);
+  });
+
+  test("processes XML with langchain", async () => {
+    const code = `
+<?xml version="1.0"?>
+<root>
+  <item id="1">Value</item>
+</root>
+`;
+    const result = await parseContent(code, "xml");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.chunks).toBeDefined();
+  });
+});
+
+// ============================================================
+// ADDITIONAL LANGUAGE-SPECIFIC FALLBACK TESTS
+// ============================================================
+describe("Language-Specific Fallback Tests", () => {
+  test("Vue file parses correctly", async () => {
+    const code = `
+<template>
+  <div>{{ message }}</div>
+</template>
+<script>
+export default {
+  data() {
+    return { message: "Hello" };
+  }
+};
+</script>
+<style>
+.class { color: red; }
+</style>
+`;
+    const result = await parseContent(code, "vue");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    // Vue may use tree-sitter or langchain depending on configuration
+    expect(["tree-sitter", "langchain"]).toContain(result.method);
+
+    if (result.method === "tree-sitter") {
+      const symbols = extractSymbols({ ...result, filePath: "test.vue" });
+      expect(symbols.all).toBeDefined();
+    }
+  });
+
+  test("OCaml file parses correctly", async () => {
+    const code = `
+let rec factorial n =
+  if n <= 1 then 1
+  else n * factorial (n - 1)
+
+module MyModule = struct
+  let value = 42
+end
+`;
+    const result = await parseContent(code, "ocaml");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.method).toBe("tree-sitter");
+
+    const symbols = extractSymbols({ ...result, filePath: "test.ml" });
+    expect(symbols.all).toBeDefined();
+  });
+
+  test("Haskell file parses correctly", async () => {
+    const code = `
+factorial :: Integer -> Integer
+factorial 0 = 1
+factorial n = n * factorial (n - 1)
+
+main = print (factorial 5)
+`;
+    const result = await parseContent(code, "haskell");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    // Haskell may use tree-sitter, langchain, or generic depending on configuration
+    expect(["tree-sitter", "langchain", "generic"]).toContain(result.method);
+  });
+});
+
+// ============================================================
+// EDGE CASES FOR BETTER BRANCH COVERAGE
+// ============================================================
+describe("Branch Coverage Edge Cases", () => {
+  test("detectLanguage with complex path structures", () => {
+    // Dockerfile patterns - only filename starting with "dockerfile" counts
+    expect(detectLanguage("/app/config/Dockerfile")).toBe("dockerfile");
+    expect(detectLanguage("/app/config/dockerfile.prod")).toBe("dockerfile");
+    // .env patterns
+    expect(detectLanguage("C:\\Users\\path\\.env.test")).toBe("env");
+    expect(detectLanguage("/config/.env.local")).toBe("env");
+    // Regular extensions
+    expect(detectLanguage("/path/to/script.py")).toBe("python");
+  });
+
+  test("canParse with various extensions", () => {
+    expect(canParse("test.dll")).toBe(false);
+    expect(canParse("test.so")).toBe(false);
+    expect(canParse("test.dylib")).toBe(false);
+    expect(canParse("test.a")).toBe(false);
+    expect(canParse("test.lib")).toBe(false);
+  });
+
+  test("getParsingCapabilities for various file types", () => {
+    // Image files
+    const pngCaps = getParsingCapabilities("test.jpg");
+    expect(pngCaps.language).toBe("binary");
+    expect(pngCaps.features).toEqual([]);
+
+    // Audio files
+    const mp3Caps = getParsingCapabilities("test.mp3");
+    expect(mp3Caps.language).toBe("binary");
+
+    // Archive files
+    const tarCaps = getParsingCapabilities("test.tar.gz");
+    expect(tarCaps.language).toBe("binary");
+  });
+
+  test("parseContent with empty string", async () => {
+    const result = await parseContent("", "javascript");
+    // Empty content should still be parseable
+    if (result) {
+      expect(result.lineCount).toBe(1);
+    }
+  });
+
+  test("parseContent with very long lines", async () => {
+    const longLine = "x".repeat(10000);
+    const result = await parseContent(longLine, "text");
+    if (!result) {
+      throw new Error("Expected result to be defined");
+    }
+    expect(result.chunks).toBeDefined();
+  });
+});

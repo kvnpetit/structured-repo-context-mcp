@@ -1,38 +1,20 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execute, searchCodeSchema } from "@features/search-code";
+import * as embeddings from "@core/embeddings";
 
 // Mock the embeddings module
-vi.mock("@core/embeddings", () => ({
-  createOllamaClient: vi.fn().mockImplementation(() => ({
-    healthCheck: vi.fn().mockResolvedValue({ ok: true }),
-    embed: vi
-      .fn()
-      .mockResolvedValue(new Array(768).fill(0).map(() => Math.random())),
-  })),
-  createVectorStore: vi.fn().mockImplementation(() => ({
-    exists: vi.fn().mockReturnValue(true),
-    connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
-    search: vi.fn().mockResolvedValue([
-      {
-        chunk: {
-          id: "chunk_1",
-          content: 'function hello() { return "world"; }',
-          filePath: "/test/file.ts",
-          language: "typescript",
-          startLine: 1,
-          endLine: 3,
-          symbolName: "hello",
-          symbolType: "function",
-        },
-        score: 0.5,
-      },
-    ]),
-  })),
-}));
+vi.mock("@core/embeddings");
 
 describe("searchCodeSchema", () => {
   test("validates required fields", () => {
@@ -95,14 +77,56 @@ describe("searchCodeSchema", () => {
 
 describe("execute", () => {
   let tempDir: string;
+  let mockHealthCheck: Mock;
+  let mockEmbed: Mock;
+  let mockExists: Mock;
+  let mockConnect: Mock;
+  let mockClose: Mock;
+  let mockSearch: Mock;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "search-test-"));
+    vi.clearAllMocks();
+
+    // Setup mocks
+    mockHealthCheck = vi.fn().mockResolvedValue({ ok: true });
+    mockEmbed = vi
+      .fn()
+      .mockResolvedValue(new Array(768).fill(0).map(() => Math.random()));
+    mockExists = vi.fn().mockReturnValue(true);
+    mockConnect = vi.fn().mockResolvedValue(undefined);
+    mockClose = vi.fn().mockResolvedValue(undefined);
+    mockSearch = vi.fn().mockResolvedValue([
+      {
+        chunk: {
+          id: "chunk_1",
+          content: 'function hello() { return "world"; }',
+          filePath: "/test/file.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 3,
+          symbolName: "hello",
+          symbolType: "function",
+        },
+        score: 0.5,
+      },
+    ]);
+
+    vi.mocked(embeddings.createOllamaClient).mockReturnValue({
+      healthCheck: mockHealthCheck,
+      embed: mockEmbed,
+    } as unknown as embeddings.OllamaClient);
+
+    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+      exists: mockExists,
+      connect: mockConnect,
+      close: mockClose,
+      search: mockSearch,
+    } as unknown as embeddings.VectorStore);
   });
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
-    vi.clearAllMocks();
   });
 
   test("returns error for non-existent directory", async () => {
@@ -138,5 +162,152 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveProperty("query", "specific query");
+  });
+
+  test("returns error when index does not exist", async () => {
+    mockExists.mockReturnValue(false);
+
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("No index found");
+  });
+
+  test("returns error when Ollama health check fails", async () => {
+    mockHealthCheck.mockResolvedValue({
+      ok: false,
+      error: "Ollama not running",
+    });
+
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Ollama not running");
+  });
+
+  test("returns error when Ollama health check fails without message", async () => {
+    mockHealthCheck.mockResolvedValue({ ok: false });
+
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Ollama is not available");
+  });
+
+  test("filters results by threshold", async () => {
+    mockSearch.mockResolvedValue([
+      {
+        chunk: {
+          id: "1",
+          content: "a",
+          filePath: "/a.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+        score: 0.3,
+      },
+      {
+        chunk: {
+          id: "2",
+          content: "b",
+          filePath: "/b.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+        score: 0.8,
+      },
+    ]);
+
+    const result = await execute({
+      query: "test",
+      directory: tempDir,
+      limit: 10,
+      threshold: 0.5,
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { resultsCount: number };
+    expect(data.resultsCount).toBe(1);
+  });
+
+  test("returns message when no results found", async () => {
+    mockSearch.mockResolvedValue([]);
+
+    const result = await execute({
+      query: "nonexistent code",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toBe("No matching code found");
+  });
+
+  test("handles search errors", async () => {
+    mockSearch.mockRejectedValue(new Error("Database error"));
+
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Search failed");
+    expect(result.error).toContain("Database error");
+  });
+
+  test("handles non-Error exceptions", async () => {
+    mockSearch.mockRejectedValue("string error");
+
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Search failed");
+    expect(result.error).toContain("string error");
+  });
+
+  test("formats results without symbol info", async () => {
+    mockSearch.mockResolvedValue([
+      {
+        chunk: {
+          id: "chunk_1",
+          content: "const x = 1;",
+          filePath: "/test/file.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+        score: 0.5,
+      },
+    ]);
+
+    const result = await execute({
+      query: "test",
+      directory: tempDir,
+      limit: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("[typescript]");
+    expect(result.message).not.toContain("(symbol:");
   });
 });

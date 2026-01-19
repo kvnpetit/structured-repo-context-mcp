@@ -147,6 +147,36 @@ describe("Query Helpers", () => {
       const matches = [mockMatch([mockCapture("other", "foo", 0)])];
       expect(deduplicateNodes(matches, ["import.statement"])).toHaveLength(0);
     });
+
+    test("skips matches where capture is not found", () => {
+      const matches = [
+        mockMatch([mockCapture("import.statement", "import A", 0)]),
+        mockMatch([mockCapture("unrelated.capture", "ignored", 10)]),
+        mockMatch([mockCapture("import.statement", "import B", 20)]),
+      ];
+
+      const result = deduplicateNodes(matches, ["import.statement"]);
+      expect(result).toHaveLength(2);
+    });
+
+    test("returns empty array for empty matches array", () => {
+      const result = deduplicateNodes([], ["import.statement"]);
+      expect(result).toHaveLength(0);
+    });
+
+    test("handles multiple capture names for deduplication", () => {
+      const matches = [
+        mockMatch([mockCapture("definition.function", "func", 0)]),
+        mockMatch([mockCapture("definition.class", "cls", 10)]),
+        mockMatch([mockCapture("definition.function", "func", 0)]), // duplicate
+      ];
+
+      const result = deduplicateNodes(matches, [
+        "definition.function",
+        "definition.class",
+      ]);
+      expect(result).toHaveLength(2);
+    });
   });
 
   describe("extractNodes", () => {
@@ -173,6 +203,34 @@ describe("Query Helpers", () => {
         "method.definition",
       ]);
       expect(result).toHaveLength(2);
+    });
+
+    test("returns empty array when capture not found in matches", () => {
+      const matches = [
+        mockMatch([mockCapture("other.capture", "foo", 0)]),
+        mockMatch([mockCapture("another.capture", "bar", 10)]),
+      ];
+
+      const result = extractNodes(matches, ["nonexistent.capture"]);
+      expect(result).toHaveLength(0);
+    });
+
+    test("skips matches without matching captures", () => {
+      const matches = [
+        mockMatch([mockCapture("function.definition", "func1", 0)]),
+        mockMatch([mockCapture("other.capture", "ignored", 10)]),
+        mockMatch([mockCapture("function.definition", "func2", 20)]),
+      ];
+
+      const result = extractNodes(matches, ["function.definition"]);
+      expect(result).toHaveLength(2);
+      expect(result[0]?.text).toBe("func1");
+      expect(result[1]?.text).toBe("func2");
+    });
+
+    test("returns empty array for empty matches", () => {
+      const result = extractNodes([], ["any.capture"]);
+      expect(result).toHaveLength(0);
     });
   });
 

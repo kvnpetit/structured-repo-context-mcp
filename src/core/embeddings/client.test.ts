@@ -1,17 +1,9 @@
-import { describe, expect, test, vi, beforeEach } from "vitest";
+import { describe, expect, test, vi, beforeEach, type Mock } from "vitest";
 import { OllamaClient, createOllamaClient } from "@core/embeddings/client";
-
-// Mock instance methods
-const mockEmbed = vi.fn();
-const mockList = vi.fn();
+import { Ollama } from "ollama";
 
 // Mock the ollama library
-vi.mock("ollama", () => ({
-  Ollama: vi.fn().mockImplementation(() => ({
-    embed: mockEmbed,
-    list: mockList,
-  })),
-}));
+vi.mock("ollama");
 
 describe("OllamaClient", () => {
   const mockConfig = {
@@ -19,14 +11,30 @@ describe("OllamaClient", () => {
     embeddingModel: "nomic-embed-text",
   };
 
+  let mockEmbed: Mock;
+  let mockList: Mock;
+
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Setup mocks for each test
+    mockEmbed = vi.fn();
+    mockList = vi.fn();
+
+    // Use regular function (not arrow) so it can be used as constructor with `new`
+    vi.mocked(Ollama).mockImplementation(function (this: Ollama) {
+      this.embed = mockEmbed;
+      this.list = mockList;
+      return this;
+    } as unknown as typeof Ollama);
   });
 
   describe("embed", () => {
     test("returns embedding for single text", async () => {
       const mockEmbedding = [0.1, 0.2, 0.3];
-      mockEmbed.mockResolvedValueOnce({ embeddings: [mockEmbedding] });
+      mockEmbed.mockResolvedValueOnce({
+        embeddings: [mockEmbedding],
+      });
 
       const client = new OllamaClient(mockConfig);
       const result = await client.embed("test text");
@@ -54,7 +62,9 @@ describe("OllamaClient", () => {
         [0.1, 0.2, 0.3],
         [0.4, 0.5, 0.6],
       ];
-      mockEmbed.mockResolvedValueOnce({ embeddings: mockEmbeddings });
+      mockEmbed.mockResolvedValueOnce({
+        embeddings: mockEmbeddings,
+      });
 
       const client = new OllamaClient(mockConfig);
       const result = await client.embedBatch(["text1", "text2"]);
@@ -99,6 +109,28 @@ describe("OllamaClient", () => {
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain("Cannot connect to Ollama");
+    });
+
+    test("handles non-Error thrown value", async () => {
+      mockList.mockRejectedValueOnce("string error message");
+
+      const client = new OllamaClient(mockConfig);
+      const result = await client.healthCheck();
+
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("Cannot connect to Ollama");
+      expect(result.error).toContain("string error message");
+    });
+
+    test("handles exact model name match", async () => {
+      mockList.mockResolvedValueOnce({
+        models: [{ name: "nomic-embed-text" }],
+      });
+
+      const client = new OllamaClient(mockConfig);
+      const result = await client.healthCheck();
+
+      expect(result.ok).toBe(true);
     });
   });
 
