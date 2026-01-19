@@ -6,6 +6,13 @@ vi.mock("@/server", () => ({
   startServer: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@core/embeddings", () => ({
+  createIndexWatcher: vi.fn().mockReturnValue({
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 describe("Serve Command", () => {
   test("has correct meta", () => {
     const meta = serveCommand.meta as CommandMeta;
@@ -15,18 +22,48 @@ describe("Serve Command", () => {
   });
 
   test("has transport arg with default stdio", () => {
-    const args = serveCommand.args as Record<string, { default?: string }>;
+    const args = serveCommand.args as unknown as Record<
+      string,
+      { default?: string | boolean }
+    >;
 
     expect(args.transport).toBeDefined();
     expect(args.transport?.default).toBe("stdio");
   });
 
+  test("has directory arg with default current directory", () => {
+    const args = serveCommand.args as unknown as Record<
+      string,
+      { default?: string | boolean }
+    >;
+
+    expect(args.directory).toBeDefined();
+    expect(args.directory?.default).toBe(".");
+  });
+
+  test("has watch arg with default true", () => {
+    const args = serveCommand.args as unknown as Record<
+      string,
+      { default?: string | boolean }
+    >;
+
+    expect(args.watch).toBeDefined();
+    expect(args.watch?.default).toBe(true);
+  });
+
   test("run calls startServer", async () => {
     const { startServer } = await import("@/server");
 
-    await serveCommand.run?.(
-      {} as Parameters<NonNullable<typeof serveCommand.run>>[0],
-    );
+    await serveCommand.run?.({
+      args: {
+        _: [],
+        transport: "stdio",
+        directory: ".",
+        watch: false, // Disable watcher for this test
+      },
+      rawArgs: [],
+      cmd: serveCommand,
+    });
 
     expect(startServer).toHaveBeenCalled();
   });
