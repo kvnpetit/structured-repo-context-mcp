@@ -91,8 +91,10 @@ See [GUIDE.md](./GUIDE.md) for:
 
 - **Coverage threshold:** 80% minimum (lines, functions, branches, statements)
 - **Test location:** Colocated with source (`index.test.ts` next to `index.ts`)
-- **Run tests:** `bun test` (or: `npm test`)
+- **Run tests:** `bun run test` (or: `npm test`)
 - **With coverage:** `bun run test:coverage` (or: `npm run test:coverage`)
+
+> **IMPORTANT:** Always use `bun run test`, NOT `bun test`. The command `bun test` uses Bun's native test runner which doesn't support `vi.doMock()` and other Vitest features. This project uses Vitest as the test runner.
 
 See [GUIDE.md - Testing Strategy](./GUIDE.md#testing-strategy) for detailed examples.
 
@@ -124,7 +126,7 @@ Use the [Feature Request template](https://github.com/kvnpetit/structured-repo-c
 
 ### Before Submitting
 
-1. ✅ All tests pass: `bun test` (or: `npm test`)
+1. ✅ All tests pass: `bun run test` (or: `npm test`)
 2. ✅ Code checks pass: `bun run check` (or: `npm run check`)
 3. ✅ Coverage thresholds met: `bun run test:coverage` (or: `npm run test:coverage`)
 4. ✅ Documentation updated (if applicable)

@@ -367,10 +367,12 @@ See [`src/features/info/index.test.ts`](src/features/info/index.test.ts) for tes
 ### Running Tests
 
 ```bash
-bun test              # Run all tests (or: npm test)
+bun run test          # Run all tests (or: npm test)
 bun run test:watch    # Watch mode (or: npm run test:watch)
 bun run test:coverage # With coverage (or: npm run test:coverage)
 ```
+
+> **IMPORTANT:** Always use `bun run test`, NOT `bun test`. The command `bun test` uses Bun's native test runner which doesn't support `vi.doMock()` and other Vitest features. This project uses Vitest as the test runner.
 
 ---
 
@@ -655,7 +657,7 @@ MCP tools may be called multiple times. Make operations idempotent when possible
 
 ### Checklist for Publishing
 
-- [ ] All tests pass: `bun test` (or: `npm test`)
+- [ ] All tests pass: `bun run test` (or: `npm test`)
 - [ ] Code checks pass: `bun run check` (or: `npm run check`)
 - [ ] README is complete
 - [ ] package.json has all metadata

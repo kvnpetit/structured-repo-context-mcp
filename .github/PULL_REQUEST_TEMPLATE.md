@@ -23,7 +23,7 @@ Closes #(issue number)
 ## Testing
 
 - [ ] I have added tests that prove my fix/feature works
-- [ ] All new and existing tests pass (`bun test` or `npm test`)
+- [ ] All new and existing tests pass (`bun run test` or `npm test`)
 - [ ] Code checks pass (`bun run check` or `npm run check`)
 
 ## Checklist
