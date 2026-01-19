@@ -29,3 +29,10 @@ export {
   shouldIndexFile,
   SUPPORTED_EXTENSIONS,
 } from "@core/embeddings/chunker";
+
+// Watcher
+export {
+  IndexWatcher,
+  createIndexWatcher,
+  type WatcherOptions,
+} from "@core/embeddings/watcher";
