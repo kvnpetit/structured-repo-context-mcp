@@ -38,13 +38,16 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "check": "run-s typecheck lint format:check",
-    "prepare": "run-s check",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s"
   },
   "dependencies": {
+    "@lancedb/lancedb": "^0.23.0",
     "@langchain/textsplitters": "^1.0.1",
     "@modelcontextprotocol/sdk": "^1.25.2",
+    "apache-arrow": "^21.1.0",
     "citty": "^0.1.6",
+    "ignore": "^7.0.4",
+    "ollama": "^0.6.3",
     "ora": "^9.0.0",
     "picocolors": "^1.1.1",
     "web-tree-sitter": "^0.26.3",

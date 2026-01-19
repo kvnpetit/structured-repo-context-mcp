@@ -1,4 +1,5 @@
 import type { ServerConfig } from "@types";
+import type { EmbeddingConfig } from "@core/embeddings/types";
 
 export const config: ServerConfig = {
   name: "src-mcp",
@@ -15,4 +16,16 @@ export const ENV = {
   isDev: nodeEnv === "development",
   isProd: nodeEnv === "production",
   logLevel: logLevelEnv ?? "info",
+};
+
+/**
+ * Embedding configuration with environment variable overrides
+ */
+export const EMBEDDING_CONFIG: EmbeddingConfig = {
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+  embeddingModel: process.env.EMBEDDING_MODEL ?? "nomic-embed-text",
+  embeddingDimensions: Number(process.env.EMBEDDING_DIMENSIONS) || 768,
+  defaultChunkSize: Number(process.env.CHUNK_SIZE) || 1000,
+  defaultChunkOverlap: Number(process.env.CHUNK_OVERLAP) || 200,
+  batchSize: Number(process.env.EMBEDDING_BATCH_SIZE) || 10,
 };
