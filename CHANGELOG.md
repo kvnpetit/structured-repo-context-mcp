@@ -1,3 +1,4 @@
+## [1.0.1](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.0...v1.0.1) (2026-01-20)
 ## 1.0.0 (2026-01-20)
 
 ### Features
@@ -27,7 +28,9 @@
 
 ### Bug Fixes
 
+* **callgraph:** handle unwritable cache directory gracefully ([986e9eb](https://github.com/kvnpetit/structured-repo-context-mcp/commit/986e9eb2b4cd3d0f3e2fe79b89e9ac62b73891c5))
+* **ci:** add npm update for Trusted Publishing ([f9c4ce9](https://github.com/kvnpetit/structured-repo-context-mcp/commit/f9c4ce92c98693e4d092ec0416608f5cfe2d4a74))
 * **cli:** handle async promise rejections properly ([1a978f8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/1a978f83790cb8e4a17b9d8f468738d3b01655d4))
-* normalize CRLF line endings and upgrade citty to 0.2.0 ([ffe5770](https://github.com/kvnpetit/structured-repo-context-mcp/commit/ffe5770dd55b8f7767d56d7d38beef942801f980))
+* normalize CRLF line endings for cross-platform compatibility ([4dc9468](https://github.com/kvnpetit/structured-repo-context-mcp/commit/4dc94683ac3309ec572067f93f6afbcf3fa32855))
 * **test:** resolve lint errors and type safety issues ([276bc86](https://github.com/kvnpetit/structured-repo-context-mcp/commit/276bc86035ed541823879d21a29902d073ffba98))
 * **test:** resolve lint errors in watcher.test.ts ([161c4dd](https://github.com/kvnpetit/structured-repo-context-mcp/commit/161c4ddb25409c2409cc55209c3b444420ad28a6))

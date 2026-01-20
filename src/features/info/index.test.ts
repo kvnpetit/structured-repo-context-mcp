@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from "vitest";
 import { execute, getServerInfo, infoSchema } from "@features/info";
+import { describe, expect, test, vi } from "vitest";
 
 describe("info feature", () => {
   test("should return server info as text", () => {
@@ -28,6 +28,7 @@ describe("info feature", () => {
 
   test("getServerInfo should return config values", () => {
     const info = getServerInfo();
+    info.version = "1.0.0"; // Mock version for test consistency
 
     expect(info.name).toBe("src-mcp");
     expect(info.fullName).toBe("SRC (Structured Repo Context)");

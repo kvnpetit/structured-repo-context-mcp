@@ -1,10 +1,10 @@
-import type { ServerConfig } from "@types";
 import type { EmbeddingConfig } from "@core/embeddings/types";
+import type { ServerConfig } from "@types";
 
 export const config: ServerConfig = {
   name: "src-mcp",
   fullName: "SRC (Structured Repo Context)",
-  version: "1.0.0",
+  version: "1.0.1",
   description:
     "MCP server for codebase analysis with Treesitter (SCM queries), AST parsing, and embedding-based indexing",
 };
