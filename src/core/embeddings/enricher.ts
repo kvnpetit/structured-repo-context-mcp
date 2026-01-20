@@ -2,7 +2,8 @@
  * Chunk enrichment module for better embeddings
  *
  * Enriches code chunks with semantic metadata (symbols, imports, exports)
- * to improve embedding quality for semantic search.
+ * and cross-file context (resolved import definitions) to improve
+ * embedding quality for semantic search.
  *
  * Pipeline:
  *   File → chunkFile() → CodeChunk[] → enrichChunks() → EnrichedChunk[]
@@ -15,8 +16,14 @@ import { parseCode, type ParseResult } from "@core/parser";
 import { extractExports, extractImports, extractSymbols } from "@core/symbols";
 import { registerCache } from "@core/utils";
 import { logger } from "@utils";
+import { ENRICHMENT_CONFIG } from "@config";
 
 import type { ChunkSymbol, CodeChunk, EnrichedChunk } from "./types";
+import {
+  resolveCrossFileContext,
+  type CrossFileContext,
+  type CrossFileOptions,
+} from "./crossfile";
 
 /**
  * Cached file analysis result
@@ -26,6 +33,19 @@ interface FileAnalysisCache {
   symbols: Symbol[];
   imports: Import[];
   exports: Export[];
+  crossFileContext?: CrossFileContext;
+}
+
+/**
+ * Options for enrichment
+ */
+export interface EnrichmentOptions {
+  /** Project root directory for cross-file resolution */
+  projectRoot?: string;
+  /** Path aliases (e.g., {"@core": "src/core"}) */
+  pathAliases?: Record<string, string>;
+  /** Whether to include cross-file context (default: from config) */
+  includeCrossFileContext?: boolean;
 }
 
 /**
@@ -55,6 +75,7 @@ const MAX_EXPORTS = 10;
 async function getFileAnalysis(
   filePath: string,
   content: string,
+  options?: EnrichmentOptions,
 ): Promise<FileAnalysisCache | null> {
   // Check cache first
   const cached = astCache.get(filePath);
@@ -89,6 +110,37 @@ async function getFileAnalysis(
       imports,
       exports,
     };
+
+    // Resolve cross-file context if enabled
+    const shouldIncludeCrossFile =
+      options?.includeCrossFileContext ??
+      ENRICHMENT_CONFIG.includeCrossFileContext;
+
+    if (shouldIncludeCrossFile && imports.length > 0 && options?.projectRoot) {
+      try {
+        const crossFileOptions: CrossFileOptions = {
+          projectRoot: options.projectRoot,
+          pathAliases: options.pathAliases,
+          maxImports: ENRICHMENT_CONFIG.maxImportsToResolve,
+          maxSymbolsPerFile: ENRICHMENT_CONFIG.maxSymbolsPerImport,
+        };
+
+        const crossFileContext = await resolveCrossFileContext(
+          imports,
+          filePath,
+          crossFileOptions,
+        );
+
+        analysis.crossFileContext = crossFileContext;
+        logger.debug(
+          `Resolved cross-file context for ${filePath}: ${String(crossFileContext.resolvedImports.length)} imports`,
+        );
+      } catch (error) {
+        logger.debug(
+          `Failed to resolve cross-file context for ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     // Cache for future chunks from same file
     astCache.set(filePath, analysis);
@@ -169,6 +221,7 @@ function buildEnrichedContent(
   symbols: ChunkSymbol[],
   imports: Import[],
   exports: Export[],
+  crossFileContext?: CrossFileContext,
 ): string {
   const headerLines: string[] = [];
 
@@ -199,6 +252,13 @@ function buildEnrichedContent(
     }
   }
 
+  // Include cross-file context (resolved import definitions)
+  if (crossFileContext && crossFileContext.importedSymbolsSummary.length > 0) {
+    headerLines.push(
+      `Imported definitions:\n${crossFileContext.importedSymbolsSummary}`,
+    );
+  }
+
   // Always have header with at least file path and language
   return headerLines.join("\n") + "\n\n---\n" + chunk.content;
 }
@@ -212,8 +272,9 @@ function buildEnrichedContent(
 export async function enrichChunk(
   chunk: CodeChunk,
   content: string,
+  options?: EnrichmentOptions,
 ): Promise<EnrichedChunk> {
-  const analysis = await getFileAnalysis(chunk.filePath, content);
+  const analysis = await getFileAnalysis(chunk.filePath, content, options);
 
   if (!analysis) {
     // Fallback: return with basic enrichment (file path and language only)
@@ -233,12 +294,13 @@ export async function enrichChunk(
     chunk.endLine,
   );
 
-  // Build enriched content
+  // Build enriched content with cross-file context
   const enrichedContent = buildEnrichedContent(
     chunk,
     chunkSymbols,
     analysis.imports,
     analysis.exports,
+    analysis.crossFileContext,
   );
 
   return {
@@ -255,6 +317,7 @@ export async function enrichChunk(
 export async function enrichChunksFromFile(
   chunks: CodeChunk[],
   content: string,
+  options?: EnrichmentOptions,
 ): Promise<EnrichedChunk[]> {
   if (chunks.length === 0) {
     return [];
@@ -275,7 +338,7 @@ export async function enrichChunksFromFile(
   }
 
   // Parse once for all chunks
-  const analysis = await getFileAnalysis(filePath, content);
+  const analysis = await getFileAnalysis(filePath, content, options);
 
   if (!analysis) {
     // Fallback: return with basic enrichment
@@ -290,7 +353,7 @@ export async function enrichChunksFromFile(
     });
   }
 
-  // Enrich each chunk using the cached analysis
+  // Enrich each chunk using the cached analysis with cross-file context
   return chunks.map((chunk) => {
     const chunkSymbols = findSymbolsInRange(
       analysis.symbols,
@@ -303,6 +366,7 @@ export async function enrichChunksFromFile(
       chunkSymbols,
       analysis.imports,
       analysis.exports,
+      analysis.crossFileContext,
     );
 
     return {
@@ -322,6 +386,7 @@ export async function enrichChunksFromFile(
 export async function enrichChunks(
   chunks: CodeChunk[],
   fileContents: Map<string, string>,
+  options?: EnrichmentOptions,
 ): Promise<EnrichedChunk[]> {
   // Group chunks by file path
   const chunksByFile = new Map<string, CodeChunk[]>();
@@ -353,7 +418,7 @@ export async function enrichChunks(
       continue;
     }
 
-    const enriched = await enrichChunksFromFile(fileChunks, content);
+    const enriched = await enrichChunksFromFile(fileChunks, content, options);
     enrichedByFile.set(filePath, enriched);
   }
 

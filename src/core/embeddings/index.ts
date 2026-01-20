@@ -48,6 +48,7 @@ export {
   enrichChunks,
   enrichChunksFromFile,
   getASTCacheStats,
+  type EnrichmentOptions,
 } from "@core/embeddings/enricher";
 
 // Reranker

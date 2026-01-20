@@ -22,7 +22,9 @@ import {
   shouldIndexFile,
   type EmbeddedChunk,
   type EnrichedChunk,
+  type EnrichmentOptions,
 } from "@core/embeddings";
+import { logger } from "@utils";
 
 export const indexCodebaseSchema = z.object({
   directory: z
@@ -190,6 +192,18 @@ export async function execute(
       };
     }
 
+    // Enrichment options with cross-file context enabled
+    const enrichmentOptions: EnrichmentOptions = {
+      projectRoot: absoluteDir,
+      // TODO: Read path aliases from tsconfig.json if present
+      pathAliases: {},
+      includeCrossFileContext: true,
+    };
+
+    logger.debug(
+      `Indexing with cross-file context enabled (projectRoot: ${absoluteDir})`,
+    );
+
     // Process files: chunk and enrich
     const allEnrichedChunks: EnrichedChunk[] = [];
 
@@ -198,8 +212,12 @@ export async function execute(
         const content = fs.readFileSync(filePath, "utf-8");
         const chunks = await chunkFile(filePath, content, EMBEDDING_CONFIG);
 
-        // Enrich chunks with semantic metadata (file path, symbols, imports, exports)
-        const enrichedChunks = await enrichChunksFromFile(chunks, content);
+        // Enrich chunks with semantic metadata including cross-file context
+        const enrichedChunks = await enrichChunksFromFile(
+          chunks,
+          content,
+          enrichmentOptions,
+        );
         allEnrichedChunks.push(...enrichedChunks);
 
         result.filesIndexed++;
