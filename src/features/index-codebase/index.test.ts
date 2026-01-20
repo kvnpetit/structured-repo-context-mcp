@@ -116,6 +116,19 @@ describe("execute", () => {
         ]),
     );
 
+    // Mock enrichChunksFromFile to return enriched chunks
+    vi.mocked(embeddings.enrichChunksFromFile).mockImplementation(
+      async (chunks) =>
+        Promise.resolve(
+          chunks.map((chunk) => ({
+            ...chunk,
+            enrichedContent: chunk.content,
+            containedSymbols: [],
+            wasEnriched: false,
+          })),
+        ),
+    );
+
     vi.mocked(embeddings.shouldIndexFile).mockImplementation(
       (filePath: string) =>
         filePath.endsWith(".ts") || filePath.endsWith(".js"),

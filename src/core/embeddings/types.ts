@@ -55,3 +55,27 @@ export interface EmbeddingConfig {
   defaultChunkOverlap: number;
   batchSize: number;
 }
+
+/**
+ * A symbol contained within a chunk
+ */
+export interface ChunkSymbol {
+  /** Symbol name */
+  name: string;
+  /** Symbol type (function, class, variable, etc.) */
+  type: string;
+  /** Optional signature for functions/methods */
+  signature?: string;
+}
+
+/**
+ * A chunk enriched with semantic metadata
+ */
+export interface EnrichedChunk extends CodeChunk {
+  /** The enriched content to be used for embedding */
+  enrichedContent: string;
+  /** Symbols contained within this chunk */
+  containedSymbols: ChunkSymbol[];
+  /** Whether enrichment was successfully applied */
+  wasEnriched: boolean;
+}

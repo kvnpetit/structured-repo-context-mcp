@@ -15,12 +15,13 @@ import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
+  chunkFile,
   createOllamaClient,
   createVectorStore,
-  chunkFile,
+  enrichChunksFromFile,
   shouldIndexFile,
-  type CodeChunk,
   type EmbeddedChunk,
+  type EnrichedChunk,
 } from "@core/embeddings";
 
 export const indexCodebaseSchema = z.object({
@@ -189,19 +190,22 @@ export async function execute(
       };
     }
 
-    // Process files in batches
-    const allChunks: CodeChunk[] = [];
+    // Process files: chunk and enrich
+    const allEnrichedChunks: EnrichedChunk[] = [];
 
     for (const filePath of files) {
       try {
         const content = fs.readFileSync(filePath, "utf-8");
         const chunks = await chunkFile(filePath, content, EMBEDDING_CONFIG);
-        allChunks.push(...chunks);
+
+        // Enrich chunks with semantic metadata (file path, symbols, imports, exports)
+        const enrichedChunks = await enrichChunksFromFile(chunks, content);
+        allEnrichedChunks.push(...enrichedChunks);
 
         result.filesIndexed++;
 
         // Track language stats
-        for (const chunk of chunks) {
+        for (const chunk of enrichedChunks) {
           result.languages[chunk.language] =
             (result.languages[chunk.language] ?? 0) + 1;
         }
@@ -211,13 +215,14 @@ export async function execute(
       }
     }
 
-    // Generate embeddings in batches
+    // Generate embeddings in batches using enriched content
     const { batchSize } = EMBEDDING_CONFIG;
     const embeddedChunks: EmbeddedChunk[] = [];
 
-    for (let i = 0; i < allChunks.length; i += batchSize) {
-      const batch = allChunks.slice(i, i + batchSize);
-      const texts = batch.map((c) => c.content);
+    for (let i = 0; i < allEnrichedChunks.length; i += batchSize) {
+      const batch = allEnrichedChunks.slice(i, i + batchSize);
+      // Use enrichedContent for embedding (contains metadata header + original code)
+      const texts = batch.map((c) => c.enrichedContent);
 
       try {
         const embeddings = await ollamaClient.embedBatch(texts);
@@ -227,8 +232,16 @@ export async function execute(
           const vector = embeddings[j];
 
           if (chunk && vector) {
+            // Store original chunk data (without enrichedContent to save space)
             embeddedChunks.push({
-              ...chunk,
+              id: chunk.id,
+              content: chunk.content,
+              filePath: chunk.filePath,
+              language: chunk.language,
+              startLine: chunk.startLine,
+              endLine: chunk.endLine,
+              symbolName: chunk.symbolName,
+              symbolType: chunk.symbolType,
               vector,
             });
           }

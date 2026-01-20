@@ -22,6 +22,7 @@ import {
   shouldIndexFile,
   SUPPORTED_EXTENSIONS,
 } from "@core/embeddings/chunker";
+import { enrichChunksFromFile } from "@core/embeddings/enricher";
 import { logger } from "@utils";
 
 /** Default debounce delay in milliseconds */
@@ -258,11 +259,23 @@ export class IndexWatcher {
         return;
       }
 
-      const texts = chunks.map((c) => c.content);
+      // Enrich chunks with semantic metadata
+      const enrichedChunks = await enrichChunksFromFile(chunks, content);
+
+      // Use enrichedContent for embedding
+      const texts = enrichedChunks.map((c) => c.enrichedContent);
       const embeddings = await this.ollamaClient.embedBatch(texts);
 
-      const embeddedChunks = chunks.map((chunk, i) => ({
-        ...chunk,
+      // Store original chunk data (without enrichedContent)
+      const embeddedChunks = enrichedChunks.map((chunk, i) => ({
+        id: chunk.id,
+        content: chunk.content,
+        filePath: chunk.filePath,
+        language: chunk.language,
+        startLine: chunk.startLine,
+        endLine: chunk.endLine,
+        symbolName: chunk.symbolName,
+        symbolType: chunk.symbolType,
         vector: embeddings[i] ?? [],
       }));
 
@@ -381,11 +394,23 @@ export class IndexWatcher {
           continue;
         }
 
-        const texts = chunks.map((c) => c.content);
+        // Enrich chunks with semantic metadata
+        const enrichedChunks = await enrichChunksFromFile(chunks, content);
+
+        // Use enrichedContent for embedding
+        const texts = enrichedChunks.map((c) => c.enrichedContent);
         const embeddings = await this.ollamaClient.embedBatch(texts);
 
-        const embeddedChunks = chunks.map((chunk, i) => ({
-          ...chunk,
+        // Store original chunk data (without enrichedContent)
+        const embeddedChunks = enrichedChunks.map((chunk, i) => ({
+          id: chunk.id,
+          content: chunk.content,
+          filePath: chunk.filePath,
+          language: chunk.language,
+          startLine: chunk.startLine,
+          endLine: chunk.endLine,
+          symbolName: chunk.symbolName,
+          symbolType: chunk.symbolType,
           vector: embeddings[i] ?? [],
         }));
 

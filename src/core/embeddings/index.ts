@@ -4,9 +4,11 @@
 
 // Types
 export type {
+  ChunkSymbol,
   CodeChunk,
   EmbeddedChunk,
   EmbeddingConfig,
+  EnrichedChunk,
   IndexStatus,
   SearchResult,
 } from "@core/embeddings/types";
@@ -36,3 +38,12 @@ export {
   createIndexWatcher,
   type WatcherOptions,
 } from "@core/embeddings/watcher";
+
+// Enricher
+export {
+  clearASTCache,
+  enrichChunk,
+  enrichChunks,
+  enrichChunksFromFile,
+  getASTCacheStats,
+} from "@core/embeddings/enricher";
