@@ -438,9 +438,12 @@ export class IndexWatcher {
       throw new Error(health.error ?? "Ollama is not available");
     }
 
+    // Check if index exists BEFORE connect (connect creates the directory)
+    const needsFullIndex = !this.vectorStore.exists();
+
     await this.vectorStore.connect();
 
-    if (!this.vectorStore.exists()) {
+    if (needsFullIndex) {
       await this.fullIndex();
     }
 
