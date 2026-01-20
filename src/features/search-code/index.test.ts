@@ -72,6 +72,7 @@ describe("searchCodeSchema", () => {
     if (result.success) {
       expect(result.data.limit).toBe(10);
       expect(result.data.mode).toBe("hybrid");
+      expect(result.data.rerank).toBe(false);
     }
   });
 
@@ -155,6 +156,7 @@ describe("execute", () => {
       directory: "/nonexistent/path",
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -167,6 +169,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -181,6 +184,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 5,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -195,6 +199,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -212,6 +217,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -226,6 +232,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -263,7 +270,8 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       threshold: 0.5,
-      mode: "vector", // Threshold only applies in vector mode
+      mode: "vector",
+      rerank: false, // Threshold only applies in vector mode
     });
 
     expect(result.success).toBe(true);
@@ -303,6 +311,7 @@ describe("execute", () => {
       limit: 10,
       threshold: 0.5,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -319,6 +328,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -333,6 +343,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -348,6 +359,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(false);
@@ -375,6 +387,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -388,6 +401,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "fts",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);
@@ -405,6 +419,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "vector",
+      rerank: false,
     });
 
     expect(result.success).toBe(true);

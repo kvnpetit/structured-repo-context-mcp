@@ -20,6 +20,7 @@ import { EMBEDDING_CONFIG } from "@config";
 import {
   createOllamaClient,
   createVectorStore,
+  rerank,
   type SearchResult,
   type SearchMode,
 } from "@core/embeddings";
@@ -50,6 +51,13 @@ export const searchCodeSchema = z.object({
     .default("hybrid")
     .describe(
       "Search mode: 'vector' (semantic only), 'fts' (keyword only), 'hybrid' (combined with RRF fusion)",
+    ),
+  rerank: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Enable LLM re-ranking for improved relevance (requires Ollama with llama3.2 model)",
     ),
 });
 
@@ -96,7 +104,7 @@ function formatResults(
  * Execute the search_code feature
  */
 export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
-  const { query, directory, limit, threshold, mode } = input;
+  const { query, directory, limit, threshold, mode, rerank: enableRerank } = input;
 
   // Validate directory exists
   if (!fs.existsSync(directory)) {
@@ -145,6 +153,14 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     // For hybrid/fts modes, RRF scores are higher = better, so threshold is ignored
     if (threshold !== undefined && mode === "vector") {
       results = results.filter((r) => r.score <= threshold);
+    }
+
+    // Apply LLM re-ranking if enabled
+    if (enableRerank && results.length > 0) {
+      results = await rerank(query, results, {
+        ollamaBaseUrl: EMBEDDING_CONFIG.ollamaBaseUrl,
+        maxResults: limit,
+      });
     }
 
     vectorStore.close();
@@ -196,7 +212,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
 export const searchCodeFeature: Feature<typeof searchCodeSchema> = {
   name: "search_code",
   description:
-    "Search indexed codebase using hybrid search (vector + BM25 + RRF fusion). Supports 'hybrid' (default), 'vector', or 'fts' modes.",
+    "Search indexed codebase using hybrid search (vector + BM25 + RRF fusion). Supports 'hybrid' (default), 'vector', or 'fts' modes. Optional LLM re-ranking for improved relevance.",
   schema: searchCodeSchema,
   execute,
 };
