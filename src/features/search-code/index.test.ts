@@ -73,6 +73,7 @@ describe("searchCodeSchema", () => {
       expect(result.data.limit).toBe(10);
       expect(result.data.mode).toBe("hybrid");
       expect(result.data.rerank).toBe(true);
+      expect(result.data.includeCallContext).toBe(true);
     }
   });
 

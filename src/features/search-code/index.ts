@@ -70,9 +70,9 @@ export const searchCodeSchema = z.object({
   includeCallContext: z
     .boolean()
     .optional()
-    .default(false)
+    .default(true)
     .describe(
-      "Include caller/callee information for each result (builds call graph on first use)",
+      "Include caller/callee information for each result (uses cached call graph)",
     ),
 });
 
