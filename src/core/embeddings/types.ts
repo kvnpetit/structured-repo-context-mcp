@@ -54,8 +54,6 @@ export interface EmbeddingConfig {
   defaultChunkSize: number;
   defaultChunkOverlap: number;
   batchSize: number;
-  /** Model for re-ranking search results (lightweight model recommended) */
-  rerankModel?: string;
 }
 
 /**

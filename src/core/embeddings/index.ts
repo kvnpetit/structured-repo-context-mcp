@@ -51,14 +51,6 @@ export {
   type EnrichmentOptions,
 } from "@core/embeddings/enricher";
 
-// Reranker
-export {
-  rerank,
-  createReranker,
-  type RerankerOptions,
-  type RerankedResult,
-} from "@core/embeddings/reranker";
-
 // Cross-file context
 export {
   clearCrossFileCache,
