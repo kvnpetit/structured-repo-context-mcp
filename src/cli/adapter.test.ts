@@ -178,4 +178,51 @@ describe("CLI Adapter", () => {
 
     expect(consoleSpy.log).toHaveBeenCalled();
   });
+
+  test("run function handles async rejection with Error", async () => {
+    const schema = z.object({
+      value: z.string(),
+    });
+
+    const feature: Feature<typeof schema> = {
+      name: "async_reject_error",
+      description: "Async reject with Error test",
+      schema,
+      execute: async () => Promise.reject(new Error("Async failure")),
+    };
+
+    const command = featureToCittyCommand(feature);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (command.run as (ctx: { args: any }) => void)({ args: { value: "test" } });
+
+    // Wait for promise to reject
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(consoleSpy.error).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  test("run function handles async rejection with non-Error", async () => {
+    const schema = z.object({
+      value: z.string(),
+    });
+
+    const feature: Feature<typeof schema> = {
+      name: "async_reject_non_error",
+      description: "Async reject with non-Error test",
+      schema,
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      execute: async () => Promise.reject("String error"),
+    };
+
+    const command = featureToCittyCommand(feature);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (command.run as (ctx: { args: any }) => void)({ args: { value: "test" } });
+
+    // Wait for promise to reject
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(consoleSpy.error).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
 });

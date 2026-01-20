@@ -29,7 +29,11 @@ export function featureToCittyCommand(feature: Feature): CommandDef {
       };
 
       if (result instanceof Promise) {
-        void result.then(handleResult);
+        result.then(handleResult).catch((err: unknown) => {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error(colors.formatError(`Unexpected error: ${errorMsg}`));
+          process.exit(1);
+        });
       } else {
         handleResult(result);
       }
