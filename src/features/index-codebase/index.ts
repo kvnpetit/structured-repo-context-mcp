@@ -27,6 +27,40 @@ import {
 import { logger } from "@utils";
 import { readPathAliasesCached } from "@core/utils";
 
+/** Default concurrency for parallel file processing */
+const DEFAULT_CONCURRENCY = 4;
+
+/**
+ * Process items in parallel with concurrency limit using worker pool pattern
+ */
+async function parallelMap<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: (R | undefined)[] = new Array<R | undefined>(items.length);
+  let currentIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await processor(item);
+      }
+    }
+  };
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => worker(),
+  );
+  await Promise.all(workers);
+
+  // Filter out undefined values (shouldn't happen but TypeScript needs this)
+  return results.filter((r): r is R => r !== undefined);
+}
+
 export const indexCodebaseSchema = z.object({
   directory: z
     .string()
@@ -43,6 +77,13 @@ export const indexCodebaseSchema = z.object({
     .optional()
     .default([])
     .describe("Additional glob patterns to exclude"),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(DEFAULT_CONCURRENCY)
+    .describe("Number of files to process in parallel (default: 4)"),
 });
 
 export type IndexCodebaseInput = z.infer<typeof indexCodebaseSchema>;
@@ -128,7 +169,7 @@ function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
 export async function execute(
   input: IndexCodebaseInput,
 ): Promise<FeatureResult> {
-  const { directory, force, exclude } = input;
+  const { directory, force, exclude, concurrency } = input;
 
   // Validate directory exists
   if (!fs.existsSync(directory)) {
@@ -205,13 +246,18 @@ export async function execute(
     };
 
     logger.debug(
-      `Indexing with cross-file context enabled (projectRoot: ${absoluteDir}, ${String(aliasCount)} path aliases)`,
+      `Indexing ${String(files.length)} files with concurrency=${String(concurrency)} (projectRoot: ${absoluteDir}, ${String(aliasCount)} path aliases)`,
     );
 
-    // Process files: chunk and enrich
-    const allEnrichedChunks: EnrichedChunk[] = [];
+    // Process files in parallel: chunk and enrich
+    interface FileProcessResult {
+      chunks: EnrichedChunk[];
+      error?: string;
+    }
 
-    for (const filePath of files) {
+    const processFile = async (
+      filePath: string,
+    ): Promise<FileProcessResult> => {
       try {
         const content = fs.readFileSync(filePath, "utf-8");
         const chunks = await chunkFile(filePath, content, EMBEDDING_CONFIG);
@@ -222,18 +268,35 @@ export async function execute(
           content,
           enrichmentOptions,
         );
-        allEnrichedChunks.push(...enrichedChunks);
 
+        return { chunks: enrichedChunks };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        return {
+          chunks: [],
+          error: `Error processing ${filePath}: ${errorMsg}`,
+        };
+      }
+    };
+
+    // Process all files in parallel with concurrency limit
+    const fileResults = await parallelMap(files, processFile, concurrency);
+
+    // Aggregate results
+    const allEnrichedChunks: EnrichedChunk[] = [];
+
+    for (const fileResult of fileResults) {
+      if (fileResult.error) {
+        result.errors.push(fileResult.error);
+      } else {
+        allEnrichedChunks.push(...fileResult.chunks);
         result.filesIndexed++;
 
         // Track language stats
-        for (const chunk of enrichedChunks) {
+        for (const chunk of fileResult.chunks) {
           result.languages[chunk.language] =
             (result.languages[chunk.language] ?? 0) + 1;
         }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Error processing ${filePath}: ${errorMsg}`);
       }
     }
 

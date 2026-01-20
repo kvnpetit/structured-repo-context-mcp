@@ -39,6 +39,7 @@ describe("indexCodebaseSchema", () => {
     const result = indexCodebaseSchema.safeParse({
       directory: "/test/dir",
       force: true,
+      concurrency: 4,
       exclude: ["*.log"],
     });
     expect(result.success).toBe(true);
@@ -143,6 +144,7 @@ describe("execute", () => {
     const result = await execute({
       directory: "/nonexistent/path",
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -154,6 +156,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -171,6 +174,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -191,6 +195,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: ["excluded"],
     });
 
@@ -213,6 +218,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -232,6 +238,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -248,6 +255,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -261,6 +269,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -274,6 +283,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -288,6 +298,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: true,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -305,6 +316,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -322,6 +334,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -351,6 +364,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -367,6 +381,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -383,6 +398,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -399,6 +415,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
@@ -415,6 +432,7 @@ describe("execute", () => {
     const result = await execute({
       directory: tempDir,
       force: false,
+      concurrency: 4,
       exclude: [],
     });
 
