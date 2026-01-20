@@ -53,7 +53,6 @@ src/
 │   │   ├── vectorstore.ts # LanceDB store
 │   │   ├── chunker.ts    # Semantic chunking
 │   │   ├── enricher.ts   # AST enrichment
-│   │   ├── reranker.ts   # LLM re-ranking
 │   │   ├── callgraph.ts  # Call graph analysis
 │   │   ├── bm25.ts       # BM25 scoring
 │   │   └── types.ts      # Type definitions
@@ -135,8 +134,8 @@ assets/                   # Runtime assets
 │  ollama.ts     │ vectorstore.ts │ chunker.ts   │ enricher.ts   │
 │  (Embeddings)  │ (LanceDB)      │ (Splitting)  │ (AST metadata)│
 ├─────────────────────────────────────────────────────────────────┤
-│  reranker.ts   │ callgraph.ts   │ bm25.ts      │               │
-│  (LLM rerank)  │ (Call analysis)│ (Keywords)   │               │
+│  callgraph.ts  │ bm25.ts        │ crossfile.ts │               │
+│  (Call graph)  │ (Keywords)     │ (Imports)    │               │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -183,20 +182,18 @@ MCP Client (Claude)          CLI (Terminal)
 
 ### Ollama Client (`core/embeddings/ollama.ts`)
 
-Handles communication with Ollama API for embeddings and re-ranking.
+Handles communication with Ollama API for embeddings.
 
 ```typescript
 interface OllamaClient {
   healthCheck(): Promise<{ ok: boolean; error?: string }>;
   embedBatch(texts: string[]): Promise<number[][]>;
-  rerank(query: string, documents: string[]): Promise<number[]>;
 }
 ```
 
 **Configuration:**
 - `OLLAMA_BASE_URL`: API endpoint (default: `http://localhost:11434`)
 - `EMBEDDING_MODEL`: Model name (default: `nomic-embed-text`)
-- `RERANK_MODEL`: Re-ranking model (default: `qwen2.5:1.5b`)
 
 ### Vector Store (`core/embeddings/vectorstore.ts`)
 
@@ -291,12 +288,6 @@ Combines multiple search strategies:
                     │   RRF Fusion    │
                     │ score = Σ 1/(k+r) │
                     │    k = 60       │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │  LLM Re-rank    │
-                    │ (qwen2.5:1.5b)  │
                     └────────┬────────┘
                              │
                              ▼
@@ -528,13 +519,7 @@ export const features: Feature[] = [
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. LLM Re-ranking (if enabled)                                  │
-│    reranker.rerank(query, topResults) → reorderedResults        │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ 5. Add Call Context (if enabled)                                │
+│ 4. Add Call Context (if enabled)                                │
 │    For each result:                                             │
 │    ├─ Find callers (who calls this function)                    │
 │    └─ Find callees (what this function calls)                   │
@@ -542,7 +527,7 @@ export const features: Feature[] = [
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 6. Return Results                                                │
+│ 5. Return Results                                                │
 │    SearchResult[] with content, metadata, score, callContext    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -788,7 +773,6 @@ Other prefixes (`docs:`, `chore:`, `test:`, etc.) are not included in changelog.
 | `CHUNK_SIZE` | `1000` | Chars per chunk |
 | `CHUNK_OVERLAP` | `200` | Overlap size |
 | `EMBEDDING_BATCH_SIZE` | `10` | Batch size |
-| `RERANK_MODEL` | `qwen2.5:1.5b` | Re-ranking model |
 | `LOG_LEVEL` | `info` | Log verbosity |
 
 ### Internal Configuration
@@ -803,7 +787,6 @@ export const EMBEDDING_CONFIG: EmbeddingConfig = {
   defaultChunkSize: Number(process.env.CHUNK_SIZE) || 1000,
   defaultChunkOverlap: Number(process.env.CHUNK_OVERLAP) || 200,
   batchSize: Number(process.env.EMBEDDING_BATCH_SIZE) || 10,
-  rerankModel: process.env.RERANK_MODEL ?? "qwen2.5:1.5b",
 };
 
 export const ENRICHMENT_CONFIG = {

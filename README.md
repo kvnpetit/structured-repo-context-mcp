@@ -51,7 +51,6 @@ SRC indexes your codebase into semantic, searchable chunks that LLMs actually un
 | Feature | Description |
 |---------|-------------|
 | **Hybrid Search** | Vector + BM25 + RRF fusion for optimal results |
-| **LLM Re-ranking** | AI-powered relevance optimization |
 | **Call Graph** | Shows who calls what and what calls who |
 | **Cross-file Context** | Resolves imports and path aliases automatically |
 | **Incremental Updates** | SHA-256 hash detection for fast updates |
@@ -74,12 +73,11 @@ SRC indexes your codebase into semantic, searchable chunks that LLMs actually un
 
 ### 1. Install Ollama
 
-SRC requires [Ollama](https://ollama.com) for embeddings and re-ranking:
+SRC requires [Ollama](https://ollama.com) for embeddings:
 
 ```bash
 # Install from https://ollama.com, then:
 ollama pull nomic-embed-text
-ollama pull qwen2.5:1.5b
 ```
 
 ### 2. Install SRC
@@ -152,7 +150,6 @@ src-mcp get_index_status
 |------|----------|---------|-------------|
 | `search_code` | `--limit` | 10 | Max results |
 | `search_code` | `--mode` | hybrid | `hybrid` / `vector` / `fts` |
-| `search_code` | `--rerank` | true | LLM re-ranking |
 | `index_codebase` | `--concurrency` | 4 | Parallel workers |
 | `index_codebase` | `--force` | false | Re-index if exists |
 
@@ -234,7 +231,6 @@ Hybrid search with vector similarity, BM25 keyword matching, and RRF fusion.
 | `limit` | number | No | `10` | Maximum results to return |
 | `threshold` | number | No | — | Distance threshold (0-2, vector mode only) |
 | `mode` | enum | No | `hybrid` | Search mode: `hybrid`, `vector`, or `fts` |
-| `rerank` | boolean | No | `true` | Enable LLM re-ranking |
 | `includeCallContext` | boolean | No | `true` | Include caller/callee information |
 
 **Search Modes:**
@@ -405,7 +401,6 @@ All settings can be configured via environment variables:
 | `CHUNK_SIZE` | Characters per chunk | `1000` |
 | `CHUNK_OVERLAP` | Overlap between chunks | `200` |
 | `EMBEDDING_BATCH_SIZE` | Batch size for embedding | `10` |
-| `RERANK_MODEL` | Model for re-ranking | `qwen2.5:1.5b` |
 | `LOG_LEVEL` | Log verbosity | `info` |
 
 **Example:**
@@ -576,7 +571,7 @@ Source Files → Semantic Chunking → AST Enrichment → Cross-file Context →
 
 ```
 Query → Embed Query → Vector Search ─┐
-                                     ├→ RRF Fusion → LLM Re-rank → Add Call Context → Results
+                                     ├→ RRF Fusion → Add Call Context → Results
 Query → Tokenize ───→ BM25 Search ───┘
 ```
 
@@ -586,9 +581,8 @@ Query → Tokenize ───→ BM25 Search ───┘
 2. **Vector Search** — Find semantically similar chunks (cosine similarity)
 3. **BM25 Search** — Find keyword matches (term frequency)
 4. **RRF Fusion** — Combine rankings with Reciprocal Rank Fusion (k=60)
-5. **Re-rank** — Use LLM to re-order by relevance (qwen2.5:1.5b)
-6. **Call Context** — Add caller/callee information from call graph
-7. **Return** — Ranked results with full context
+5. **Call Context** — Add caller/callee information from call graph
+6. **Return** — Ranked results with full context
 
 ### Technical Specifications
 
@@ -596,7 +590,6 @@ Query → Tokenize ───→ BM25 Search ───┘
 |-----------|---------------|
 | **Embedding Model** | nomic-embed-text (137M params) |
 | **Vector Dimensions** | 768 |
-| **Re-ranking Model** | qwen2.5:1.5b (1.5B params) |
 | **Chunk Size** | 1000 characters |
 | **Chunk Overlap** | 200 characters |
 | **Batch Size** | 10 embeddings per request |
@@ -612,7 +605,6 @@ Query → Tokenize ───→ BM25 Search ───┘
 | Feature | SRC | Basic MCPs |
 |---------|-----|------------|
 | **Search Method** | Hybrid (Vector + BM25 + RRF) | Keyword only or basic embedding |
-| **Re-ranking** | LLM-powered | None |
 | **Call Graph** | Full caller/callee context | None |
 | **Cross-file Context** | Resolves imports & path aliases | None |
 | **Incremental Updates** | SHA-256 hash detection | Full re-index required |
@@ -622,11 +614,10 @@ Query → Tokenize ───→ BM25 Search ───┘
 ### Key Advantages
 
 1. **Hybrid Search** — Combines semantic understanding with keyword precision
-2. **LLM Re-ranking** — Catches nuances that pure vector search misses
-3. **Call Graph** — Understand code relationships, not just content
-4. **Cross-file Resolution** — Follows imports to provide complete context
-5. **Incremental Updates** — Only re-index what changed
-6. **Semantic Chunking** — Splits at symbol boundaries, not arbitrary lines
+2. **Call Graph** — Understand code relationships, not just content
+3. **Cross-file Resolution** — Follows imports to provide complete context
+4. **Incremental Updates** — Only re-index what changed
+5. **Semantic Chunking** — Splits at symbol boundaries, not arbitrary lines
 
 ---
 
@@ -652,7 +643,6 @@ Error: model 'nomic-embed-text' not found
 **Solution:**
 ```bash
 ollama pull nomic-embed-text
-ollama pull qwen2.5:1.5b
 ```
 
 ### Index Already Exists
