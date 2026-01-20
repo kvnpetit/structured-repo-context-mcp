@@ -28,4 +28,19 @@ export const EMBEDDING_CONFIG: EmbeddingConfig = {
   defaultChunkSize: Number(process.env.CHUNK_SIZE) || 1000,
   defaultChunkOverlap: Number(process.env.CHUNK_OVERLAP) || 200,
   batchSize: Number(process.env.EMBEDDING_BATCH_SIZE) || 10,
+  /** Model for re-ranking (lightweight model recommended) */
+  rerankModel: process.env.RERANK_MODEL ?? "qwen2.5:1.5b",
+};
+
+/**
+ * Enrichment configuration for cross-file context
+ */
+export const ENRICHMENT_CONFIG = {
+  /** Include cross-file import definitions in enrichment */
+  includeCrossFileContext: process.env.ENRICHMENT_CROSS_FILE !== "false",
+  /** Maximum number of imports to resolve per file */
+  maxImportsToResolve: Number(process.env.ENRICHMENT_MAX_IMPORTS) || 10,
+  /** Maximum symbols per imported file to include */
+  maxSymbolsPerImport:
+    Number(process.env.ENRICHMENT_MAX_SYMBOLS_PER_IMPORT) || 5,
 };

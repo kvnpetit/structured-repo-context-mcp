@@ -72,7 +72,7 @@ describe("searchCodeSchema", () => {
     if (result.success) {
       expect(result.data.limit).toBe(10);
       expect(result.data.mode).toBe("hybrid");
-      expect(result.data.rerank).toBe(false);
+      expect(result.data.rerank).toBe(true);
     }
   });
 
@@ -157,6 +157,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -170,6 +171,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -185,6 +187,7 @@ describe("execute", () => {
       limit: 5,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -200,6 +203,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -218,6 +222,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -233,6 +238,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -272,6 +278,7 @@ describe("execute", () => {
       threshold: 0.5,
       mode: "vector",
       rerank: false, // Threshold only applies in vector mode
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -312,6 +319,7 @@ describe("execute", () => {
       threshold: 0.5,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -329,6 +337,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -344,6 +353,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -360,6 +370,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(false);
@@ -388,6 +399,7 @@ describe("execute", () => {
       limit: 10,
       mode: "hybrid",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -402,6 +414,7 @@ describe("execute", () => {
       limit: 10,
       mode: "fts",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
@@ -420,6 +433,7 @@ describe("execute", () => {
       limit: 10,
       mode: "vector",
       rerank: false,
+      includeCallContext: false,
     });
 
     expect(result.success).toBe(true);
