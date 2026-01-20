@@ -47,7 +47,7 @@ export interface HybridSearchOptions {
 function rrfFusion(
   vectorResults: SearchResult[],
   ftsResults: SearchResult[],
-  k: number = 60,
+  k = 60,
 ): SearchResult[] {
   const scores = new Map<string, { score: number; result: SearchResult }>();
 
@@ -109,7 +109,7 @@ export class VectorStore {
   private db: lancedb.Connection | null = null;
   private table: lancedb.Table | null = null;
   private readonly indexPath: string;
-  private ftsIndexCreated: boolean = false;
+  private ftsIndexCreated = false;
 
   constructor(
     directory: string,
@@ -189,10 +189,7 @@ export class VectorStore {
       logger.debug("FTS index created on content column");
     } catch (error) {
       // Index may already exist
-      if (
-        error instanceof Error &&
-        error.message.includes("already exists")
-      ) {
+      if (error instanceof Error && error.message.includes("already exists")) {
         this.ftsIndexCreated = true;
         logger.debug("FTS index already exists");
       } else {

@@ -126,7 +126,7 @@ function extractCallsFromTree(
     const matches = query.matches(tree.rootNode);
 
     // Extract callee names from matches
-    const callCaptures: Array<{ callee: string; position: Position }> = [];
+    const callCaptures: { callee: string; position: Position }[] = [];
 
     for (const match of matches) {
       for (const capture of match.captures) {
@@ -253,7 +253,7 @@ export async function analyzeFileForCallGraph(
  * Build a call graph from multiple files
  */
 export async function buildCallGraph(
-  files: Array<{ path: string; content: string }>,
+  files: { path: string; content: string }[],
 ): Promise<CallGraph> {
   const nodes = new Map<string, CallGraphNode>();
   const filePaths: string[] = [];
@@ -369,7 +369,7 @@ export function getCallContext(
 export function formatCallContext(
   callers: CallGraphNode[],
   callees: CallGraphNode[],
-  maxItems: number = 5,
+  maxItems = 5,
 ): string {
   const lines: string[] = [];
 

@@ -1,11 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -122,12 +115,12 @@ export function parseDate(str: string): Date {
 
     test("resolves index files", async () => {
       // Create index file
-      createFile(
-        "src/utils/index.ts",
-        `export function helper(): void {}`,
-      );
+      createFile("src/utils/index.ts", `export function helper(): void {}`);
 
-      const mainFile = createFile("src/main.ts", `import { helper } from "./utils";`);
+      const mainFile = createFile(
+        "src/main.ts",
+        `import { helper } from "./utils";`,
+      );
 
       const imports: Import[] = [
         {
@@ -195,7 +188,10 @@ export const c = 1;`,
     test("limits number of imports", async () => {
       // Create multiple files
       for (let i = 0; i < 15; i++) {
-        createFile(`lib${String(i)}.ts`, `export function fn${String(i)}(): void {}`);
+        createFile(
+          `lib${String(i)}.ts`,
+          `export function fn${String(i)}(): void {}`,
+        );
       }
 
       const mainFile = createFile("main.ts", "");
@@ -223,7 +219,10 @@ export const c = 1;`,
 }`,
       );
 
-      const mainFile = createFile("main.ts", `import { formatDate } from "./utils";`);
+      const mainFile = createFile(
+        "main.ts",
+        `import { formatDate } from "./utils";`,
+      );
 
       const imports: Import[] = [
         {
@@ -243,7 +242,10 @@ export const c = 1;`,
     });
 
     test("handles unresolvable imports gracefully", async () => {
-      const mainFile = createFile("main.ts", `import { foo } from "./nonexistent";`);
+      const mainFile = createFile(
+        "main.ts",
+        `import { foo } from "./nonexistent";`,
+      );
 
       const imports: Import[] = [
         {
@@ -277,7 +279,9 @@ export const c = 1;`,
         },
       ];
 
-      await resolveCrossFileContext(imports, mainFile, { projectRoot: tempDir });
+      await resolveCrossFileContext(imports, mainFile, {
+        projectRoot: tempDir,
+      });
 
       const statsBefore = getCrossFileCacheStats();
       expect(statsBefore.files).toBeGreaterThan(0);
@@ -311,7 +315,9 @@ export const c = 1;`,
         },
       ];
 
-      await resolveCrossFileContext(imports, mainFile, { projectRoot: tempDir });
+      await resolveCrossFileContext(imports, mainFile, {
+        projectRoot: tempDir,
+      });
 
       const stats = getCrossFileCacheStats();
       expect(stats.files).toBe(2);

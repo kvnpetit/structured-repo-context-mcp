@@ -80,7 +80,7 @@ function calculate() {
       const data = await analyzeFileForCallGraph("/test/invalid.ts", content);
 
       // Should return null or empty data, not throw
-      expect(data === null || data?.symbols.length === 0).toBe(true);
+      expect(data === null || data.symbols.length === 0).toBe(true);
     });
   });
 

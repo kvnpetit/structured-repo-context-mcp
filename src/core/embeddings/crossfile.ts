@@ -230,7 +230,11 @@ export async function resolveCrossFileContext(
 
   // Process imports (limited to maxImports)
   for (const imp of imports.slice(0, maxImports)) {
-    const resolvedPath = resolveImportPath(imp.source, currentFilePath, options);
+    const resolvedPath = resolveImportPath(
+      imp.source,
+      currentFilePath,
+      options,
+    );
 
     if (!resolvedPath) {
       resolvedImports.push({
@@ -281,7 +285,9 @@ export async function resolveCrossFileContext(
 /**
  * Build a summary string of imported symbols for enrichment
  */
-function buildImportedSymbolsSummary(resolvedImports: ResolvedImport[]): string {
+function buildImportedSymbolsSummary(
+  resolvedImports: ResolvedImport[],
+): string {
   const lines: string[] = [];
 
   for (const resolved of resolvedImports) {
@@ -298,7 +304,9 @@ function buildImportedSymbolsSummary(resolvedImports: ResolvedImport[]): string 
     });
 
     if (symbolDescriptions.length > 0) {
-      lines.push(`From ${resolved.import.source}: ${symbolDescriptions.join("; ")}`);
+      lines.push(
+        `From ${resolved.import.source}: ${symbolDescriptions.join("; ")}`,
+      );
     }
   }
 

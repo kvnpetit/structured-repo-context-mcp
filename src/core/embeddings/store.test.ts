@@ -359,7 +359,7 @@ describe("VectorStore hybrid search", () => {
     const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
     await store.connect();
 
-    const queryVector = new Array(768).fill(0);
+    const queryVector: number[] = new Array<number>(768).fill(0);
     const results = await store.searchHybrid(queryVector, "test query", 10);
 
     expect(results).toEqual([]);
@@ -400,7 +400,7 @@ describe("VectorStore hybrid search", () => {
     ];
     await store.addChunks(chunks);
 
-    const queryVector = new Array(768).fill(0);
+    const queryVector: number[] = new Array<number>(768).fill(0);
     const results = await store.searchHybrid(queryVector, "hello", 5, {
       mode: "fts",
     });
@@ -456,9 +456,7 @@ describe("VectorStore hybrid search", () => {
     const store = new VectorStore(tempDir, mockConfig);
     await store.connect();
 
-    const chunks = [
-      createMockChunk("func1", "test content", "/a.ts"),
-    ];
+    const chunks = [createMockChunk("func1", "test content", "/a.ts")];
     await store.addChunks(chunks);
 
     // Call createFtsIndex multiple times - should not throw

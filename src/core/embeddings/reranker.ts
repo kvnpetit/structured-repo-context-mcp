@@ -37,7 +37,7 @@ export interface RerankedResult extends SearchResult {
  */
 function parseScore(response: string): number {
   // Try to extract a number from the response
-  const match = response.match(/\b(\d+(?:\.\d+)?)\b/);
+  const match = /\b(\d+(?:\.\d+)?)\b/.exec(response);
   if (match?.[1]) {
     const score = parseFloat(match[1]);
     // Normalize to 0-10 range
@@ -137,7 +137,7 @@ export async function rerank(
   for (let i = 0; i < toRerank.length; i += batchSize) {
     const batch = toRerank.slice(i, i + batchSize);
     const scores = await Promise.all(
-      batch.map((result) =>
+      batch.map(async (result) =>
         scoreResult(query, result.chunk.content, options),
       ),
     );
@@ -159,7 +159,9 @@ export async function rerank(
   // Sort by rerank score (higher is better)
   rerankedResults.sort((a, b) => b.rerankScore - a.rerankScore);
 
-  logger.debug(`Re-ranking complete, top score: ${String(rerankedResults[0]?.rerankScore ?? 0)}`);
+  logger.debug(
+    `Re-ranking complete, top score: ${String(rerankedResults[0]?.rerankScore ?? 0)}`,
+  );
 
   return rerankedResults;
 }
@@ -167,7 +169,9 @@ export async function rerank(
 /**
  * Create a reranker function with preset options
  */
-export function createReranker(options: RerankerOptions) {
-  return (query: string, results: SearchResult[]) =>
+export function createReranker(
+  options: RerankerOptions,
+): (query: string, results: SearchResult[]) => Promise<RerankedResult[]> {
+  return async (query: string, results: SearchResult[]) =>
     rerank(query, results, options);
 }

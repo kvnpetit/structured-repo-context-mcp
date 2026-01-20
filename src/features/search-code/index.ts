@@ -104,7 +104,14 @@ function formatResults(
  * Execute the search_code feature
  */
 export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
-  const { query, directory, limit, threshold, mode, rerank: enableRerank } = input;
+  const {
+    query,
+    directory,
+    limit,
+    threshold,
+    mode,
+    rerank: enableRerank,
+  } = input;
 
   // Validate directory exists
   if (!fs.existsSync(directory)) {

@@ -66,7 +66,7 @@ describe("reranker", () => {
     test("re-ranks results using LLM scores", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ response: "8" }),
+        json: async () => Promise.resolve({ response: "8" }),
       });
 
       const results = [
@@ -86,11 +86,11 @@ describe("reranker", () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response: "3" }),
+          json: async () => Promise.resolve({ response: "3" }),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response: "9" }),
+          json: async () => Promise.resolve({ response: "9" }),
         });
 
       const results = [
@@ -109,7 +109,7 @@ describe("reranker", () => {
     test("limits results to maxResults", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ response: "5" }),
+        json: async () => Promise.resolve({ response: "5" }),
       });
 
       const results = Array.from({ length: 20 }, (_, i) =>
@@ -161,7 +161,7 @@ describe("reranker", () => {
       for (const { response } of responses) {
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response }),
+          json: async () => Promise.resolve({ response }),
         });
       }
 
@@ -184,15 +184,18 @@ describe("reranker", () => {
     test("uses default model when not specified", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ response: "5" }),
+        json: async () => Promise.resolve({ response: "5" }),
       });
 
       const results = [createMockResult("a", "content", 0.5)];
-      await rerank("query", results, { ollamaBaseUrl: "http://localhost:11434" });
+      await rerank("query", results, {
+        ollamaBaseUrl: "http://localhost:11434",
+      });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           body: expect.stringContaining('"model":"llama3.2"'),
         }),
       );
@@ -201,7 +204,7 @@ describe("reranker", () => {
     test("processes results in batches", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ response: "5" }),
+        json: async () => Promise.resolve({ response: "5" }),
       });
 
       // Create 12 results (will need 3 batches of 5)
@@ -220,7 +223,7 @@ describe("reranker", () => {
     test("creates a reranker function with preset options", async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: async () => ({ response: "7" }),
+        json: async () => Promise.resolve({ response: "7" }),
       });
 
       const rerankFn = createReranker(mockOptions);
