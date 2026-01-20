@@ -71,7 +71,27 @@ describe("searchCodeSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.limit).toBe(10);
+      expect(result.data.mode).toBe("hybrid");
     }
+  });
+
+  test("validates mode enum values", () => {
+    const validModes = ["vector", "fts", "hybrid"];
+    for (const mode of validModes) {
+      const result = searchCodeSchema.safeParse({
+        query: "test",
+        directory: "/test/dir",
+        mode,
+      });
+      expect(result.success).toBe(true);
+    }
+
+    const invalidResult = searchCodeSchema.safeParse({
+      query: "test",
+      directory: "/test/dir",
+      mode: "invalid",
+    });
+    expect(invalidResult.success).toBe(false);
   });
 });
 
@@ -82,7 +102,7 @@ describe("execute", () => {
   let mockExists: Mock;
   let mockConnect: Mock;
   let mockClose: Mock;
-  let mockSearch: Mock;
+  let mockSearchHybrid: Mock;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "search-test-"));
@@ -96,7 +116,7 @@ describe("execute", () => {
     mockExists = vi.fn().mockReturnValue(true);
     mockConnect = vi.fn().mockResolvedValue(undefined);
     mockClose = vi.fn().mockResolvedValue(undefined);
-    mockSearch = vi.fn().mockResolvedValue([
+    mockSearchHybrid = vi.fn().mockResolvedValue([
       {
         chunk: {
           id: "chunk_1",
@@ -121,7 +141,7 @@ describe("execute", () => {
       exists: mockExists,
       connect: mockConnect,
       close: mockClose,
-      search: mockSearch,
+      searchHybrid: mockSearchHybrid,
     } as unknown as embeddings.VectorStore);
   });
 
@@ -134,6 +154,7 @@ describe("execute", () => {
       query: "test query",
       directory: "/nonexistent/path",
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
@@ -145,6 +166,7 @@ describe("execute", () => {
       query: "hello function",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(true);
@@ -158,6 +180,7 @@ describe("execute", () => {
       query: "specific query",
       directory: tempDir,
       limit: 5,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(true);
@@ -171,6 +194,7 @@ describe("execute", () => {
       query: "test query",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
@@ -187,6 +211,7 @@ describe("execute", () => {
       query: "test query",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
@@ -200,14 +225,15 @@ describe("execute", () => {
       query: "test query",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Ollama is not available");
   });
 
-  test("filters results by threshold", async () => {
-    mockSearch.mockResolvedValue([
+  test("filters results by threshold in vector mode", async () => {
+    mockSearchHybrid.mockResolvedValue([
       {
         chunk: {
           id: "1",
@@ -237,6 +263,7 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       threshold: 0.5,
+      mode: "vector", // Threshold only applies in vector mode
     });
 
     expect(result.success).toBe(true);
@@ -244,13 +271,54 @@ describe("execute", () => {
     expect(data.resultsCount).toBe(1);
   });
 
+  test("does not filter by threshold in hybrid mode", async () => {
+    mockSearchHybrid.mockResolvedValue([
+      {
+        chunk: {
+          id: "1",
+          content: "a",
+          filePath: "/a.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+        score: 0.3,
+      },
+      {
+        chunk: {
+          id: "2",
+          content: "b",
+          filePath: "/b.ts",
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+        score: 0.8,
+      },
+    ]);
+
+    const result = await execute({
+      query: "test",
+      directory: tempDir,
+      limit: 10,
+      threshold: 0.5,
+      mode: "hybrid",
+    });
+
+    expect(result.success).toBe(true);
+    const data = result.data as { resultsCount: number };
+    // Both results should be returned in hybrid mode (threshold ignored)
+    expect(data.resultsCount).toBe(2);
+  });
+
   test("returns message when no results found", async () => {
-    mockSearch.mockResolvedValue([]);
+    mockSearchHybrid.mockResolvedValue([]);
 
     const result = await execute({
       query: "nonexistent code",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(true);
@@ -258,12 +326,13 @@ describe("execute", () => {
   });
 
   test("handles search errors", async () => {
-    mockSearch.mockRejectedValue(new Error("Database error"));
+    mockSearchHybrid.mockRejectedValue(new Error("Database error"));
 
     const result = await execute({
       query: "test query",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
@@ -272,12 +341,13 @@ describe("execute", () => {
   });
 
   test("handles non-Error exceptions", async () => {
-    mockSearch.mockRejectedValue("string error");
+    mockSearchHybrid.mockRejectedValue("string error");
 
     const result = await execute({
       query: "test query",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(false);
@@ -286,7 +356,7 @@ describe("execute", () => {
   });
 
   test("formats results without symbol info", async () => {
-    mockSearch.mockResolvedValue([
+    mockSearchHybrid.mockResolvedValue([
       {
         chunk: {
           id: "chunk_1",
@@ -304,10 +374,45 @@ describe("execute", () => {
       query: "test",
       directory: tempDir,
       limit: 10,
+      mode: "hybrid",
     });
 
     expect(result.success).toBe(true);
     expect(result.message).toContain("[typescript]");
     expect(result.message).not.toContain("(symbol:");
+  });
+
+  test("uses fts mode when specified", async () => {
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+      mode: "fts",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockSearchHybrid).toHaveBeenCalledWith(
+      expect.any(Array),
+      "test query",
+      10,
+      { mode: "fts" },
+    );
+  });
+
+  test("uses vector mode when specified", async () => {
+    const result = await execute({
+      query: "test query",
+      directory: tempDir,
+      limit: 10,
+      mode: "vector",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockSearchHybrid).toHaveBeenCalledWith(
+      expect.any(Array),
+      "test query",
+      10,
+      { mode: "vector" },
+    );
   });
 });

@@ -21,6 +21,8 @@ export {
   VectorStore,
   createVectorStore,
   getIndexPath,
+  type SearchMode,
+  type HybridSearchOptions,
 } from "@core/embeddings/store";
 
 // Chunker

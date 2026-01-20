@@ -1,5 +1,10 @@
 /**
  * LanceDB vector store for code embeddings
+ *
+ * Supports:
+ * - Vector similarity search (embeddings)
+ * - Full-text search (BM25)
+ * - Hybrid search with RRF (Reciprocal Rank Fusion)
  */
 
 import * as lancedb from "@lancedb/lancedb";
@@ -11,9 +16,75 @@ import type {
   IndexStatus,
   SearchResult,
 } from "@core/embeddings/types";
+import { logger } from "@utils";
 
 const TABLE_NAME = "code_chunks";
 const INDEX_DIR_NAME = ".src-index";
+
+/**
+ * Search mode for queries
+ */
+export type SearchMode = "vector" | "fts" | "hybrid";
+
+/**
+ * Options for hybrid search
+ */
+export interface HybridSearchOptions {
+  /** Search mode: vector only, fts only, or hybrid (default: hybrid) */
+  mode?: SearchMode;
+  /** Weight for vector search in hybrid mode (0-1, default: 0.5) */
+  vectorWeight?: number;
+  /** RRF constant k for rank fusion (default: 60) */
+  rrfK?: number;
+}
+
+/**
+ * Reciprocal Rank Fusion (RRF) to combine ranked lists
+ *
+ * RRF score = sum(1 / (k + rank_i)) for each list
+ * where k is a constant (typically 60) and rank_i is the 1-based rank in list i
+ */
+function rrfFusion(
+  vectorResults: SearchResult[],
+  ftsResults: SearchResult[],
+  k: number = 60,
+): SearchResult[] {
+  const scores = new Map<string, { score: number; result: SearchResult }>();
+
+  // Add vector results with RRF scoring
+  vectorResults.forEach((result, index) => {
+    const rank = index + 1;
+    const rrfScore = 1 / (k + rank);
+    const existing = scores.get(result.chunk.id);
+    if (existing) {
+      existing.score += rrfScore;
+    } else {
+      scores.set(result.chunk.id, { score: rrfScore, result });
+    }
+  });
+
+  // Add FTS results with RRF scoring
+  ftsResults.forEach((result, index) => {
+    const rank = index + 1;
+    const rrfScore = 1 / (k + rank);
+    const existing = scores.get(result.chunk.id);
+    if (existing) {
+      existing.score += rrfScore;
+    } else {
+      scores.set(result.chunk.id, { score: rrfScore, result });
+    }
+  });
+
+  // Sort by combined RRF score (higher is better)
+  const combined = Array.from(scores.values())
+    .sort((a, b) => b.score - a.score)
+    .map(({ score, result }) => ({
+      ...result,
+      score, // Replace distance with RRF score
+    }));
+
+  return combined;
+}
 
 /**
  * Type for LanceDB row results
@@ -38,6 +109,7 @@ export class VectorStore {
   private db: lancedb.Connection | null = null;
   private table: lancedb.Table | null = null;
   private readonly indexPath: string;
+  private ftsIndexCreated: boolean = false;
 
   constructor(
     directory: string,
@@ -101,7 +173,38 @@ export class VectorStore {
   }
 
   /**
-   * Search for similar chunks
+   * Create FTS (Full-Text Search) index on content column
+   * This enables BM25-based text search
+   */
+  async createFtsIndex(): Promise<void> {
+    if (!this.table || this.ftsIndexCreated) {
+      return;
+    }
+
+    try {
+      await this.table.createIndex("content", {
+        config: lancedb.Index.fts(),
+      });
+      this.ftsIndexCreated = true;
+      logger.debug("FTS index created on content column");
+    } catch (error) {
+      // Index may already exist
+      if (
+        error instanceof Error &&
+        error.message.includes("already exists")
+      ) {
+        this.ftsIndexCreated = true;
+        logger.debug("FTS index already exists");
+      } else {
+        logger.warn(
+          `Failed to create FTS index: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Search for similar chunks using vector similarity
    */
   async search(queryVector: number[], limit = 10): Promise<SearchResult[]> {
     if (!this.table) {
@@ -126,6 +229,85 @@ export class VectorStore {
       },
       score: row._distance ?? 0,
     }));
+  }
+
+  /**
+   * Full-text search using BM25
+   */
+  async searchFts(queryText: string, limit = 10): Promise<SearchResult[]> {
+    if (!this.table) {
+      return [];
+    }
+
+    // Ensure FTS index exists
+    await this.createFtsIndex();
+
+    try {
+      const results = (await this.table
+        .query()
+        .nearestToText(queryText)
+        .limit(limit)
+        .toArray()) as LanceDBRow[];
+
+      return results.map((row, index) => ({
+        chunk: {
+          id: row.id,
+          content: row.content,
+          filePath: row.filePath,
+          language: row.language,
+          startLine: row.startLine,
+          endLine: row.endLine,
+          symbolName: row.symbolName || undefined,
+          symbolType: row.symbolType || undefined,
+        },
+        // FTS doesn't return distance, use rank-based score
+        score: 1 / (index + 1),
+      }));
+    } catch (error) {
+      logger.warn(
+        `FTS search failed, falling back to empty results: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Hybrid search combining vector similarity and full-text search
+   * Uses Reciprocal Rank Fusion (RRF) to combine results
+   */
+  async searchHybrid(
+    queryVector: number[],
+    queryText: string,
+    limit = 10,
+    options: HybridSearchOptions = {},
+  ): Promise<SearchResult[]> {
+    const { mode = "hybrid", rrfK = 60 } = options;
+
+    if (!this.table) {
+      return [];
+    }
+
+    // Vector-only search
+    if (mode === "vector") {
+      return this.search(queryVector, limit);
+    }
+
+    // FTS-only search
+    if (mode === "fts") {
+      return this.searchFts(queryText, limit);
+    }
+
+    // Hybrid search: run both searches in parallel
+    const [vectorResults, ftsResults] = await Promise.all([
+      this.search(queryVector, limit * 2), // Get more results for fusion
+      this.searchFts(queryText, limit * 2),
+    ]);
+
+    // Fuse results using RRF
+    const fusedResults = rrfFusion(vectorResults, ftsResults, rrfK);
+
+    // Return top N results
+    return fusedResults.slice(0, limit);
   }
 
   /**

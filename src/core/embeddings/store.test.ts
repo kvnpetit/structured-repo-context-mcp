@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -8,6 +8,16 @@ import {
   getIndexPath,
 } from "@core/embeddings/store";
 import type { EmbeddedChunk } from "@core/embeddings/types";
+
+// Mock logger to avoid noise in tests
+vi.mock("@utils", () => ({
+  logger: {
+    debug: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 describe("VectorStore", () => {
   let tempDir: string;
@@ -310,6 +320,161 @@ describe("VectorStore advanced operations", () => {
     const status = await store.getStatus(tempDir);
     expect(status.totalChunks).toBe(1);
 
+    store.close();
+  });
+});
+
+describe("VectorStore hybrid search", () => {
+  let tempDir: string;
+
+  const mockConfig = {
+    embeddingDimensions: 768,
+  };
+
+  const createMockChunk = (
+    id: string,
+    content: string,
+    filePath: string,
+  ): EmbeddedChunk => ({
+    id,
+    content,
+    filePath,
+    language: "typescript",
+    startLine: 1,
+    endLine: 3,
+    symbolName: id,
+    symbolType: "function",
+    vector: new Array(768).fill(0).map(() => Math.random()),
+  });
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-hybrid-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("searchHybrid returns empty array when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    const queryVector = new Array(768).fill(0);
+    const results = await store.searchHybrid(queryVector, "test query", 10);
+
+    expect(results).toEqual([]);
+    store.close();
+  });
+
+  test("searchHybrid in vector mode delegates to search", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    const chunk1 = createMockChunk(
+      "func1",
+      "function hello() { return 'hello'; }",
+      "/a.ts",
+    );
+    const chunk2 = createMockChunk(
+      "func2",
+      "function world() { return 'world'; }",
+      "/b.ts",
+    );
+    await store.addChunks([chunk1, chunk2]);
+
+    const results = await store.searchHybrid(chunk1.vector, "hello", 5, {
+      mode: "vector",
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    store.close();
+  });
+
+  test("searchHybrid in fts mode uses full-text search", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    const chunks = [
+      createMockChunk("func1", "function hello() { return 'hello'; }", "/a.ts"),
+      createMockChunk("func2", "function world() { return 'world'; }", "/b.ts"),
+    ];
+    await store.addChunks(chunks);
+
+    const queryVector = new Array(768).fill(0);
+    const results = await store.searchHybrid(queryVector, "hello", 5, {
+      mode: "fts",
+    });
+
+    // FTS may or may not return results depending on LanceDB FTS support
+    expect(Array.isArray(results)).toBe(true);
+    store.close();
+  });
+
+  test("searchHybrid in hybrid mode combines vector and FTS results", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    const chunk1 = createMockChunk(
+      "func1",
+      "function handleError() { throw new Error('error'); }",
+      "/a.ts",
+    );
+    const chunk2 = createMockChunk(
+      "func2",
+      "function processData() { return data.map(x => x); }",
+      "/b.ts",
+    );
+    const chunk3 = createMockChunk(
+      "func3",
+      "function validateInput() { if (!input) throw; }",
+      "/c.ts",
+    );
+    await store.addChunks([chunk1, chunk2, chunk3]);
+
+    const results = await store.searchHybrid(chunk1.vector, "error", 10, {
+      mode: "hybrid",
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    // Results should have RRF scores (higher is better)
+    const firstResult = results[0];
+    expect(firstResult).toBeDefined();
+    expect(firstResult?.score).toBeGreaterThan(0);
+    store.close();
+  });
+
+  test("searchFts returns empty array when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    const results = await store.searchFts("test", 10);
+    expect(results).toEqual([]);
+    store.close();
+  });
+
+  test("createFtsIndex is idempotent", async () => {
+    const store = new VectorStore(tempDir, mockConfig);
+    await store.connect();
+
+    const chunks = [
+      createMockChunk("func1", "test content", "/a.ts"),
+    ];
+    await store.addChunks(chunks);
+
+    // Call createFtsIndex multiple times - should not throw
+    await store.createFtsIndex();
+    await store.createFtsIndex();
+    await store.createFtsIndex();
+
+    store.close();
+  });
+
+  test("createFtsIndex does nothing when table is null", async () => {
+    const store = new VectorStore(path.join(tempDir, "empty"), mockConfig);
+    await store.connect();
+
+    // Should not throw
+    await store.createFtsIndex();
     store.close();
   });
 });

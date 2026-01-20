@@ -1,9 +1,15 @@
 /**
  * Search Code Feature
  *
- * Performs semantic search on indexed codebase using:
- * 1. Query embedding via Ollama
- * 2. Vector similarity search via LanceDB
+ * Performs hybrid search on indexed codebase combining:
+ * 1. Vector similarity search (semantic embeddings via Ollama)
+ * 2. Full-text search (BM25 keyword matching)
+ * 3. RRF (Reciprocal Rank Fusion) to combine results
+ *
+ * Supports three search modes:
+ * - 'hybrid' (default): Best of both vector and keyword search
+ * - 'vector': Semantic search only
+ * - 'fts': Keyword search only
  */
 
 import { z } from "zod";
@@ -15,6 +21,7 @@ import {
   createOllamaClient,
   createVectorStore,
   type SearchResult,
+  type SearchMode,
 } from "@core/embeddings";
 
 export const searchCodeSchema = z.object({
@@ -37,6 +44,13 @@ export const searchCodeSchema = z.object({
     .max(2)
     .optional()
     .describe("Maximum distance threshold for results (lower = more similar)"),
+  mode: z
+    .enum(["vector", "fts", "hybrid"])
+    .optional()
+    .default("hybrid")
+    .describe(
+      "Search mode: 'vector' (semantic only), 'fts' (keyword only), 'hybrid' (combined with RRF fusion)",
+    ),
 });
 
 export type SearchCodeInput = z.infer<typeof searchCodeSchema>;
@@ -82,7 +96,7 @@ function formatResults(
  * Execute the search_code feature
  */
 export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
-  const { query, directory, limit, threshold } = input;
+  const { query, directory, limit, threshold, mode } = input;
 
   // Validate directory exists
   if (!fs.existsSync(directory)) {
@@ -122,11 +136,14 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     // Generate query embedding
     const queryVector = await ollamaClient.embed(query);
 
-    // Search for similar chunks
-    let results = await vectorStore.search(queryVector, limit);
+    // Search for similar chunks using hybrid search (vector + BM25 + RRF)
+    let results = await vectorStore.searchHybrid(queryVector, query, limit, {
+      mode: mode as SearchMode,
+    });
 
-    // Apply threshold filter if specified
-    if (threshold !== undefined) {
+    // Apply threshold filter if specified (only for vector mode where lower = better)
+    // For hybrid/fts modes, RRF scores are higher = better, so threshold is ignored
+    if (threshold !== undefined && mode === "vector") {
       results = results.filter((r) => r.score <= threshold);
     }
 
@@ -179,7 +196,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
 export const searchCodeFeature: Feature<typeof searchCodeSchema> = {
   name: "search_code",
   description:
-    "Search indexed codebase using natural language. Returns semantically similar code chunks.",
+    "Search indexed codebase using hybrid search (vector + BM25 + RRF fusion). Supports 'hybrid' (default), 'vector', or 'fts' modes.",
   schema: searchCodeSchema,
   execute,
 };
