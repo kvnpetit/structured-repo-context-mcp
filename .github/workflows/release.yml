@@ -54,6 +54,10 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Update npm for Trusted Publishing
+        if: steps.tag.outputs.exists == 'false'
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         if: steps.tag.outputs.exists == 'false'
         run: bun install --frozen-lockfile
