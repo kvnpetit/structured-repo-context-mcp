@@ -20,3 +20,11 @@ export {
   unregisterCache,
   type CacheClearFn,
 } from "./cache";
+
+// TSConfig utilities
+export {
+  clearPathAliasCache,
+  readPathAliases,
+  readPathAliasesCached,
+  type PathAliases,
+} from "./tsconfig";

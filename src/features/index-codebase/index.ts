@@ -25,6 +25,7 @@ import {
   type EnrichmentOptions,
 } from "@core/embeddings";
 import { logger } from "@utils";
+import { readPathAliasesCached } from "@core/utils";
 
 export const indexCodebaseSchema = z.object({
   directory: z
@@ -192,16 +193,19 @@ export async function execute(
       };
     }
 
+    // Read path aliases from tsconfig.json if present
+    const pathAliases = readPathAliasesCached(absoluteDir);
+    const aliasCount = Object.keys(pathAliases).length;
+
     // Enrichment options with cross-file context enabled
     const enrichmentOptions: EnrichmentOptions = {
       projectRoot: absoluteDir,
-      // TODO: Read path aliases from tsconfig.json if present
-      pathAliases: {},
+      pathAliases,
       includeCrossFileContext: true,
     };
 
     logger.debug(
-      `Indexing with cross-file context enabled (projectRoot: ${absoluteDir})`,
+      `Indexing with cross-file context enabled (projectRoot: ${absoluteDir}, ${String(aliasCount)} path aliases)`,
     );
 
     // Process files: chunk and enrich

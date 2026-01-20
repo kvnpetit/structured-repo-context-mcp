@@ -25,6 +25,7 @@ import {
   type EmbeddedChunk,
   type EnrichmentOptions,
 } from "@core/embeddings";
+import { readPathAliasesCached } from "@core/utils";
 
 /** Cache file name for storing hashes */
 const HASH_CACHE_FILE = ".src-index-hashes.json";
@@ -260,10 +261,13 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
       };
     }
 
+    // Read path aliases from tsconfig.json if present
+    const pathAliases = readPathAliasesCached(absoluteDir);
+
     // Enrichment options
     const enrichmentOptions: EnrichmentOptions = {
       projectRoot: absoluteDir,
-      pathAliases: {},
+      pathAliases,
       includeCrossFileContext: true,
     };
 
