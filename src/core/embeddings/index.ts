@@ -67,3 +67,16 @@ export {
   type CrossFileOptions,
   type ResolvedImport,
 } from "@core/embeddings/crossfile";
+
+// Call graph
+export {
+  analyzeFileForCallGraph,
+  buildCallGraph,
+  clearCallGraphCache,
+  formatCallContext,
+  getCallContext,
+  getCallGraphCacheStats,
+  type CallGraph,
+  type CallGraphNode,
+  type FunctionCall,
+} from "@core/embeddings/callgraph";
