@@ -4,9 +4,7 @@ import { registerPrompts } from "@prompts";
 describe("Prompt Registration", () => {
   test("registerPrompts does not throw", () => {
     const mockServer = {
-      prompt: vi.fn(() => {
-        // Mock implementation
-      }),
+      registerPrompt: vi.fn(),
     };
 
     expect(() => {
@@ -14,16 +12,28 @@ describe("Prompt Registration", () => {
     }).not.toThrow();
   });
 
-  test("registerPrompts accepts server parameter", () => {
-    const promptMock = vi.fn(() => {
-      // Mock implementation
-    });
-    const mockServer = { prompt: promptMock };
+  test("registerPrompts registers 3 prompts", () => {
+    const registerPromptMock = vi.fn();
+    const mockServer = { registerPrompt: registerPromptMock };
 
     registerPrompts(mockServer as never);
 
-    // Currently no prompts registered, so mock should not be called
-    // This test ensures the function signature is correct
-    expect(true).toBe(true);
+    // Should register 3 prompts: src-overview, code-search-workflow, search-tips
+    expect(registerPromptMock).toHaveBeenCalledTimes(3);
+    expect(registerPromptMock).toHaveBeenCalledWith(
+      "src-overview",
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(registerPromptMock).toHaveBeenCalledWith(
+      "code-search-workflow",
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(registerPromptMock).toHaveBeenCalledWith(
+      "search-tips",
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 });

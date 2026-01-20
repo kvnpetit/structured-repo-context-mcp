@@ -52,7 +52,8 @@ export function execute(input: InfoInput): FeatureResult {
 
 export const infoFeature: Feature<typeof infoSchema> = {
   name: "get_server_info",
-  description: "Get server information and version",
+  description:
+    "Get SRC server version and capabilities. Use to verify the MCP server is running correctly.",
   schema: infoSchema,
   execute,
 };

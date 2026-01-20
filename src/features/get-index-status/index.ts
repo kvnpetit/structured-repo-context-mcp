@@ -105,7 +105,7 @@ export async function execute(
 export const getIndexStatusFeature: Feature<typeof getIndexStatusSchema> = {
   name: "get_index_status",
   description:
-    "Get the status of the embedding index for a directory. Shows file count, chunk count, and language breakdown.",
+    "Check if a codebase is indexed and ready for search. USE THIS to verify index exists before searching. Returns file count, chunk count, and indexed languages.",
   schema: getIndexStatusSchema,
   execute,
 };

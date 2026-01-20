@@ -369,7 +369,7 @@ export async function execute(
 export const indexCodebaseFeature: Feature<typeof indexCodebaseSchema> = {
   name: "index_codebase",
   description:
-    "Index a codebase directory for semantic search. Creates embeddings for all supported source files.",
+    "Index a codebase for semantic code search. USE THIS FIRST before search_code. Required once per project - creates vector embeddings for 50+ languages. After initial indexing, use update_index for incremental updates.",
   schema: indexCodebaseSchema,
   execute,
 };

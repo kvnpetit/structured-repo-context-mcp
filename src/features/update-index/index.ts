@@ -441,7 +441,7 @@ function buildResultMessage(result: UpdateResult): string {
 export const updateIndexFeature: Feature<typeof updateIndexSchema> = {
   name: "update_index",
   description:
-    "Incrementally update the codebase index by detecting changed files and re-indexing only what's needed. Uses hash comparison for efficiency.",
+    "Refresh the search index after code changes. USE THIS instead of re-indexing - it's fast because it only processes changed files (SHA-256 hash detection). Use dryRun=true to preview changes first.",
   schema: updateIndexSchema,
   execute,
 };

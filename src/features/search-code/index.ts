@@ -346,7 +346,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
 export const searchCodeFeature: Feature<typeof searchCodeSchema> = {
   name: "search_code",
   description:
-    "Search indexed codebase using hybrid search (vector + BM25 + RRF fusion). Supports 'hybrid' (default), 'vector', or 'fts' modes. Optional LLM re-ranking and call context analysis.",
+    "Search code semantically using natural language queries. USE THIS to find code by concept/meaning (e.g., 'authentication logic', 'error handling'). Requires index_codebase first. Returns relevant code chunks with file locations, function names, and call relationships (who calls what).",
   schema: searchCodeSchema,
   execute,
 };
