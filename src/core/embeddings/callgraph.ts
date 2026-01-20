@@ -98,24 +98,29 @@ function saveCallGraphCache(
   graph: CallGraph,
   fileHashes: Record<string, string>,
 ): void {
-  const cachePath = getCachePath(directory);
-  const cacheDir = path.dirname(cachePath);
+  try {
+    const cachePath = getCachePath(directory);
+    const cacheDir = path.dirname(cachePath);
 
-  // Ensure cache directory exists
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true });
+    // Ensure cache directory exists
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const serialized: SerializedCallGraph = {
+      nodes: Object.fromEntries(graph.nodes),
+      files: graph.files,
+      edgeCount: graph.edgeCount,
+      fileHashes,
+      timestamp: Date.now(),
+    };
+
+    fs.writeFileSync(cachePath, JSON.stringify(serialized), "utf-8");
+    logger.debug(`Call graph cache saved: ${String(graph.nodes.size)} nodes`);
+  } catch {
+    // Silently ignore cache save errors (directory not writable, etc.)
+    logger.debug("Call graph cache save skipped: directory not writable");
   }
-
-  const serialized: SerializedCallGraph = {
-    nodes: Object.fromEntries(graph.nodes),
-    files: graph.files,
-    edgeCount: graph.edgeCount,
-    fileHashes,
-    timestamp: Date.now(),
-  };
-
-  fs.writeFileSync(cachePath, JSON.stringify(serialized), "utf-8");
-  logger.debug(`Call graph cache saved: ${String(graph.nodes.size)} nodes`);
 }
 
 /**
