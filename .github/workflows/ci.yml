@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [dev]
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
 
@@ -48,8 +48,11 @@ jobs:
       - name: Build
         run: bun run build
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
+          slug: kvnpetit/structured-repo-context-mcp
           fail_ci_if_error: false
