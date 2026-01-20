@@ -1,3 +1,8 @@
+## [1.0.2](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.1...v1.0.2) (2026-01-20)
+
+### Bug Fixes
+
+* use stderr for all logger output to prevent MCP protocol corruption ([439429d](https://github.com/kvnpetit/structured-repo-context-mcp/commit/439429d47723fea5cb107d0f4b13507d44dcb8b6))
 ## [1.0.1](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.0...v1.0.1) (2026-01-20)
 ## 1.0.0 (2026-01-20)
 
