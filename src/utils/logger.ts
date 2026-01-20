@@ -44,8 +44,7 @@ export const logger = {
 
   info(message: string, ...args: unknown[]): void {
     if (shouldLog("info")) {
-      // eslint-disable-next-line no-console
-      console.log(formatMessage("info", message), ...args);
+      console.error(formatMessage("info", message), ...args);
     }
   },
 
@@ -62,7 +61,6 @@ export const logger = {
   },
 
   success(message: string, ...args: unknown[]): void {
-    // eslint-disable-next-line no-console
-    console.log(pc.green("✓ ") + message, ...args);
+    console.error(pc.green("✓ ") + message, ...args);
   },
 };

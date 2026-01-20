@@ -21,9 +21,9 @@ describe("Logger", () => {
     console.error = originalConsole.error;
   });
 
-  test("logger.info calls console.log", () => {
+  test("logger.info calls console.error", () => {
     logger.info("Test info message");
-    expect(console.log).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
   });
 
   test("logger.warn calls console.warn", () => {
@@ -36,9 +36,9 @@ describe("Logger", () => {
     expect(console.error).toHaveBeenCalled();
   });
 
-  test("logger.success calls console.log", () => {
+  test("logger.success calls console.error", () => {
     logger.success("Test success");
-    expect(console.log).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
   });
 
   test("logger.debug does not log when level is info", () => {
@@ -108,23 +108,19 @@ describe("Logger with invalid log level", () => {
     vi.resetModules();
     const { logger: testLogger } = await import("@utils/logger");
 
-    const consoleLogSpy = vi
-      .spyOn(console, "log")
-      .mockImplementation(() => undefined);
     const consoleErrorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
 
     // Info should still log (default fallback is info level)
     testLogger.info("Test info message");
-    expect(consoleLogSpy).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
 
     // Debug should NOT log (debug < info in hierarchy)
     consoleErrorSpy.mockClear();
     testLogger.debug("Test debug message");
     expect(consoleErrorSpy).not.toHaveBeenCalled();
 
-    consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
 
     vi.doUnmock("@config");
@@ -140,9 +136,6 @@ describe("Logger with invalid log level", () => {
     vi.resetModules();
     const { logger: testLogger } = await import("@utils/logger");
 
-    const consoleLogSpy = vi
-      .spyOn(console, "log")
-      .mockImplementation(() => undefined);
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => undefined);
@@ -150,9 +143,10 @@ describe("Logger with invalid log level", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
 
-    // Info should NOT log (info < error)
+    // Info should NOT log (info < error) - info uses console.error now
     testLogger.info("Test info");
-    expect(consoleLogSpy).not.toHaveBeenCalled();
+    // At this point console.error should NOT have been called for info
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
 
     // Warn should NOT log (warn < error)
     testLogger.warn("Test warning");
@@ -162,7 +156,6 @@ describe("Logger with invalid log level", () => {
     testLogger.error("Test error");
     expect(consoleErrorSpy).toHaveBeenCalled();
 
-    consoleLogSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
 
@@ -179,22 +172,22 @@ describe("Logger with invalid log level", () => {
     vi.resetModules();
     const { logger: testLogger } = await import("@utils/logger");
 
-    const consoleLogSpy = vi
-      .spyOn(console, "log")
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
       .mockImplementation(() => undefined);
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => undefined);
 
-    // Info should NOT log (info < warn)
+    // Info should NOT log (info < warn) - info uses console.error now
     testLogger.info("Test info");
-    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
 
     // Warn should log
     testLogger.warn("Test warning");
     expect(consoleWarnSpy).toHaveBeenCalled();
 
-    consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
     consoleWarnSpy.mockRestore();
 
     vi.doUnmock("@config");
