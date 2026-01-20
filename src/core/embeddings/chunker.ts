@@ -100,12 +100,15 @@ function splitLargeContent(
   maxSize: number,
   overlap: number,
 ): string[] {
-  if (content.length <= maxSize) {
-    return [content];
+  // Normalize line endings (handle CRLF and CR)
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  if (normalizedContent.length <= maxSize) {
+    return [normalizedContent];
   }
 
   const chunks: string[] = [];
-  const lines = content.split("\n");
+  const lines = normalizedContent.split("\n");
   let currentChunk: string[] = [];
   let currentSize = 0;
 

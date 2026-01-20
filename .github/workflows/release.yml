@@ -98,8 +98,6 @@ jobs:
       - name: Publish to npm
         if: steps.tag.outputs.exists == 'false'
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         if: steps.tag.outputs.exists == 'false'

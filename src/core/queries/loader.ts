@@ -99,7 +99,9 @@ export function getSCMPath(
  */
 function parseInherits(content: string): string[] {
   const inherits: string[] = [];
-  const lines = content.split("\n");
+  // Normalize line endings (handle CRLF and CR)
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalizedContent.split("\n");
 
   for (const line of lines) {
     const match = /^;\s*inherits:?\s+([^\s].*)$/.exec(line);
@@ -116,7 +118,9 @@ function parseInherits(content: string): string[] {
  * Remove inherit directives from SCM content
  */
 function removeInheritDirectives(content: string): string {
-  return content
+  // Normalize line endings (handle CRLF and CR)
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return normalizedContent
     .split("\n")
     .filter((line) => !/^;\s*inherits:?\s+/.exec(line))
     .join("\n");
