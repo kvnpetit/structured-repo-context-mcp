@@ -3,9 +3,16 @@
  *
  * Extracts function call relationships from code using tree-sitter
  * to build a graph showing which functions call which.
+ *
+ * Features:
+ * - Persistent caching in .src-index/call-graph.json
+ * - Hash-based invalidation for changed files
  */
 
 import { Query } from "web-tree-sitter";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as crypto from "node:crypto";
 import type { Position, Symbol } from "@core/ast/types";
 import { parseCode, type ParseResult } from "@core/parser";
 import { extractSymbols } from "@core/symbols";
@@ -56,6 +63,112 @@ export interface CallGraph {
   files: string[];
   /** Total number of call edges */
   edgeCount: number;
+}
+
+/**
+ * Serializable call graph for persistent cache
+ */
+interface SerializedCallGraph {
+  nodes: Record<string, CallGraphNode>;
+  files: string[];
+  edgeCount: number;
+  fileHashes: Record<string, string>;
+  timestamp: number;
+}
+
+/**
+ * Compute SHA-256 hash of content
+ */
+function computeHash(content: string): string {
+  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
+}
+
+/**
+ * Get call graph cache path for a directory
+ */
+function getCachePath(directory: string): string {
+  return path.join(directory, ".src-index", "call-graph.json");
+}
+
+/**
+ * Save call graph to persistent cache
+ */
+function saveCallGraphCache(
+  directory: string,
+  graph: CallGraph,
+  fileHashes: Record<string, string>,
+): void {
+  const cachePath = getCachePath(directory);
+  const cacheDir = path.dirname(cachePath);
+
+  // Ensure cache directory exists
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  const serialized: SerializedCallGraph = {
+    nodes: Object.fromEntries(graph.nodes),
+    files: graph.files,
+    edgeCount: graph.edgeCount,
+    fileHashes,
+    timestamp: Date.now(),
+  };
+
+  fs.writeFileSync(cachePath, JSON.stringify(serialized), "utf-8");
+  logger.debug(`Call graph cache saved: ${String(graph.nodes.size)} nodes`);
+}
+
+/**
+ * Load call graph from persistent cache if valid
+ */
+function loadCallGraphCache(
+  directory: string,
+  currentHashes: Record<string, string>,
+): CallGraph | null {
+  const cachePath = getCachePath(directory);
+
+  if (!fs.existsSync(cachePath)) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(cachePath, "utf-8");
+    const cached = JSON.parse(content) as SerializedCallGraph;
+
+    // Validate hashes - check if any file has changed
+    const cachedFiles = new Set(Object.keys(cached.fileHashes));
+    const currentFiles = new Set(Object.keys(currentHashes));
+
+    // Check for added or removed files
+    if (cachedFiles.size !== currentFiles.size) {
+      logger.debug("Call graph cache invalid: file count changed");
+      return null;
+    }
+
+    // Check for modified files
+    for (const [filePath, hash] of Object.entries(currentHashes)) {
+      if (cached.fileHashes[filePath] !== hash) {
+        logger.debug(`Call graph cache invalid: ${filePath} changed`);
+        return null;
+      }
+    }
+
+    // Cache is valid - restore the Map
+    const nodes = new Map<string, CallGraphNode>(Object.entries(cached.nodes));
+
+    logger.debug(`Call graph cache loaded: ${String(nodes.size)} nodes`);
+
+    return {
+      nodes,
+      files: cached.files,
+      edgeCount: cached.edgeCount,
+    };
+  } catch (error) {
+    logger.debug(
+      `Failed to load call graph cache: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -251,10 +364,32 @@ export async function analyzeFileForCallGraph(
 
 /**
  * Build a call graph from multiple files
+ *
+ * Uses persistent caching with hash-based invalidation for performance.
  */
 export async function buildCallGraph(
   files: { path: string; content: string }[],
 ): Promise<CallGraph> {
+  if (files.length === 0) {
+    return { nodes: new Map(), files: [], edgeCount: 0 };
+  }
+
+  // Compute hashes for all files
+  const fileHashes: Record<string, string> = {};
+  for (const file of files) {
+    fileHashes[file.path] = computeHash(file.content);
+  }
+
+  // Determine base directory from common path prefix
+  const baseDir = findCommonDirectory(files.map((f) => f.path));
+
+  // Try to load from persistent cache
+  const cached = loadCallGraphCache(baseDir, fileHashes);
+  if (cached) {
+    return cached;
+  }
+
+  // Build the call graph
   const nodes = new Map<string, CallGraphNode>();
   const filePaths: string[] = [];
   let edgeCount = 0;
@@ -318,11 +453,69 @@ export async function buildCallGraph(
     }
   }
 
-  return {
+  const graph: CallGraph = {
     nodes,
     files: filePaths,
     edgeCount,
   };
+
+  // Save to persistent cache
+  saveCallGraphCache(baseDir, graph, fileHashes);
+
+  return graph;
+}
+
+/**
+ * Find common directory from a list of file paths
+ */
+function findCommonDirectory(paths: string[]): string {
+  if (paths.length === 0) {
+    return ".";
+  }
+
+  const firstPathStr = paths[0];
+  if (!firstPathStr) {
+    return ".";
+  }
+
+  if (paths.length === 1) {
+    return path.dirname(firstPathStr);
+  }
+
+  // Normalize paths and split into segments
+  const segments = paths.map((p) => path.normalize(p).split(path.sep));
+  const firstPath = segments[0];
+
+  if (!firstPath) {
+    return ".";
+  }
+
+  // Find common prefix
+  let commonLength = 0;
+
+  for (let i = 0; i < firstPath.length; i++) {
+    const segment = firstPath[i];
+    if (segment && segments.every((s) => s[i] === segment)) {
+      commonLength = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Build common directory path
+  const commonSegments = firstPath.slice(0, commonLength);
+  const commonDir = commonSegments.join(path.sep);
+
+  // If the common path is a file, return its directory
+  if (
+    commonDir &&
+    fs.existsSync(commonDir) &&
+    fs.statSync(commonDir).isFile()
+  ) {
+    return path.dirname(commonDir);
+  }
+
+  return commonDir || ".";
 }
 
 /**
