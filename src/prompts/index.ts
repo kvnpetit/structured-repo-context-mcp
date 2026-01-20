@@ -28,7 +28,6 @@ SRC is a semantic code search MCP server. It indexes codebases and provides inte
 - **Vector embeddings** for semantic similarity (understands meaning, not just keywords)
 - **BM25 keyword search** for exact matches
 - **Hybrid search** combining both with RRF fusion
-- **LLM re-ranking** for optimal relevance
 - **Call graph analysis** showing function relationships
 
 ## When to use SRC?
@@ -106,7 +105,6 @@ search_code(query: "your search query here")
 | query | string | required | Natural language search query |
 | limit | number | 10 | Max results to return |
 | mode | "hybrid" / "vector" / "fts" | "hybrid" | Search mode |
-| rerank | boolean | true | LLM re-ranking for better relevance |
 | includeCallContext | boolean | true | Include caller/callee info |
 | threshold | number | - | Distance threshold (vector mode only) |
 

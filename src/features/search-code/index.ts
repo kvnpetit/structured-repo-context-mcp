@@ -25,7 +25,6 @@ import { EMBEDDING_CONFIG } from "@config";
 import {
   createOllamaClient,
   createVectorStore,
-  rerank,
   buildCallGraph,
   getCallContext,
   shouldIndexFile,
@@ -59,13 +58,6 @@ export const searchCodeSchema = z.object({
     .default("hybrid")
     .describe(
       "Search mode: 'vector' (semantic only), 'fts' (keyword only), 'hybrid' (combined with RRF fusion)",
-    ),
-  rerank: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe(
-      "Enable LLM re-ranking for improved relevance (enabled by default)",
     ),
   includeCallContext: z
     .boolean()
@@ -178,15 +170,8 @@ function formatResults(
  * Execute the search_code feature
  */
 export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
-  const {
-    query,
-    directory,
-    limit,
-    threshold,
-    mode,
-    rerank: enableRerank,
-    includeCallContext,
-  } = input;
+  const { query, directory, limit, threshold, mode, includeCallContext } =
+    input;
 
   // Validate directory exists
   if (!fs.existsSync(directory)) {
@@ -235,15 +220,6 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     // For hybrid/fts modes, RRF scores are higher = better, so threshold is ignored
     if (threshold !== undefined && mode === "vector") {
       results = results.filter((r) => r.score <= threshold);
-    }
-
-    // Apply LLM re-ranking if enabled (default: true)
-    if (enableRerank && results.length > 0) {
-      results = await rerank(query, results, {
-        ollamaBaseUrl: EMBEDDING_CONFIG.ollamaBaseUrl,
-        model: EMBEDDING_CONFIG.rerankModel,
-        maxResults: limit,
-      });
     }
 
     vectorStore.close();

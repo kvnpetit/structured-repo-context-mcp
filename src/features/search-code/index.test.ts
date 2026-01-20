@@ -72,7 +72,6 @@ describe("searchCodeSchema", () => {
     if (result.success) {
       expect(result.data.limit).toBe(10);
       expect(result.data.mode).toBe("hybrid");
-      expect(result.data.rerank).toBe(true);
       expect(result.data.includeCallContext).toBe(true);
     }
   });
@@ -157,7 +156,6 @@ describe("execute", () => {
       directory: "/nonexistent/path",
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -171,7 +169,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -187,7 +184,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 5,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -203,7 +199,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -222,7 +217,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -238,7 +232,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -278,7 +271,6 @@ describe("execute", () => {
       limit: 10,
       threshold: 0.5,
       mode: "vector",
-      rerank: false, // Threshold only applies in vector mode
       includeCallContext: false,
     });
 
@@ -319,7 +311,6 @@ describe("execute", () => {
       limit: 10,
       threshold: 0.5,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -337,7 +328,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -353,7 +343,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -370,7 +359,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -399,7 +387,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "hybrid",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -414,7 +401,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "fts",
-      rerank: false,
       includeCallContext: false,
     });
 
@@ -433,7 +419,6 @@ describe("execute", () => {
       directory: tempDir,
       limit: 10,
       mode: "vector",
-      rerank: false,
       includeCallContext: false,
     });
 
