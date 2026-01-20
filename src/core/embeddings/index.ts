@@ -57,3 +57,13 @@ export {
   type RerankerOptions,
   type RerankedResult,
 } from "@core/embeddings/reranker";
+
+// Cross-file context
+export {
+  clearCrossFileCache,
+  getCrossFileCacheStats,
+  resolveCrossFileContext,
+  type CrossFileContext,
+  type CrossFileOptions,
+  type ResolvedImport,
+} from "@core/embeddings/crossfile";
