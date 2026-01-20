@@ -186,7 +186,9 @@ export function extractText(
  * Get line count of source code
  */
 export function getLineCount(source: string): number {
-  return source.split("\n").length;
+  // Normalize line endings (handle CRLF and CR)
+  const normalizedSource = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return normalizedSource.split("\n").length;
 }
 
 /**

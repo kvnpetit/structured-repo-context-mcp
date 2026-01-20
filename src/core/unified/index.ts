@@ -263,7 +263,9 @@ export async function parseFile(
   // Read file content
   let content: string;
   try {
-    content = readFileSync(filePath, "utf-8");
+    const rawContent = readFileSync(filePath, "utf-8");
+    // Normalize line endings (handle CRLF and CR)
+    content = rawContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   } catch {
     // Cannot read file - ignore
     return undefined;
@@ -357,7 +359,9 @@ export async function parseContent(
   language: string,
   options: Omit<UnifiedParseOptions, "language"> = {},
 ): Promise<Omit<UnifiedParseResult, "filePath"> | undefined> {
-  const lineCount = content.split("\n").length;
+  // Normalize line endings (handle CRLF and CR)
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lineCount = normalizedContent.split("\n").length;
 
   // Try Tree-sitter first
   if (isLanguageSupported(language)) {
