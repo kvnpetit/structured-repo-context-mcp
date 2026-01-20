@@ -4,7 +4,7 @@ import type { ServerConfig } from "@types";
 export const config: ServerConfig = {
   name: "src-mcp",
   fullName: "SRC (Structured Repo Context)",
-  version: "1.0.1",
+  version: "1.0.2",
   description:
     "MCP server for codebase analysis with Treesitter (SCM queries), AST parsing, and embedding-based indexing",
 };
