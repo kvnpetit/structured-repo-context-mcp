@@ -13,14 +13,11 @@ updates:
     labels:
       - "dependencies"
     groups:
-      dev-dependencies:
-        dependency-type: "development"
+      all-npm:
+        patterns:
+          - "*"
         update-types:
           - "minor"
-          - "patch"
-      production-dependencies:
-        dependency-type: "production"
-        update-types:
           - "patch"
 
   # GitHub Actions
@@ -35,3 +32,10 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
