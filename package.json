@@ -26,7 +26,7 @@
     "dev": "tsx watch src/index.ts",
     "cli": "tsx src/bin.ts",
     "serve": "tsx src/bin.ts serve",
-    "build": "tsdown",
+    "build": "NODE_ENV=production tsdown",
     "prepublishOnly": "run-s check build",
     "test": "vitest run",
     "test:watch": "vitest",
