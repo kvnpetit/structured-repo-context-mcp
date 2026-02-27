@@ -256,7 +256,7 @@ export function toASTNode(
  * Get the root ASTNode from a parse result
  */
 export function getASTRoot(
-  parseResult: ParseResult,
+  parseResult: { tree: Tree },
   maxDepth?: number,
 ): ASTNode {
   return toASTNode(parseResult.tree.rootNode, maxDepth);

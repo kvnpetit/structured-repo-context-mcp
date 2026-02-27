@@ -133,12 +133,7 @@ export async function execute(
 
       if (include_ast) {
         response.ast = getASTRoot(
-          {
-            tree: parseResult.tree,
-            language: parseResult.language,
-            parser: null as never,
-            languageInstance: parseResult.languageInstance,
-          },
+          { tree: parseResult.tree },
           ast_max_depth,
         );
       }
