@@ -121,7 +121,9 @@ export class IndexWatcher {
         logger.debug(
           `Loaded ${String(Object.keys(this.hashCache).length)} cached hashes`,
         );
-      } catch {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Hash cache corrupted, resetting: ${message}`);
         this.hashCache = {};
       }
     }

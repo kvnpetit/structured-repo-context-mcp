@@ -273,7 +273,7 @@ function extractCallsFromTree(
       );
     }
   } catch (error) {
-    logger.debug(
+    logger.warn(
       `Failed to extract calls for ${language}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
