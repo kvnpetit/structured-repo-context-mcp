@@ -130,6 +130,12 @@ describe("VectorStore", () => {
       await emptyStore.deleteByFilePath("/test/file.ts");
       expect(true).toBe(true);
     });
+
+    test("throws when path is not absolute", async () => {
+      await expect(store.deleteByFilePath("relative/path.ts")).rejects.toThrow(
+        "deleteByFilePath requires an absolute path",
+      );
+    });
   });
 
   describe("clear", () => {

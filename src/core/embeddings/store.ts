@@ -308,9 +308,19 @@ export class VectorStore {
   }
 
   /**
-   * Delete chunks by file path
+   * Delete chunks by file path.
+   *
+   * NOTE: LanceDB does not support parameterized queries, so we use manual
+   * single-quote escaping. The filePath is validated to be absolute to prevent
+   * injection via relative or crafted paths.
    */
   async deleteByFilePath(filePath: string): Promise<void> {
+    if (!path.isAbsolute(filePath)) {
+      throw new Error(
+        `deleteByFilePath requires an absolute path, got: ${filePath}`,
+      );
+    }
+
     if (!this.table) {
       return;
     }
