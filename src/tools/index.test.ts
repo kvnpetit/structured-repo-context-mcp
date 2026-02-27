@@ -3,60 +3,40 @@ import { registerTools } from "@tools";
 import { features } from "@features";
 
 describe("Tool Registration", () => {
-  test("registers all features as tools", () => {
-    const toolMock = vi.fn(
-      (_name: string, _desc: string, _schema: unknown, _handler: unknown) => {
-        // Mock implementation
+  function makeServer() {
+    const calls: { name: string; config: Record<string, unknown> }[] = [];
+    const mock = vi.fn(
+      (name: string, config: Record<string, unknown>, _handler: unknown) => {
+        calls.push({ name, config });
       },
     );
-    const mockServer = {
-      tool: toolMock,
-    };
+    return { server: { registerTool: mock } as never, mock, calls };
+  }
 
-    registerTools(mockServer as never);
-
-    expect(toolMock).toHaveBeenCalledTimes(features.length);
+  test("registers all features as tools", () => {
+    const { server, mock } = makeServer();
+    registerTools(server);
+    expect(mock).toHaveBeenCalledTimes(features.length);
   });
 
   test("tool names match feature names", () => {
-    const registeredTools: string[] = [];
-    const toolMock = vi.fn(
-      (name: string, _desc: string, _schema: unknown, _handler: unknown) => {
-        registeredTools.push(name);
-      },
-    );
-    const mockServer = {
-      tool: toolMock,
-    };
-
-    registerTools(mockServer as never);
+    const { server, calls } = makeServer();
+    registerTools(server);
 
     for (const feature of features) {
-      expect(registeredTools).toContain(feature.name);
+      expect(calls.map((c) => c.name)).toContain(feature.name);
     }
   });
 
   test("tool descriptions are passed correctly", () => {
-    const toolCalls: { name: string; description: string }[] = [];
-    const toolMock = vi.fn(
-      (
-        name: string,
-        description: string,
-        _schema: unknown,
-        _handler: unknown,
-      ) => {
-        toolCalls.push({ name, description });
-      },
-    );
-    const mockServer = {
-      tool: toolMock,
-    };
-
-    registerTools(mockServer as never);
+    const { server, calls } = makeServer();
+    registerTools(server);
 
     for (const feature of features) {
-      const call = toolCalls.find((c) => c.name === feature.name);
-      expect(call?.description).toBe(feature.description);
+      const call = calls.find((c) => c.name === feature.name);
+      expect(
+        (call?.config as { description: string } | undefined)?.description,
+      ).toBe(feature.description);
     }
   });
 });

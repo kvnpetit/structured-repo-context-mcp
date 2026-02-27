@@ -2,50 +2,50 @@ import { describe, expect, test, vi } from "vitest";
 import { registerResources } from "@resources";
 
 describe("Resource Registration", () => {
-  test("registers server_info resource", () => {
-    let capturedName: string | undefined;
-    let capturedUri: string | undefined;
-    const resourceMock = vi.fn(
-      (name: string, uri: string, _handler: unknown) => {
-        capturedName = name;
-        capturedUri = uri;
-      },
-    );
-    const mockServer = { resource: resourceMock };
-
-    registerResources(mockServer as never);
-
-    expect(resourceMock).toHaveBeenCalledTimes(1);
-    expect(capturedName).toBe("server_info");
-    expect(capturedUri).toBe("src://server/info");
-  });
-
-  test("server_info resource handler returns valid structure", () => {
-    let capturedHandler:
-      | ((uri: { href: string }) => {
-          contents: { uri: string; mimeType: string; text: string }[];
-        })
-      | undefined;
-    const resourceMock = vi.fn(
+  function makeServer() {
+    const captured = {
+      name: undefined as string | undefined,
+      uri: undefined as string | undefined,
+      handler: undefined as
+        | ((uri: { href: string }) => {
+            contents: { uri: string; mimeType: string; text: string }[];
+          })
+        | undefined,
+    };
+    const mock = vi.fn(
       (
-        _name: string,
-        _uri: string,
+        name: string,
+        uri: string,
+        _config: unknown,
         handler: (uri: { href: string }) => {
           contents: { uri: string; mimeType: string; text: string }[];
         },
       ) => {
-        capturedHandler = handler;
+        captured.name = name;
+        captured.uri = uri;
+        captured.handler = handler;
       },
     );
-    const mockServer = { resource: resourceMock };
+    return { server: { registerResource: mock } as never, mock, captured };
+  }
 
-    registerResources(mockServer as never);
+  test("registers server_info resource", () => {
+    const { server, mock, captured } = makeServer();
+    registerResources(server);
 
-    expect(capturedHandler).toBeDefined();
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = capturedHandler({ href: "src://server/info" });
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(captured.name).toBe("server_info");
+    expect(captured.uri).toBe("src://server/info");
+  });
+
+  test("server_info resource handler returns valid structure", () => {
+    const { server, captured } = makeServer();
+    registerResources(server);
+
+    expect(captured.handler).toBeDefined();
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
+
+    const result = captured.handler({ href: "src://server/info" });
 
     expect(result.contents).toHaveLength(1);
     expect(result.contents[0]?.mimeType).toBe("application/json");
@@ -53,30 +53,12 @@ describe("Resource Registration", () => {
   });
 
   test("server_info resource returns valid JSON with expected properties", () => {
-    let capturedHandler:
-      | ((uri: { href: string }) => {
-          contents: { uri: string; mimeType: string; text: string }[];
-        })
-      | undefined;
-    const resourceMock = vi.fn(
-      (
-        _name: string,
-        _uri: string,
-        handler: (uri: { href: string }) => {
-          contents: { uri: string; mimeType: string; text: string }[];
-        },
-      ) => {
-        capturedHandler = handler;
-      },
-    );
-    const mockServer = { resource: resourceMock };
+    const { server, captured } = makeServer();
+    registerResources(server);
 
-    registerResources(mockServer as never);
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
 
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = capturedHandler({ href: "src://server/info" });
+    const result = captured.handler({ href: "src://server/info" });
     const parsed = JSON.parse(result.contents[0]?.text ?? "{}") as Record<
       string,
       unknown

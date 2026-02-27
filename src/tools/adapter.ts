@@ -15,28 +15,31 @@ export function registerFeatureAsTool(
 ): void {
   const mcpSchema = zodToMcpSchema(feature.schema);
 
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  server.tool(feature.name, feature.description, mcpSchema, async (params) => {
-    const result = feature.execute(params);
+  server.registerTool(
+    feature.name,
+    { description: feature.description, inputSchema: mcpSchema },
+    async (params) => {
+      const result = feature.execute(params);
 
-    const formatResult = (
-      res: Awaited<ReturnType<typeof feature.execute>>,
-    ): {
-      content: { type: "text"; text: string }[];
-      isError: boolean;
-    } => ({
-      content: [
-        {
-          type: "text" as const,
-          text: res.message ?? JSON.stringify(res.data, null, 2),
-        },
-      ],
-      isError: !res.success,
-    });
+      const formatResult = (
+        res: Awaited<ReturnType<typeof feature.execute>>,
+      ): {
+        content: { type: "text"; text: string }[];
+        isError: boolean;
+      } => ({
+        content: [
+          {
+            type: "text" as const,
+            text: res.message ?? JSON.stringify(res.data, null, 2),
+          },
+        ],
+        isError: !res.success,
+      });
 
-    if (result instanceof Promise) {
-      return await result.then(formatResult);
-    }
-    return formatResult(result);
-  });
+      if (result instanceof Promise) {
+        return await result.then(formatResult);
+      }
+      return formatResult(result);
+    },
+  );
 }

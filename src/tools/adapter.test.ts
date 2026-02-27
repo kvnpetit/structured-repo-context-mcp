@@ -21,77 +21,60 @@ describe("Tool Adapter", () => {
     }),
   };
 
-  test("registers feature with correct name", () => {
-    let capturedName: string | undefined;
-    const toolMock = vi.fn(
-      (name: string, _desc: string, _schema: unknown, _handler: unknown) => {
-        capturedName = name;
+  function makeServer() {
+    const captured = {
+      name: undefined as string | undefined,
+      config: undefined as Record<string, unknown> | undefined,
+      handler: undefined as ((params: unknown) => Promise<unknown>) | undefined,
+    };
+    const mock = vi.fn(
+      (
+        name: string,
+        config: Record<string, unknown>,
+        handler: (params: unknown) => Promise<unknown>,
+      ) => {
+        captured.name = name;
+        captured.config = config;
+        captured.handler = handler;
       },
     );
-    const mockServer = { tool: toolMock };
+    return { server: { registerTool: mock } as never, mock, captured };
+  }
 
-    registerFeatureAsTool(mockServer as never, mockFeature);
-
-    expect(toolMock).toHaveBeenCalledTimes(1);
-    expect(capturedName).toBe("test_tool");
+  test("registers feature with correct name", () => {
+    const { server, mock, captured } = makeServer();
+    registerFeatureAsTool(server, mockFeature);
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(captured.name).toBe("test_tool");
   });
 
   test("registers feature with correct description", () => {
-    let capturedDesc: string | undefined;
-    const toolMock = vi.fn(
-      (_name: string, desc: string, _schema: unknown, _handler: unknown) => {
-        capturedDesc = desc;
-      },
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, mockFeature);
+    expect((captured.config as { description: string }).description).toBe(
+      "A test tool",
     );
-    const mockServer = { tool: toolMock };
-
-    registerFeatureAsTool(mockServer as never, mockFeature);
-
-    expect(capturedDesc).toBe("A test tool");
   });
 
   test("converts Zod schema to MCP schema with correct shape", () => {
-    let capturedSchema: Record<string, unknown> | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        schema: Record<string, unknown>,
-        _handler: unknown,
-      ) => {
-        capturedSchema = schema;
-      },
-    );
-    const mockServer = { tool: toolMock };
-
-    registerFeatureAsTool(mockServer as never, mockFeature);
-
-    expect(capturedSchema).toBeDefined();
-    expect(capturedSchema).toHaveProperty("param1");
-    expect(capturedSchema).toHaveProperty("param2");
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, mockFeature);
+    const inputSchema = (
+      captured.config as { inputSchema: Record<string, unknown> }
+    ).inputSchema;
+    expect(inputSchema).toBeDefined();
+    expect(inputSchema).toHaveProperty("param1");
+    expect(inputSchema).toHaveProperty("param2");
   });
 
   test("handler returns correct format for success", async () => {
-    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: (params: unknown) => Promise<unknown>,
-      ) => {
-        capturedHandler = handler;
-      },
-    );
-    const mockServer = { tool: toolMock };
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, mockFeature);
 
-    registerFeatureAsTool(mockServer as never, mockFeature);
+    expect(captured.handler).toBeDefined();
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
 
-    expect(capturedHandler).toBeDefined();
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = (await capturedHandler({ param1: "test" })) as {
+    const result = (await captured.handler({ param1: "test" })) as {
       content: { type: string; text: string }[];
       isError: boolean;
     };
@@ -105,31 +88,15 @@ describe("Tool Adapter", () => {
   test("handler returns correct format for error", async () => {
     const errorFeature: Feature<typeof testSchema> = {
       ...mockFeature,
-      execute: () => ({
-        success: false,
-        error: "Something went wrong",
-      }),
+      execute: () => ({ success: false, error: "Something went wrong" }),
     };
 
-    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: (params: unknown) => Promise<unknown>,
-      ) => {
-        capturedHandler = handler;
-      },
-    );
-    const mockServer = { tool: toolMock };
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, errorFeature);
 
-    registerFeatureAsTool(mockServer as never, errorFeature);
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
 
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = (await capturedHandler({ param1: "test" })) as {
+    const result = (await captured.handler({ param1: "test" })) as {
       content: { type: string; text: string }[];
       isError: boolean;
     };
@@ -141,31 +108,15 @@ describe("Tool Adapter", () => {
     const asyncFeature: Feature<typeof testSchema> = {
       ...mockFeature,
       execute: async (input: TestInput) =>
-        Promise.resolve({
-          success: true,
-          message: `Async: ${input.param1}`,
-        }),
+        Promise.resolve({ success: true, message: `Async: ${input.param1}` }),
     };
 
-    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: (params: unknown) => Promise<unknown>,
-      ) => {
-        capturedHandler = handler;
-      },
-    );
-    const mockServer = { tool: toolMock };
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, asyncFeature);
 
-    registerFeatureAsTool(mockServer as never, asyncFeature);
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
 
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = (await capturedHandler({ param1: "test" })) as {
+    const result = (await captured.handler({ param1: "test" })) as {
       content: { type: string; text: string }[];
       isError: boolean;
     };
@@ -183,53 +134,28 @@ describe("Tool Adapter", () => {
       execute: () => ({ success: true, data: "ok" }),
     };
 
-    let capturedSchema: Record<string, unknown> | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        schema: Record<string, unknown>,
-        _handler: unknown,
-      ) => {
-        capturedSchema = schema;
-      },
-    );
-    const mockServer = { tool: toolMock };
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, simpleFeature);
 
-    registerFeatureAsTool(mockServer as never, simpleFeature);
-
-    expect(capturedSchema).toBeDefined();
-    expect(capturedSchema).toHaveProperty("input");
+    const inputSchema = (
+      captured.config as { inputSchema: Record<string, unknown> }
+    ).inputSchema;
+    expect(inputSchema).toBeDefined();
+    expect(inputSchema).toHaveProperty("input");
   });
 
   test("handler returns data as JSON when no message", async () => {
     const dataFeature: Feature<typeof testSchema> = {
       ...mockFeature,
-      execute: () => ({
-        success: true,
-        data: { key: "value" },
-      }),
+      execute: () => ({ success: true, data: { key: "value" } }),
     };
 
-    let capturedHandler: ((params: unknown) => Promise<unknown>) | undefined;
-    const toolMock = vi.fn(
-      (
-        _name: string,
-        _desc: string,
-        _schema: unknown,
-        handler: (params: unknown) => Promise<unknown>,
-      ) => {
-        capturedHandler = handler;
-      },
-    );
-    const mockServer = { tool: toolMock };
+    const { server, captured } = makeServer();
+    registerFeatureAsTool(server, dataFeature);
 
-    registerFeatureAsTool(mockServer as never, dataFeature);
+    if (captured.handler === undefined) throw new Error("Handler should be defined");
 
-    if (capturedHandler === undefined) {
-      throw new Error("Handler should be defined");
-    }
-    const result = (await capturedHandler({ param1: "test" })) as {
+    const result = (await captured.handler({ param1: "test" })) as {
       content: { type: string; text: string }[];
       isError: boolean;
     };
