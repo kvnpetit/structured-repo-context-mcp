@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { getASTRoot, parseCode } from "@core/parser";
+import { countNodes, getASTRoot, parseCode } from "@core/parser";
 
 import type { Feature, FeatureResult } from "@features/types";
 import { errorResult, readContent, successResult } from "@features/utils";
@@ -55,18 +55,8 @@ export async function execute(input: ParseAstInput): Promise<FeatureResult> {
     // Get AST root with optional depth limit
     const root = getASTRoot(parseResult, max_depth);
 
-    // Count nodes (without depth limit for accurate count)
-    const fullRoot = getASTRoot(parseResult);
-    const countNodesRecursive = (node: typeof fullRoot): number => {
-      let count = 1;
-      if (node.children) {
-        for (const child of node.children) {
-          count += countNodesRecursive(child);
-        }
-      }
-      return count;
-    };
-    const nodeCount = countNodesRecursive(fullRoot);
+    // Count nodes directly from the tree (accurate regardless of max_depth)
+    const nodeCount = countNodes(parseResult.tree.rootNode);
 
     return successResult(
       {
