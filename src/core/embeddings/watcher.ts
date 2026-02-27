@@ -22,8 +22,12 @@ import {
   shouldIndexFile,
   SUPPORTED_EXTENSIONS,
 } from "@core/embeddings/chunker";
-import { enrichChunksFromFile } from "@core/embeddings/enricher";
+import {
+  enrichChunksFromFile,
+  type EnrichmentOptions,
+} from "@core/embeddings/enricher";
 import { createIgnoreFilter } from "@core/files";
+import { readPathAliasesCached } from "@core/utils";
 import { logger } from "@utils";
 
 /** Default debounce delay in milliseconds */
@@ -57,6 +61,7 @@ export class IndexWatcher {
   private readonly debounceMs: number;
   private readonly ollamaClient: OllamaClient;
   private readonly vectorStore: VectorStore;
+  private readonly enrichmentOptions: EnrichmentOptions;
   private watcher: FSWatcher | null = null;
   private ig: Ignore;
   private isProcessing = false;
@@ -75,6 +80,10 @@ export class IndexWatcher {
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
     this.ollamaClient = new OllamaClient(options.config);
     this.vectorStore = new VectorStore(this.directory, options.config);
+    this.enrichmentOptions = {
+      projectRoot: this.directory,
+      pathAliases: readPathAliasesCached(this.directory),
+    };
     this.ig = this.createIgnoreFilter();
 
     this.onReady = options.onReady;
@@ -249,7 +258,11 @@ export class IndexWatcher {
       }
 
       // Enrich chunks with semantic metadata
-      const enrichedChunks = await enrichChunksFromFile(chunks, content);
+      const enrichedChunks = await enrichChunksFromFile(
+        chunks,
+        content,
+        this.enrichmentOptions,
+      );
 
       // Use enrichedContent for embedding
       const texts = enrichedChunks.map((c) => c.enrichedContent);
