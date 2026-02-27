@@ -19,7 +19,6 @@
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
@@ -27,10 +26,10 @@ import {
   createVectorStore,
   buildCallGraph,
   getCallContext,
-  shouldIndexFile,
   type SearchResult,
   type SearchMode,
 } from "@core/embeddings";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 
 export const searchCodeSchema = z.object({
   query: z.string().min(1).describe("Natural language search query"),
@@ -94,58 +93,6 @@ interface SearchOutput {
   results: FormattedResult[];
 }
 
-/**
- * Create gitignore filter
- */
-function createIgnoreFilter(directory: string): Ignore {
-  const ig = ignore();
-  ig.add(["node_modules", ".git", "dist", "build", ".src-index"]);
-
-  const gitignorePath = path.join(directory, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
-    ig.add(content);
-  }
-
-  return ig;
-}
-
-/**
- * Check if hidden file/folder
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Recursively collect files for call graph
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name)) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 /**
  * Format search results for output

@@ -13,7 +13,7 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { watch, type FSWatcher } from "chokidar";
 import fg from "fast-glob";
-import ignore, { type Ignore } from "ignore";
+import type { Ignore } from "ignore";
 import type { EmbeddingConfig } from "@core/embeddings/types";
 import { OllamaClient } from "@core/embeddings/client";
 import { VectorStore } from "@core/embeddings/store";
@@ -23,6 +23,7 @@ import {
   SUPPORTED_EXTENSIONS,
 } from "@core/embeddings/chunker";
 import { enrichChunksFromFile } from "@core/embeddings/enricher";
+import { createIgnoreFilter } from "@core/files";
 import { logger } from "@utils";
 
 /** Default debounce delay in milliseconds */
@@ -162,19 +163,7 @@ export class IndexWatcher {
    * Create ignore filter from .gitignore
    */
   private createIgnoreFilter(): Ignore {
-    const ig = ignore();
-    const gitignorePath = path.join(this.directory, ".gitignore");
-
-    if (fs.existsSync(gitignorePath)) {
-      try {
-        const content = fs.readFileSync(gitignorePath, "utf-8");
-        ig.add(content);
-      } catch {
-        // Ignore read errors
-      }
-    }
-
-    return ig;
+    return createIgnoreFilter(this.directory);
   }
 
   /**

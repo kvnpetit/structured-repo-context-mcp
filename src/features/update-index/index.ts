@@ -13,7 +13,6 @@ import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
@@ -21,10 +20,10 @@ import {
   createOllamaClient,
   createVectorStore,
   enrichChunksFromFile,
-  shouldIndexFile,
   type EmbeddedChunk,
   type EnrichmentOptions,
 } from "@core/embeddings";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 import { readPathAliasesCached } from "@core/utils";
 
 /** Cache file name for storing hashes */
@@ -104,58 +103,6 @@ function saveHashCache(directory: string, cache: HashCache): void {
   fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2));
 }
 
-/**
- * Create gitignore filter
- */
-function createIgnoreFilter(directory: string): Ignore {
-  const ig = ignore();
-  ig.add(["node_modules", ".git", "dist", "build", ".src-index"]);
-
-  const gitignorePath = path.join(directory, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
-    ig.add(content);
-  }
-
-  return ig;
-}
-
-/**
- * Check if a name starts with a dot (hidden)
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Recursively collect files
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name)) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 /**
  * Execute the update_index feature

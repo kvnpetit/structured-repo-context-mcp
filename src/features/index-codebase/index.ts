@@ -11,7 +11,6 @@
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
@@ -19,11 +18,11 @@ import {
   createOllamaClient,
   createVectorStore,
   enrichChunksFromFile,
-  shouldIndexFile,
   type EmbeddedChunk,
   type EnrichedChunk,
   type EnrichmentOptions,
 } from "@core/embeddings";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 import { logger } from "@utils";
 import { readPathAliasesCached } from "@core/utils";
 
@@ -96,72 +95,6 @@ interface IndexResult {
   errors: string[];
 }
 
-/**
- * Create an ignore instance with gitignore patterns and additional exclusions
- */
-function createIgnoreFilter(
-  baseDir: string,
-  additionalExclusions: string[],
-): Ignore {
-  const ig = ignore();
-
-  // Read .gitignore if it exists
-  const gitignorePath = path.join(baseDir, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    try {
-      const content = fs.readFileSync(gitignorePath, "utf-8");
-      ig.add(content);
-    } catch {
-      // Ignore read errors
-    }
-  }
-
-  // Add additional user exclusions
-  if (additionalExclusions.length > 0) {
-    ig.add(additionalExclusions);
-  }
-
-  return ig;
-}
-
-/**
- * Check if a name starts with a dot (hidden file/folder)
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Recursively collect files from a directory
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    // Skip hidden files/folders (starting with .)
-    if (isHidden(entry.name)) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    // Check if ignored by gitignore patterns
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 /**
  * Execute the index_codebase feature

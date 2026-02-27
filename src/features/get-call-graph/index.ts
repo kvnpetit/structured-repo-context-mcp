@@ -10,15 +10,14 @@
 import { z } from "zod";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import {
   buildCallGraph,
   getCallContext,
   formatCallContext,
-  shouldIndexFile,
   type CallGraphNode,
 } from "@core/embeddings";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 import { logger } from "@utils";
 
 export const getCallGraphSchema = z.object({
@@ -73,69 +72,6 @@ interface CallGraphResult {
   };
 }
 
-/**
- * Create gitignore filter from .gitignore file
- */
-function createIgnoreFilter(
-  directory: string,
-  extraPatterns: string[],
-): Ignore {
-  const ig = ignore();
-
-  // Add default ignores
-  ig.add(["node_modules", ".git", "dist", "build", ".src-index"]);
-
-  // Add extra patterns
-  if (extraPatterns.length > 0) {
-    ig.add(extraPatterns);
-  }
-
-  // Read .gitignore if exists
-  const gitignorePath = path.join(directory, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
-    ig.add(content);
-  }
-
-  return ig;
-}
-
-/**
- * Check if a name starts with a dot (hidden file/folder)
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Recursively collect files from a directory
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name)) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
-}
 
 /**
  * Execute the get_call_graph feature
