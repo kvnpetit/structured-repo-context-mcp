@@ -1,3 +1,8 @@
+## [1.0.3](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.2...v1.0.3) (2026-01-20)
+
+### Bug Fixes
+
+* **watcher:** auto-indexing not triggering on first run ([734e2b4](https://github.com/kvnpetit/structured-repo-context-mcp/commit/734e2b46a747efa98472acd4c4ebd0ca3db5b246))
 ## [1.0.2](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.1...v1.0.2) (2026-01-20)
 
 ### Bug Fixes
