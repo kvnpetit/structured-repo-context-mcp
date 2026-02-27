@@ -14,7 +14,13 @@ import { execute, updateIndexSchema } from "@features/update-index";
 import * as embeddings from "@core/embeddings";
 
 // Mock the entire embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  createOllamaClient: vi.fn(),
+  createVectorStore: vi.fn(),
+  chunkFile: vi.fn(),
+  enrichChunksFromFile: vi.fn(),
+  shouldIndexFile: vi.fn(),
+}));
 
 describe("updateIndexSchema", () => {
   test("applies default directory", () => {
@@ -56,7 +62,30 @@ describe("updateIndexSchema", () => {
     if (result.success) {
       expect(result.data.dryRun).toBe(false);
       expect(result.data.force).toBe(false);
+      expect(result.data.concurrency).toBe(4);
     }
+  });
+
+  test("validates concurrency parameter", () => {
+    const result = updateIndexSchema.safeParse({
+      directory: "/test/dir",
+      concurrency: 8,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.concurrency).toBe(8);
+    }
+  });
+
+  test("rejects invalid concurrency", () => {
+    const negative = updateIndexSchema.safeParse({ concurrency: -1 });
+    expect(negative.success).toBe(false);
+
+    const zero = updateIndexSchema.safeParse({ concurrency: 0 });
+    expect(zero.success).toBe(false);
+
+    const float = updateIndexSchema.safeParse({ concurrency: 1.5 });
+    expect(float.success).toBe(false);
   });
 });
 
@@ -91,12 +120,12 @@ describe("execute", () => {
     mockGetIndexedFiles = vi.fn().mockResolvedValue([]);
     mockDeleteByFilePath = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(embeddings.createOllamaClient).mockReturnValue({
+    (embeddings.createOllamaClient as Mock).mockReturnValue({
       healthCheck: mockHealthCheck,
       embedBatch: mockEmbedBatch,
     } as unknown as embeddings.OllamaClient);
 
-    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+    (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: mockExists,
       connect: mockConnect,
       close: mockClose,
@@ -105,7 +134,7 @@ describe("execute", () => {
       deleteByFilePath: mockDeleteByFilePath,
     } as unknown as embeddings.VectorStore);
 
-    vi.mocked(embeddings.chunkFile).mockResolvedValue([
+    (embeddings.chunkFile as Mock).mockResolvedValue([
       {
         id: "chunk-1",
         content: "test content",
@@ -116,8 +145,8 @@ describe("execute", () => {
       },
     ]);
 
-    vi.mocked(embeddings.enrichChunksFromFile).mockImplementation(
-      async (chunks) =>
+    (embeddings.enrichChunksFromFile as Mock).mockImplementation(
+      async (chunks: { content: string }[]) =>
         Promise.resolve(
           chunks.map((c) => ({
             ...c,
@@ -128,7 +157,7 @@ describe("execute", () => {
         ),
     );
 
-    vi.mocked(embeddings.shouldIndexFile).mockReturnValue(true);
+    (embeddings.shouldIndexFile as Mock).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -242,7 +271,7 @@ describe("execute", () => {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "const x = 1;");
 
-    vi.mocked(embeddings.chunkFile).mockRejectedValue(new Error("Parse error"));
+    (embeddings.chunkFile as Mock).mockRejectedValue(new Error("Parse error"));
 
     const result = await execute({
       directory: tempDir,
@@ -333,5 +362,24 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
     expect(mockDeleteByFilePath).toHaveBeenCalledWith(deletedFile);
+  });
+
+  test("processes multiple files in parallel", async () => {
+    // Create multiple test files
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(path.join(tempDir, `file${String(i)}.ts`), `const x${String(i)} = ${String(i)};`);
+    }
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: false,
+      force: false,
+      concurrency: 3,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockAddChunks).toHaveBeenCalled();
+    // All 5 files should have been processed
+    expect(mockEmbedBatch).toHaveBeenCalledTimes(5);
   });
 });

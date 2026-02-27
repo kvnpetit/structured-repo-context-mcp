@@ -29,6 +29,9 @@ import { readPathAliasesCached } from "@core/utils";
 /** Cache file name for storing hashes */
 const HASH_CACHE_FILE = ".src-index-hashes.json";
 
+/** Default concurrency for parallel file processing */
+const DEFAULT_CONCURRENCY = 4;
+
 export const updateIndexSchema = z.object({
   directory: z
     .string()
@@ -45,6 +48,13 @@ export const updateIndexSchema = z.object({
     .optional()
     .default(false)
     .describe("Force re-index of all files (ignore hash cache)"),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(DEFAULT_CONCURRENCY)
+    .describe("Number of files to process in parallel (default: 4)"),
 });
 
 export type UpdateIndexInput = z.infer<typeof updateIndexSchema>;
@@ -105,10 +115,40 @@ function saveHashCache(directory: string, cache: HashCache): void {
 
 
 /**
+ * Process files in parallel with a concurrency limit
+ */
+async function parallelMap<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: (R | undefined)[] = new Array<R | undefined>(items.length);
+  let currentIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await processor(item);
+      }
+    }
+  };
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => worker(),
+  );
+  await Promise.all(workers);
+
+  return results.filter((r): r is R => r !== undefined);
+}
+
+/**
  * Execute the update_index feature
  */
 export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
-  const { directory, dryRun, force } = input;
+  const { directory, dryRun, force, concurrency } = input;
 
   // Validate directory
   if (!fs.existsSync(directory)) {
@@ -218,12 +258,20 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
       includeCrossFileContext: true,
     };
 
-    // Process files
-    const embeddedChunks: EmbeddedChunk[] = [];
+    // Process files in parallel with concurrency limit
+    interface FileProcessResult {
+      chunks: EmbeddedChunk[];
+      error?: string;
+    }
 
-    for (const { path: filePath, type } of filesToProcess) {
+    const processFile = async ({
+      path: filePath,
+      type,
+    }: {
+      path: string;
+      type: "add" | "modify";
+    }): Promise<FileProcessResult> => {
       try {
-        // Delete existing chunks if modifying
         if (type === "modify") {
           await vectorStore.deleteByFilePath(filePath);
         }
@@ -232,7 +280,7 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
         const chunks = await chunkFile(filePath, content, EMBEDDING_CONFIG);
 
         if (chunks.length === 0) {
-          continue;
+          return { chunks: [] };
         }
 
         const enrichedChunks = await enrichChunksFromFile(
@@ -244,11 +292,12 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
         const texts = enrichedChunks.map((c) => c.enrichedContent);
         const embeddings = await ollamaClient.embedBatch(texts);
 
+        const embedded: EmbeddedChunk[] = [];
         for (let i = 0; i < enrichedChunks.length; i++) {
           const chunk = enrichedChunks[i];
           const vector = embeddings[i];
           if (chunk && vector) {
-            embeddedChunks.push({
+            embedded.push({
               id: chunk.id,
               content: chunk.content,
               filePath: chunk.filePath,
@@ -261,10 +310,28 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
             });
           }
         }
+        return { chunks: embedded };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Error processing ${filePath}: ${errorMsg}`);
+        return {
+          chunks: [],
+          error: `Error processing ${filePath}: ${errorMsg}`,
+        };
       }
+    };
+
+    const fileResults = await parallelMap(
+      filesToProcess,
+      processFile,
+      concurrency ?? DEFAULT_CONCURRENCY,
+    );
+
+    const embeddedChunks: EmbeddedChunk[] = [];
+    for (const fileResult of fileResults) {
+      if (fileResult.error) {
+        result.errors.push(fileResult.error);
+      }
+      embeddedChunks.push(...fileResult.chunks);
     }
 
     // Add new chunks
