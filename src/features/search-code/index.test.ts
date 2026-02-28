@@ -14,7 +14,10 @@ import { execute, searchCodeSchema } from "@features/search-code";
 import * as embeddings from "@core/embeddings";
 
 // Mock the embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  createOllamaClient: vi.fn(),
+  createVectorStore: vi.fn(),
+}));
 
 describe("searchCodeSchema", () => {
   test("validates required fields", () => {
@@ -133,12 +136,12 @@ describe("execute", () => {
       },
     ]);
 
-    vi.mocked(embeddings.createOllamaClient).mockReturnValue({
+    (embeddings.createOllamaClient as Mock).mockReturnValue({
       healthCheck: mockHealthCheck,
       embed: mockEmbed,
     } as unknown as embeddings.OllamaClient);
 
-    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+    (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: mockExists,
       connect: mockConnect,
       close: mockClose,

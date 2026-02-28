@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import * as nodeFs from "node:fs";
 import * as path from "path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -57,16 +58,16 @@ describe("Assets Utilities", () => {
 
   describe("getAssetPath", () => {
     test("returns path within assets directory", () => {
-      const path = getAssetPath("languages.json");
-      expect(path).toContain("assets");
-      expect(path).toContain("languages.json");
+      const p = getAssetPath("languages.json");
+      expect(p).toContain("assets");
+      expect(p).toContain("languages.json");
     });
 
     test("handles multiple segments", () => {
-      const path = getAssetPath("queries", "javascript", "tags.scm");
-      expect(path).toContain("queries");
-      expect(path).toContain("javascript");
-      expect(path).toContain("tags.scm");
+      const p = getAssetPath("queries", "javascript", "tags.scm");
+      expect(p).toContain("queries");
+      expect(p).toContain("javascript");
+      expect(p).toContain("tags.scm");
     });
   });
 
@@ -92,25 +93,14 @@ describe("getAssetsDir fallback behavior", () => {
     vi.restoreAllMocks();
   });
 
-  test("returns fallback path when no assets directory exists", async () => {
-    // Mock fs module with existsSync always returning false
-    vi.doMock("fs", () => ({
-      existsSync: () => false,
-      readFileSync: () => "{}",
-    }));
+  test("returns fallback path when no assets directory exists", () => {
+    // Mock nodeFs.existsSync to always return false
+    vi.spyOn(nodeFs, "existsSync").mockImplementation(() => false);
 
-    // Clear and re-import to get fresh module
-    vi.resetModules();
-    const { getAssetsDir: freshGetAssetsDir, clearAssetsDirCache: freshClear } =
-      await import("@core/utils/assets");
-
-    const dir = freshGetAssetsDir();
+    clearAssetsDirCache();
+    const dir = getAssetsDir();
     // When no paths exist, it falls back to process.cwd() + "assets"
     expect(dir).toBe(path.join(process.cwd(), "assets"));
-
-    freshClear();
-    vi.doUnmock("fs");
-    vi.resetModules();
   });
 });
 
@@ -131,30 +121,20 @@ describe("getAssetsDir ESM/CJS handling", () => {
     expect(typeof dir).toBe("string");
   });
 
-  test("handles multiple possible paths correctly", async () => {
+  test("handles multiple possible paths correctly", () => {
     // Test that the function tries multiple paths
     let callCount = 0;
-    vi.doMock("fs", () => ({
-      existsSync: (p: string) => {
-        callCount++;
-        // Return true only for the third path (process.cwd() + "assets")
-        return p.includes(process.cwd());
-      },
-      readFileSync: () => "{}",
-    }));
+    vi.spyOn(nodeFs, "existsSync").mockImplementation((p: unknown) => {
+      callCount++;
+      // Return true only for paths that include process.cwd()
+      return typeof p === "string" && p.includes(process.cwd());
+    });
 
-    vi.resetModules();
-    const { getAssetsDir: freshGetAssetsDir, clearAssetsDirCache: freshClear } =
-      await import("@core/utils/assets");
-
-    const dir = freshGetAssetsDir();
+    clearAssetsDirCache();
+    const dir = getAssetsDir();
     expect(dir).toBeDefined();
     // Should have checked at least one path
     expect(callCount).toBeGreaterThan(0);
-
-    freshClear();
-    vi.doUnmock("fs");
-    vi.resetModules();
   });
 });
 
@@ -164,24 +144,15 @@ describe("loadJsonConfig edge cases", () => {
     vi.restoreAllMocks();
   });
 
-  test("returns default value when JSON is invalid", async () => {
-    vi.doMock("fs", () => ({
-      existsSync: () => true,
-      readFileSync: () => "{ invalid json }",
-    }));
+  test("returns default value when JSON is invalid", () => {
+    vi.spyOn(nodeFs, "existsSync").mockImplementation(() => true);
+    vi.spyOn(nodeFs, "readFileSync").mockImplementation(
+      () => "{ invalid json }",
+    );
 
-    vi.resetModules();
-    const {
-      loadJsonConfig: freshLoadJsonConfig,
-      clearAssetsDirCache: freshClear,
-    } = await import("@core/utils/assets");
-
+    clearAssetsDirCache();
     const defaultValue = { fallback: true };
-    const config = freshLoadJsonConfig("test.json", defaultValue);
+    const config = loadJsonConfig("test.json", defaultValue);
     expect(config).toEqual(defaultValue);
-
-    freshClear();
-    vi.doUnmock("fs");
-    vi.resetModules();
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import { serveCommand } from "@cli/commands/serve.command";
 import type { CommandMeta } from "citty";
 import { createIndexWatcher } from "@core/embeddings";
@@ -95,7 +95,7 @@ describe("Serve Command", () => {
   test("run creates and starts watcher when watch=true", async () => {
     const mockStart = vi.fn().mockResolvedValue(undefined);
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
@@ -130,7 +130,7 @@ describe("Serve Command", () => {
     const mockStart = vi
       .fn()
       .mockRejectedValue(new Error("Ollama unavailable"));
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
@@ -159,7 +159,7 @@ describe("Serve Command", () => {
 
   test("logs warning when watcher.start() throws non-Error", async () => {
     const mockStart = vi.fn().mockRejectedValue("string error");
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
@@ -186,7 +186,7 @@ describe("Serve Command", () => {
 
   test("onError callback logs watcher errors", async () => {
     let capturedOnError: ((error: Error) => void) | undefined;
-    vi.mocked(createIndexWatcher).mockImplementation((options) => {
+    (createIndexWatcher as Mock).mockImplementation((options) => {
       capturedOnError = options.onError;
       return {
         start: vi.fn().mockResolvedValue(undefined),
@@ -221,7 +221,7 @@ describe("Serve Command", () => {
 
   test("registers SIGINT handler that stops watcher", async () => {
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
@@ -256,7 +256,7 @@ describe("Serve Command", () => {
 
   test("registers SIGTERM handler that stops watcher", async () => {
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),

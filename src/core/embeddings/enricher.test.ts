@@ -1,29 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { Mock } from "vitest";
 import type { CodeChunk } from "@core/embeddings/types";
 
-// Use vi.hoisted to define mocks before they're used in the hoisted vi.mock calls
-const {
-  mockExtractSymbols,
-  mockExtractImports,
-  mockExtractExports,
-  mockParseCode,
-} = vi.hoisted(() => ({
-  mockExtractSymbols: vi.fn(),
-  mockExtractImports: vi.fn(),
-  mockExtractExports: vi.fn(),
-  mockParseCode: vi.fn(),
-}));
-
-// Mock modules BEFORE importing the enricher
-vi.mock("@core/parser", () => ({
-  parseCode: mockParseCode,
-}));
-
-vi.mock("@core/symbols", () => ({
-  extractSymbols: mockExtractSymbols,
-  extractImports: mockExtractImports,
-  extractExports: mockExtractExports,
-}));
+// Import the modules so we can spy on them
+import * as parserModule from "@core/parser";
+import * as symbolsModule from "@core/symbols";
 
 // Now import the enricher (uses mocked modules)
 import {
@@ -102,19 +83,28 @@ const defaultExports = [
 ];
 
 function setupDefaultMocks(): void {
-  mockParseCode.mockResolvedValue({
+  (parserModule.parseCode as Mock).mockResolvedValue({
     tree: { rootNode: { type: "program" } },
     language: "typescript",
     parser: {},
     languageInstance: {},
   });
 
-  mockExtractSymbols.mockReturnValue(defaultSymbolsResult);
-  mockExtractImports.mockReturnValue(defaultImports);
-  mockExtractExports.mockReturnValue(defaultExports);
+  (symbolsModule.extractSymbols as Mock).mockReturnValue(defaultSymbolsResult);
+  (symbolsModule.extractImports as Mock).mockReturnValue(defaultImports);
+  (symbolsModule.extractExports as Mock).mockReturnValue(defaultExports);
 }
 
 beforeEach(() => {
+  vi.spyOn(parserModule, "parseCode").mockResolvedValue({
+    tree: { rootNode: { type: "program" } },
+    language: "typescript",
+    parser: {},
+    languageInstance: {},
+  } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
+  vi.spyOn(symbolsModule, "extractSymbols").mockReturnValue(defaultSymbolsResult as ReturnType<typeof symbolsModule.extractSymbols>);
+  vi.spyOn(symbolsModule, "extractImports").mockReturnValue(defaultImports as ReturnType<typeof symbolsModule.extractImports>);
+  vi.spyOn(symbolsModule, "extractExports").mockReturnValue(defaultExports as ReturnType<typeof symbolsModule.extractExports>);
   clearASTCache();
   vi.clearAllMocks();
   setupDefaultMocks();
@@ -122,6 +112,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clearASTCache();
+  vi.restoreAllMocks();
 });
 
 describe("enrichChunk", () => {
@@ -239,7 +230,7 @@ describe("enrichChunksFromFile", () => {
     });
 
     // Parser should only be called once (for efficiency)
-    expect(mockParseCode).toHaveBeenCalledTimes(1);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(1);
   });
 
   test("handles empty chunks array", async () => {
@@ -425,7 +416,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles empty imports array", async () => {
-    mockExtractImports.mockReturnValue([]);
+    (symbolsModule.extractImports as Mock).mockReturnValue([]);
 
     const result = await enrichChunk(sampleChunk, "const x = 1;");
 
@@ -434,7 +425,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles empty exports array", async () => {
-    mockExtractExports.mockReturnValue([]);
+    (symbolsModule.extractExports as Mock).mockReturnValue([]);
 
     const result = await enrichChunk(sampleChunk, "const x = 1;");
 
@@ -443,7 +434,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles import with empty source", async () => {
-    mockExtractImports.mockReturnValue([
+    (symbolsModule.extractImports as Mock).mockReturnValue([
       {
         source: "",
         names: [],
@@ -460,7 +451,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles export with 'default' name", async () => {
-    mockExtractExports.mockReturnValue([
+    (symbolsModule.extractExports as Mock).mockReturnValue([
       {
         name: "default",
         isDefault: true,
@@ -479,7 +470,7 @@ describe("enrichChunk edge cases", () => {
 
 describe("enrichChunk parser failure handling", () => {
   test("returns basic enrichment when parser fails", async () => {
-    mockParseCode.mockRejectedValue(new Error("Parser error"));
+    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parser error"));
 
     const chunk: CodeChunk = {
       id: "chunk_fail",
@@ -641,7 +632,7 @@ describe("AST cache behavior", () => {
     await enrichChunk(chunk2, "const b = 2;");
 
     // Parser should only be called once due to caching
-    expect(mockParseCode).toHaveBeenCalledTimes(1);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(1);
   });
 
   test("parses different files separately", async () => {
@@ -667,6 +658,6 @@ describe("AST cache behavior", () => {
     await enrichChunk(chunk2, "const b = 2;");
 
     // Parser should be called twice (once per file)
-    expect(mockParseCode).toHaveBeenCalledTimes(2);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(2);
   });
 });

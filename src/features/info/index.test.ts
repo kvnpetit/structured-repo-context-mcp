@@ -1,5 +1,6 @@
 import { execute, getServerInfo, infoSchema } from "@features/info";
-import { describe, expect, test, vi } from "vitest";
+import { config } from "@config";
+import { describe, expect, test } from "vitest";
 
 describe("info feature", () => {
   test("should return server info as text", () => {
@@ -54,30 +55,19 @@ describe("info feature", () => {
 });
 
 describe("info feature with undefined description", () => {
-  test("handles undefined description gracefully", async () => {
-    // Mock config to return undefined description
-    vi.doMock("@config", () => ({
-      config: {
-        name: "test-server",
-        fullName: "Test Server",
-        version: "1.0.0",
-        description: undefined,
-      },
-    }));
+  test("handles undefined description gracefully", () => {
+    const originalDescription = config.description;
+    (config as { description: string | undefined }).description = undefined;
 
-    vi.resetModules();
-    const { execute: freshExecute, infoSchema: freshSchema } =
-      await import("@features/info");
-
-    const input = freshSchema.parse({ format: "text" });
-    const result = freshExecute(input);
+    const input = infoSchema.parse({ format: "text" });
+    const result = execute(input);
 
     expect(result.success).toBe(true);
     // When description is undefined, the nullish coalescing operator returns ""
     // and .trim() removes trailing newline from empty description
     expect(result.message).toBeDefined();
 
-    vi.doUnmock("@config");
-    vi.resetModules();
+    (config as { description: string | undefined }).description =
+      originalDescription;
   });
 });

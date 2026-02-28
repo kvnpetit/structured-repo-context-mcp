@@ -14,7 +14,13 @@ import { execute, indexCodebaseSchema } from "@features/index-codebase";
 import * as embeddings from "@core/embeddings";
 
 // Mock the entire embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  createOllamaClient: vi.fn(),
+  createVectorStore: vi.fn(),
+  chunkFile: vi.fn(),
+  enrichChunksFromFile: vi.fn(),
+  shouldIndexFile: vi.fn(),
+}));
 
 describe("indexCodebaseSchema", () => {
   test("applies default directory", () => {
@@ -90,12 +96,12 @@ describe("execute", () => {
     mockClear = vi.fn().mockResolvedValue(undefined);
     mockAddChunks = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(embeddings.createOllamaClient).mockReturnValue({
+    (embeddings.createOllamaClient as Mock).mockReturnValue({
       healthCheck: mockHealthCheck,
       embedBatch: mockEmbedBatch,
     } as unknown as embeddings.OllamaClient);
 
-    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+    (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: mockExists,
       connect: mockConnect,
       close: mockClose,
@@ -103,7 +109,7 @@ describe("execute", () => {
       addChunks: mockAddChunks,
     } as unknown as embeddings.VectorStore);
 
-    vi.mocked(embeddings.chunkFile).mockImplementation(
+    (embeddings.chunkFile as Mock).mockImplementation(
       async (filePath: string, content: string) =>
         Promise.resolve([
           {
@@ -118,7 +124,7 @@ describe("execute", () => {
     );
 
     // Mock enrichChunksFromFile to return enriched chunks
-    vi.mocked(embeddings.enrichChunksFromFile).mockImplementation(
+    (embeddings.enrichChunksFromFile as Mock).mockImplementation(
       async (chunks) =>
         Promise.resolve(
           chunks.map((chunk) => ({
@@ -130,7 +136,7 @@ describe("execute", () => {
         ),
     );
 
-    vi.mocked(embeddings.shouldIndexFile).mockImplementation(
+    (embeddings.shouldIndexFile as Mock).mockImplementation(
       (filePath: string) =>
         filePath.endsWith(".ts") || filePath.endsWith(".js"),
     );
@@ -309,7 +315,7 @@ describe("execute", () => {
   test("handles file processing errors", async () => {
     fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
 
-    vi.mocked(embeddings.chunkFile).mockRejectedValueOnce(
+    (embeddings.chunkFile as Mock).mockRejectedValueOnce(
       new Error("Parse error"),
     );
 
@@ -348,7 +354,7 @@ describe("execute", () => {
     fs.writeFileSync(path.join(tempDir, "test1.ts"), "export const a = 1;");
     fs.writeFileSync(path.join(tempDir, "test2.ts"), "export const b = 2;");
 
-    vi.mocked(embeddings.chunkFile)
+    (embeddings.chunkFile as Mock)
       .mockResolvedValueOnce([
         {
           id: "1",
@@ -393,7 +399,7 @@ describe("execute", () => {
   test("handles non-Error exceptions in file processing", async () => {
     fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
 
-    vi.mocked(embeddings.chunkFile).mockRejectedValueOnce("string error");
+    (embeddings.chunkFile as Mock).mockRejectedValueOnce("string error");
 
     const result = await execute({
       directory: tempDir,

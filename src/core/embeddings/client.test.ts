@@ -3,7 +3,7 @@ import { OllamaClient, createOllamaClient } from "@core/embeddings/client";
 import { Ollama } from "ollama";
 
 // Mock the ollama library
-vi.mock("ollama");
+vi.mock("ollama", () => ({ Ollama: vi.fn() }));
 
 describe("OllamaClient", () => {
   const mockConfig = {
@@ -22,7 +22,7 @@ describe("OllamaClient", () => {
     mockList = vi.fn();
 
     // Use regular function (not arrow) so it can be used as constructor with `new`
-    vi.mocked(Ollama).mockImplementation(function (this: Ollama) {
+    (Ollama as Mock).mockImplementation(function (this: Ollama) {
       this.embed = mockEmbed;
       this.list = mockList;
       return this;

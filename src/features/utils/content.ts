@@ -3,7 +3,7 @@
  *
  * Provides consistent file/content handling across features
  */
-import { readFileSync } from "fs";
+import * as nodeFs from "node:fs";
 
 /**
  * Result of reading content
@@ -34,7 +34,7 @@ export function readContent(
   // If file path is provided, read it
   if (filePath !== undefined) {
     try {
-      const fileContent = readFileSync(filePath, "utf-8");
+      const fileContent = nodeFs.readFileSync(filePath, "utf-8");
       return { success: true, content: fileContent };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

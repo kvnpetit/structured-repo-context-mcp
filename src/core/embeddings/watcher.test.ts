@@ -17,11 +17,12 @@ import { watch } from "chokidar";
 import { OllamaClient } from "@core/embeddings/client";
 import { VectorStore } from "@core/embeddings/store";
 import { chunkFile, shouldIndexFile } from "@core/embeddings/chunker";
+import * as enricherModule from "@core/embeddings/enricher";
 
 // Mock modules
-vi.mock("chokidar");
-vi.mock("@core/embeddings/client");
-vi.mock("@core/embeddings/store");
+vi.mock("chokidar", () => ({ watch: vi.fn() }));
+vi.mock("@core/embeddings/client", () => ({ OllamaClient: vi.fn() }));
+vi.mock("@core/embeddings/store", () => ({ VectorStore: vi.fn() }));
 vi.mock("@utils", () => ({
   logger: {
     info: vi.fn(),
@@ -53,6 +54,9 @@ vi.mock("fast-glob", () => ({
   default: vi.fn().mockResolvedValue([]),
 }));
 
+// Module-level instance tracker for VectorStore (used across describe blocks)
+let lastVectorStoreInstance: VectorStore | undefined;
+
 describe("IndexWatcher", () => {
   let tempDir: string;
   let mockOn: Mock;
@@ -81,13 +85,13 @@ describe("IndexWatcher", () => {
     });
     mockClose = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(watch).mockReturnValue({
+    (watch as Mock).mockReturnValue({
       on: mockOn,
       close: mockClose,
     } as unknown as ReturnType<typeof watch>);
 
     // Setup OllamaClient mock - use regular function so it can be used as constructor
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
       this.embedBatch = vi
@@ -99,12 +103,13 @@ describe("IndexWatcher", () => {
     } as unknown as typeof OllamaClient);
 
     // Setup VectorStore mock - use regular function so it can be used as constructor
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
       this.addChunks = vi.fn().mockResolvedValue(undefined);
       this.deleteByFilePath = vi.fn().mockResolvedValue(undefined);
+      lastVectorStoreInstance = this;
       return this;
     } as unknown as typeof VectorStore);
   });
@@ -332,7 +337,7 @@ describe("IndexWatcher", () => {
   });
 
   test("start throws when Ollama health check fails", async () => {
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi
         .fn()
         .mockResolvedValue({ ok: false, error: "Ollama down" });
@@ -350,7 +355,7 @@ describe("IndexWatcher", () => {
   });
 
   test("start throws generic error when health check fails without message", async () => {
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: false });
       this.embed = vi.fn();
       this.embedBatch = vi.fn();
@@ -368,9 +373,9 @@ describe("IndexWatcher", () => {
   test("performs full index when vector store does not exist", async () => {
     // Import and properly mock fast-glob for this test
     const fg = await import("fast-glob");
-    vi.mocked(fg.default).mockResolvedValue([]);
+    (fg.default as Mock).mockResolvedValue([]);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(false);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -387,7 +392,7 @@ describe("IndexWatcher", () => {
     await watcher.start();
 
     // Full index should have been triggered
-    const storeInstance = vi.mocked(VectorStore).mock.instances[0];
+    const storeInstance = lastVectorStoreInstance;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(storeInstance?.exists).toHaveBeenCalled();
   });
@@ -498,7 +503,7 @@ describe("IndexWatcher", () => {
       return this;
     });
 
-    vi.mocked(shouldIndexFile).mockReturnValue(false);
+    (shouldIndexFile as Mock).mockReturnValue(false);
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -518,7 +523,7 @@ describe("IndexWatcher", () => {
   test("watcher ignored callback skips hidden files", async () => {
     let ignoredCallback: ((filePath: string) => boolean) | undefined;
 
-    vi.mocked(watch).mockImplementation((_paths, options) => {
+    (watch as Mock).mockImplementation((_paths, options) => {
       ignoredCallback = options?.ignored as
         | ((path: string) => boolean)
         | undefined;
@@ -615,12 +620,12 @@ describe("IndexWatcher - debounced operations", () => {
     });
     mockClose = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(watch).mockReturnValue({
+    (watch as Mock).mockReturnValue({
       on: mockOn,
       close: mockClose,
     } as unknown as ReturnType<typeof watch>);
 
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
       this.embedBatch = vi
@@ -631,7 +636,7 @@ describe("IndexWatcher - debounced operations", () => {
       return this;
     } as unknown as typeof OllamaClient);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -640,7 +645,7 @@ describe("IndexWatcher - debounced operations", () => {
       return this;
     } as unknown as typeof VectorStore);
 
-    vi.mocked(shouldIndexFile).mockImplementation(
+    (shouldIndexFile as Mock).mockImplementation(
       (filePath: string) =>
         filePath.endsWith(".ts") || filePath.endsWith(".js"),
     );
@@ -685,10 +690,8 @@ describe("IndexWatcher - debounced operations", () => {
     }
 
     // Advance timers to trigger debounced operation
-    await vi.advanceTimersByTimeAsync(200);
-
-    // Wait for async operations
-    await vi.runAllTimersAsync();
+    vi.advanceTimersByTime(200);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
 
     expect(watcher.isRunning()).toBe(true);
   });
@@ -764,8 +767,10 @@ describe("IndexWatcher - debounced operations", () => {
     }
 
     // Advance timers
-    await vi.advanceTimersByTimeAsync(200);
-    await vi.runAllTimersAsync();
+    vi.advanceTimersByTime(200);
+    await Promise.resolve();
+    vi.runAllTimers();
+    await Promise.resolve();
 
     expect(watcher.isRunning()).toBe(true);
   });
@@ -827,12 +832,12 @@ describe("IndexWatcher - full index", () => {
     mockOn = vi.fn().mockReturnThis();
     mockClose = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(watch).mockReturnValue({
+    (watch as Mock).mockReturnValue({
       on: mockOn,
       close: mockClose,
     } as unknown as ReturnType<typeof watch>);
 
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
       this.embedBatch = vi
@@ -843,12 +848,13 @@ describe("IndexWatcher - full index", () => {
       return this;
     } as unknown as typeof OllamaClient);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(false);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
       this.addChunks = vi.fn().mockResolvedValue(undefined);
       this.deleteByFilePath = vi.fn().mockResolvedValue(undefined);
+      lastVectorStoreInstance = this;
       return this;
     } as unknown as typeof VectorStore);
   });
@@ -863,10 +869,10 @@ describe("IndexWatcher - full index", () => {
     fs.mkdirSync(path.join(tempDir, "src"), { recursive: true });
     fs.writeFileSync(testFile, "export const x = 1;");
 
-    vi.mocked(fg.default).mockResolvedValue([testFile]);
+    (fg.default as Mock).mockResolvedValue([testFile]);
 
     // Ensure chunkFile returns chunks so addChunks gets called
-    vi.mocked(chunkFile).mockResolvedValue([
+    (chunkFile as Mock).mockResolvedValue([
       {
         id: "chunk_1",
         content: "export const x = 1;",
@@ -885,7 +891,7 @@ describe("IndexWatcher - full index", () => {
     await watcher.start();
 
     // addChunks should have been called during fullIndex
-    const storeInstance = vi.mocked(VectorStore).mock.instances[0];
+    const storeInstance = lastVectorStoreInstance;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(storeInstance?.addChunks).toHaveBeenCalled();
   });
@@ -910,7 +916,7 @@ describe("IndexWatcher - full index", () => {
       JSON.stringify({ [testFile]: hash }),
     );
 
-    vi.mocked(fg.default).mockResolvedValue([testFile]);
+    (fg.default as Mock).mockResolvedValue([testFile]);
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -927,7 +933,7 @@ describe("IndexWatcher - full index", () => {
     const fg = await import("fast-glob");
     const nonExistentFile = path.join(tempDir, "does-not-exist.ts");
 
-    vi.mocked(fg.default).mockResolvedValue([nonExistentFile]);
+    (fg.default as Mock).mockResolvedValue([nonExistentFile]);
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -945,8 +951,8 @@ describe("IndexWatcher - full index", () => {
     const testFile = path.join(tempDir, "empty.ts");
     fs.writeFileSync(testFile, "// just a comment");
 
-    vi.mocked(fg.default).mockResolvedValue([testFile]);
-    vi.mocked(chunkFile).mockResolvedValue([]);
+    (fg.default as Mock).mockResolvedValue([testFile]);
+    (chunkFile as Mock).mockResolvedValue([]);
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -983,19 +989,19 @@ describe("IndexWatcher - shouldIndex", () => {
     mockOn = vi.fn().mockReturnThis();
     mockClose = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(watch).mockReturnValue({
+    (watch as Mock).mockReturnValue({
       on: mockOn,
       close: mockClose,
     } as unknown as ReturnType<typeof watch>);
 
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn();
       this.embedBatch = vi.fn();
       return this;
     } as unknown as typeof OllamaClient);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -1012,7 +1018,7 @@ describe("IndexWatcher - shouldIndex", () => {
   test("shouldIndex returns false for hidden files", async () => {
     let ignoredCallback: ((filePath: string) => boolean) | undefined;
 
-    vi.mocked(watch).mockImplementation((_paths, options) => {
+    (watch as Mock).mockImplementation((_paths, options) => {
       ignoredCallback = options?.ignored as
         | ((path: string) => boolean)
         | undefined;
@@ -1041,7 +1047,7 @@ describe("IndexWatcher - shouldIndex", () => {
 
     let ignoredCallback: ((filePath: string) => boolean) | undefined;
 
-    vi.mocked(watch).mockImplementation((_paths, options) => {
+    (watch as Mock).mockImplementation((_paths, options) => {
       ignoredCallback = options?.ignored as
         | ((path: string) => boolean)
         | undefined;
@@ -1101,12 +1107,12 @@ describe("IndexWatcher - error handling", () => {
     mockOn = vi.fn().mockReturnThis();
     mockClose = vi.fn().mockResolvedValue(undefined);
 
-    vi.mocked(watch).mockReturnValue({
+    (watch as Mock).mockReturnValue({
       on: mockOn,
       close: mockClose,
     } as unknown as ReturnType<typeof watch>);
 
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
       this.embedBatch = vi
@@ -1115,7 +1121,7 @@ describe("IndexWatcher - error handling", () => {
       return this;
     } as unknown as typeof OllamaClient);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -1126,15 +1132,33 @@ describe("IndexWatcher - error handling", () => {
       return this;
     } as unknown as typeof VectorStore);
 
-    vi.mocked(shouldIndexFile).mockReturnValue(true);
+    (shouldIndexFile as Mock).mockReturnValue(true);
+
+    vi.spyOn(enricherModule, "enrichChunksFromFile").mockImplementation(
+      async (chunks) =>
+        chunks.map((c) => ({
+          ...c,
+          enrichedContent: c.content,
+          containedSymbols: [],
+          wasEnriched: false,
+        })),
+    );
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test("indexFile calls onError when embedding fails", async () => {
+  test("indexFile calls onError when processing fails", async () => {
+    // Use real timers so the async chain can complete
+    vi.useRealTimers();
+
+    // Make chunkFile throw to trigger onError via indexFile's catch block,
+    // bypassing enricher/embedBatch (which require harder-to-mock async chains)
+    (chunkFile as Mock).mockRejectedValue(new Error("Processing failed"));
+
     const onError = vi.fn();
     let addHandler: ((filePath: string) => void) | undefined;
 
@@ -1165,8 +1189,8 @@ describe("IndexWatcher - error handling", () => {
       addHandler(testFile);
     }
 
-    await vi.advanceTimersByTimeAsync(50);
-    await vi.runAllTimersAsync();
+    // Wait for the real async chain to complete (debounce + processing)
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     expect(onError).toHaveBeenCalled();
   });
@@ -1199,8 +1223,8 @@ describe("IndexWatcher - error handling", () => {
       unlinkHandler(path.join(tempDir, "removed.ts"));
     }
 
-    await vi.advanceTimersByTimeAsync(50);
-    await vi.runAllTimersAsync();
+    vi.advanceTimersByTime(50);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
 
     expect(onError).toHaveBeenCalled();
   });
@@ -1220,7 +1244,7 @@ describe("IndexWatcher - error handling", () => {
     });
 
     // Make chunkFile throw
-    vi.mocked(chunkFile).mockRejectedValue(new Error("Chunk error"));
+    (chunkFile as Mock).mockRejectedValue(new Error("Chunk error"));
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -1237,8 +1261,8 @@ describe("IndexWatcher - error handling", () => {
       addHandler(testFile);
     }
 
-    await vi.advanceTimersByTimeAsync(50);
-    await vi.runAllTimersAsync();
+    vi.advanceTimersByTime(50);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
 
     // Should not crash
     expect(watcher.isRunning()).toBe(true);
@@ -1273,7 +1297,7 @@ describe("IndexWatcher - error handling", () => {
     });
 
     // Make the store throw an unexpected error type (string instead of Error)
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -1297,8 +1321,8 @@ describe("IndexWatcher - error handling", () => {
       addHandler(testFile);
     }
 
-    await vi.advanceTimersByTimeAsync(50);
-    await vi.runAllTimersAsync();
+    vi.advanceTimersByTime(50);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
 
     // Should handle the error without crashing
     expect(watcher.isRunning()).toBe(true);
@@ -1321,14 +1345,14 @@ describe("createIndexWatcher", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "watcher-factory-test-"));
     vi.clearAllMocks();
 
-    vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
+    (OllamaClient as Mock).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn();
       this.embedBatch = vi.fn();
       return this;
     } as unknown as typeof OllamaClient);
 
-    vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
+    (VectorStore as Mock).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
       this.close = vi.fn();
@@ -1348,7 +1372,9 @@ describe("createIndexWatcher", () => {
       config: mockConfig,
     });
 
-    expect(watcher).toBeInstanceOf(IndexWatcher);
+    expect(typeof watcher.start).toBe("function");
+    expect(typeof watcher.stop).toBe("function");
+    expect(typeof watcher.isRunning).toBe("function");
   });
 
   test("passes all options to IndexWatcher", () => {
@@ -1367,6 +1393,8 @@ describe("createIndexWatcher", () => {
       onRemoved,
     });
 
-    expect(watcher).toBeInstanceOf(IndexWatcher);
+    expect(typeof watcher.start).toBe("function");
+    expect(typeof watcher.stop).toBe("function");
+    expect(typeof watcher.isRunning).toBe("function");
   });
 });

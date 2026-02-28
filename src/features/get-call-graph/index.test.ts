@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -6,7 +6,12 @@ import { execute, getCallGraphSchema } from "@features/get-call-graph";
 import * as embeddings from "@core/embeddings";
 
 // Mock the entire embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  shouldIndexFile: vi.fn(),
+  buildCallGraph: vi.fn(),
+  getCallContext: vi.fn(),
+  formatCallContext: vi.fn(),
+}));
 
 describe("getCallGraphSchema", () => {
   test("applies default directory", () => {
@@ -71,9 +76,9 @@ describe("execute", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "call-graph-test-"));
     vi.clearAllMocks();
 
-    vi.mocked(embeddings.shouldIndexFile).mockReturnValue(true);
+    (embeddings.shouldIndexFile as Mock).mockReturnValue(true);
 
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map([
         [
           "/test/file.ts:testFunction",
@@ -106,7 +111,7 @@ describe("execute", () => {
       edgeCount: 1,
     });
 
-    vi.mocked(embeddings.getCallContext).mockReturnValue({
+    (embeddings.getCallContext as Mock).mockReturnValue({
       callers: [],
       callees: [
         {
@@ -122,7 +127,7 @@ describe("execute", () => {
       ],
     });
 
-    vi.mocked(embeddings.formatCallContext).mockReturnValue(
+    (embeddings.formatCallContext as Mock).mockReturnValue(
       "Calls: helperFunction",
     );
   });
@@ -143,7 +148,7 @@ describe("execute", () => {
   });
 
   test("returns success with no files when directory is empty", async () => {
-    vi.mocked(embeddings.shouldIndexFile).mockReturnValue(false);
+    (embeddings.shouldIndexFile as Mock).mockReturnValue(false);
 
     const result = await execute({
       directory: tempDir,
@@ -202,8 +207,8 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.getCallContext).mockReturnValue(null);
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.getCallContext as Mock).mockReturnValue(null);
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map(),
       files: [testFile],
       edgeCount: 0,
@@ -224,7 +229,7 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.buildCallGraph).mockRejectedValue(
+    (embeddings.buildCallGraph as Mock).mockRejectedValue(
       new Error("Parse error"),
     );
 
@@ -242,7 +247,7 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.buildCallGraph).mockRejectedValue("String error");
+    (embeddings.buildCallGraph as Mock).mockRejectedValue("String error");
 
     const result = await execute({
       directory: tempDir,
@@ -275,14 +280,14 @@ function helperFunction() {
 
     // First call returns null (not found in specified path)
     // Second call finds it in the graph
-    vi.mocked(embeddings.getCallContext)
+    (embeddings.getCallContext as Mock)
       .mockReturnValueOnce(null)
       .mockReturnValue({
         callers: [],
         callees: [],
       });
 
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map([
         [
           `${testFile}:testFunction`,
@@ -320,7 +325,7 @@ function helperFunction() {
     fs.writeFileSync(excludedFile, "function spec() {}");
 
     // Make shouldIndexFile return false for spec files based on the name
-    vi.mocked(embeddings.shouldIndexFile).mockImplementation(
+    (embeddings.shouldIndexFile as Mock).mockImplementation(
       (name) => !name.includes(".spec."),
     );
 
