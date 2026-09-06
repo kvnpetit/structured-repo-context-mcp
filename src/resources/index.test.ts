@@ -30,22 +30,50 @@ describe("Resource Registration", () => {
   }
 
   test("registers server_info resource", () => {
-    const { server, mock, captured } = makeServer();
+    const { server, mock } = makeServer();
     registerResources(server);
 
-    expect(mock).toHaveBeenCalledTimes(1);
-    expect(captured.name).toBe("server_info");
-    expect(captured.uri).toBe("src://server/info");
+    expect(mock).toHaveBeenCalledTimes(3);
+    expect(mock).toHaveBeenCalledWith(
+      "server_info",
+      "src://server/info",
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mock).toHaveBeenCalledWith(
+      "server_capabilities",
+      "src://server/capabilities",
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(mock).toHaveBeenCalledWith(
+      "project_views",
+      expect.any(Object),
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 
   test("server_info resource handler returns valid structure", () => {
-    const { server, captured } = makeServer();
+    const { server } = makeServer();
     registerResources(server);
 
-    expect(captured.handler).toBeDefined();
-    if (captured.handler === undefined) throw new Error("Handler should be defined");
+    const call = (
+      server as unknown as { registerResource: ReturnType<typeof vi.fn> }
+    ).registerResource.mock.calls.find(
+      (entry: unknown[]) => entry[0] === "server_info",
+    );
+    const handler = call?.[3] as
+      | ((uri: { href: string }) => {
+          contents: { uri: string; mimeType: string; text: string }[];
+        })
+      | undefined;
+    expect(handler).toBeDefined();
+    if (handler === undefined) {
+      throw new Error("Handler should be defined");
+    }
 
-    const result = captured.handler({ href: "src://server/info" });
+    const result = handler({ href: "src://server/info" });
 
     expect(result.contents).toHaveLength(1);
     expect(result.contents[0]?.mimeType).toBe("application/json");
@@ -53,12 +81,24 @@ describe("Resource Registration", () => {
   });
 
   test("server_info resource returns valid JSON with expected properties", () => {
-    const { server, captured } = makeServer();
+    const { server } = makeServer();
     registerResources(server);
 
-    if (captured.handler === undefined) throw new Error("Handler should be defined");
+    const call = (
+      server as unknown as { registerResource: ReturnType<typeof vi.fn> }
+    ).registerResource.mock.calls.find(
+      (entry: unknown[]) => entry[0] === "server_info",
+    );
+    const handler = call?.[3] as
+      | ((uri: { href: string }) => {
+          contents: { uri: string; mimeType: string; text: string }[];
+        })
+      | undefined;
+    if (handler === undefined) {
+      throw new Error("Handler should be defined");
+    }
 
-    const result = captured.handler({ href: "src://server/info" });
+    const result = handler({ href: "src://server/info" });
     const parsed = JSON.parse(result.contents[0]?.text ?? "{}") as Record<
       string,
       unknown
@@ -67,5 +107,38 @@ describe("Resource Registration", () => {
     expect(parsed).toHaveProperty("name");
     expect(parsed).toHaveProperty("fullName");
     expect(parsed).toHaveProperty("version");
+  });
+
+  test("server_capabilities resource exposes the enabled catalog", () => {
+    const { server } = makeServer();
+    registerResources(server);
+    const call = (
+      server as unknown as { registerResource: ReturnType<typeof vi.fn> }
+    ).registerResource.mock.calls.find(
+      (entry: unknown[]) => entry[0] === "server_capabilities",
+    );
+    const handler = call?.[3] as
+      | ((uri: { href: string }) => {
+          contents: { text: string }[];
+        })
+      | undefined;
+    expect(handler).toBeDefined();
+    if (handler === undefined) {
+      throw new Error("Capabilities handler should be defined");
+    }
+    const parsed = JSON.parse(
+      handler({ href: "src://server/capabilities" }).contents[0]?.text ?? "{}",
+    ) as {
+      schema_version?: number;
+      local_only?: boolean;
+      tool_catalog_revision?: string;
+      tools?: { name: string }[];
+    };
+    expect(parsed.schema_version).toBe(1);
+    expect(parsed.local_only).toBe(true);
+    expect(parsed.tool_catalog_revision).toMatch(/^[a-f0-9]{64}$/u);
+    expect(parsed.tools?.some((tool) => tool.name === "search_code")).toBe(
+      true,
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { zodToCittyArgs } from "@cli/parser";
+import { normalizeCliArgs, zodToCittyArgs } from "@cli/parser";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 
@@ -63,15 +63,19 @@ describe("Zod to Citty Parser", () => {
     expect(args.format?.required).toBe(false);
   });
 
-  test("handles ZodEnum as string", () => {
+  test("converts ZodEnum to a constrained enum argument", () => {
     const schema = z.object({
       level: z.enum(["info", "warn", "error"]).describe("Log level"),
     });
 
     const args = zodToCittyArgs(schema);
 
-    expect(args.level).toBeDefined();
-    expect(args.level?.type).toBe("string");
+    const level = args.level;
+    expect(level).toBeDefined();
+    expect(level?.type).toBe("enum");
+    if (level?.type === "enum") {
+      expect(level.options).toEqual(["info", "warn", "error"]);
+    }
   });
 
   test("returns empty object for non-object schema", () => {
@@ -141,8 +145,7 @@ describe("Zod to Citty Parser", () => {
     expect(args.timeout?.required).toBe(false);
   });
 
-  test("handles schema without _def property", () => {
-    // Create a mock schema-like object without _def
+  test("rejects schema-like objects that are not actual Zod objects", () => {
     const fakeSchema = {
       shape: {
         field: {}, // No _def, no description
@@ -151,8 +154,7 @@ describe("Zod to Citty Parser", () => {
 
     const args = zodToCittyArgs(fakeSchema as unknown as z.ZodType);
 
-    expect(args.field).toBeDefined();
-    expect(args.field?.type).toBe("string");
+    expect(args).toEqual({});
   });
 
   test("handles boolean without description", () => {
@@ -165,5 +167,47 @@ describe("Zod to Citty Parser", () => {
     expect(args.flag).toBeDefined();
     expect(args.flag?.type).toBe("boolean");
     expect(args.flag?.description).toBeUndefined();
+  });
+
+  test("uses string-safe defaults and restores numeric values", () => {
+    const schema = z.object({
+      count: z.number().int().default(30),
+    });
+
+    const args = zodToCittyArgs(schema);
+    expect(args.count?.default).toBe("30");
+    expect(normalizeCliArgs(schema, { count: "42", _: [] })).toEqual({
+      count: 42,
+    });
+  });
+
+  test("parses array arguments from JSON or comma-separated values", () => {
+    const schema = z.object({
+      paths: z.array(z.string()).default([]),
+      limits: z.array(z.number()).default([]),
+    });
+
+    expect(
+      normalizeCliArgs(schema, {
+        paths: '["src/a.ts","src/b.ts"]',
+        limits: "10,20",
+      }),
+    ).toEqual({ paths: ["src/a.ts", "src/b.ts"], limits: [10, 20] });
+  });
+
+  test("flattens object unions while preserving conditional requirements", () => {
+    const schema = z.union([
+      z.object({ operation: z.literal("get"), id: z.string() }),
+      z.object({ operation: z.literal("list"), limit: z.number().default(10) }),
+    ]);
+
+    const args = zodToCittyArgs(schema);
+    expect(Object.keys(args).sort()).toEqual(["id", "limit", "operation"]);
+    expect(args.operation?.required).toBe(true);
+    expect(args.id?.required).toBe(false);
+    expect(args.limit?.default).toBe("10");
+    expect(normalizeCliArgs(schema, { operation: "list", limit: "5" })).toEqual(
+      { operation: "list", limit: 5 },
+    );
   });
 });

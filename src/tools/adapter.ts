@@ -1,45 +1,64 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Feature } from "@features/types";
-import { z } from "zod";
-
-function zodToMcpSchema(schema: z.ZodType): Record<string, z.ZodType> {
-  if (schema instanceof z.ZodObject) {
-    return schema.shape as Record<string, z.ZodType>;
-  }
-  return { input: schema };
-}
+import type { McpServer } from "@modelcontextprotocol/server";
+import type { ServerContext } from "@modelcontextprotocol/server";
+import type { Feature, FeatureExecutionContext } from "@features/types";
+import {
+  executeFeature,
+  finalizeFeatureResult,
+  formatFeatureResult,
+} from "@features/runtime";
+import { createFeatureToolConfig, usesFlatMcpInput } from "@tools/contracts";
 
 export function registerFeatureAsTool(
   server: McpServer,
   feature: Feature,
 ): void {
-  const mcpSchema = zodToMcpSchema(feature.schema);
-
   server.registerTool(
     feature.name,
-    { description: feature.description, inputSchema: mcpSchema },
-    async (params) => {
-      const result = feature.execute(params);
-
-      const formatResult = (
-        res: Awaited<ReturnType<typeof feature.execute>>,
-      ): {
-        content: { type: "text"; text: string }[];
-        isError: boolean;
-      } => ({
-        content: [
-          {
-            type: "text" as const,
-            text: res.message ?? JSON.stringify(res.data, null, 2),
+    createFeatureToolConfig(feature),
+    async (params, context?: ServerContext) => {
+      try {
+        const featureInput = usesFlatMcpInput(feature.schema)
+          ? params
+          : (params as { input: unknown }).input;
+        const featureContext: FeatureExecutionContext = {
+          signal: context?.mcpReq.signal,
+          reportProgress: async (progress, total, message) => {
+            if (!context) {
+              return;
+            }
+            const progressToken = context.mcpReq._meta?.progressToken;
+            if (progressToken === undefined) {
+              return;
+            }
+            await context.mcpReq.notify({
+              method: "notifications/progress",
+              params: {
+                progressToken,
+                progress,
+                ...(total === undefined ? {} : { total }),
+                ...(message === undefined ? {} : { message }),
+              },
+            });
           },
-        ],
-        isError: !res.success,
-      });
-
-      if (result instanceof Promise) {
-        return await result.then(formatResult);
+        };
+        const featureResult = await executeFeature(
+          feature,
+          featureInput,
+          featureContext,
+        );
+        return finalizeFeatureResult(feature, featureResult);
+      } catch {
+        return formatFeatureResult({
+          success: false,
+          error: "Tool execution failed",
+        });
       }
-      return formatResult(result);
     },
   );
 }
+
+export {
+  executeFeature,
+  formatFeatureResult,
+  FEATURE_RESULT_SCHEMA_VERSION,
+} from "@features/runtime";

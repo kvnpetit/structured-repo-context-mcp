@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { subCommands } from "@cli/commands";
+import { features } from "@features";
 
 describe("CLI Commands Index", () => {
   test("subCommands contains serve command", () => {
@@ -10,9 +11,14 @@ describe("CLI Commands Index", () => {
     expect(subCommands.version).toBeDefined();
   });
 
-  test("subCommands contains feature commands", () => {
-    // The info feature should be available as a command
-    expect(subCommands).toHaveProperty("get_server_info");
+  test("contains every registered feature exactly once", () => {
+    const expected = [
+      "serve",
+      "version",
+      ...features.map((feature) => feature.name),
+    ].sort();
+
+    expect(Object.keys(subCommands).sort()).toEqual(expected);
   });
 
   test("all subCommands have meta property", () => {

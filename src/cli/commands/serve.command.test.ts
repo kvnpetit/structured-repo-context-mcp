@@ -1,7 +1,15 @@
-import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from "vitest";
 import { serveCommand } from "@cli/commands/serve.command";
 import type { CommandMeta } from "citty";
-import { createIndexWatcher } from "@core/embeddings";
+import { createIndexWatcher, type WatcherOptions } from "@core/embeddings";
 import { startServer } from "@/server";
 import { logger } from "@utils";
 
@@ -78,6 +86,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: false,
         t: "stdio",
@@ -99,12 +109,14 @@ describe("Serve Command", () => {
       start: mockStart,
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: "/test/dir",
         watch: true,
         t: "stdio",
@@ -134,12 +146,14 @@ describe("Serve Command", () => {
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -163,12 +177,14 @@ describe("Serve Command", () => {
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -186,19 +202,23 @@ describe("Serve Command", () => {
 
   test("onError callback logs watcher errors", async () => {
     let capturedOnError: ((error: Error) => void) | undefined;
-    (createIndexWatcher as Mock).mockImplementation((options) => {
-      capturedOnError = options.onError;
-      return {
-        start: vi.fn().mockResolvedValue(undefined),
-        stop: vi.fn(),
-        isRunning: vi.fn().mockReturnValue(true),
-      } as unknown as ReturnType<typeof createIndexWatcher>;
-    });
+    (createIndexWatcher as Mock).mockImplementation(
+      (options: WatcherOptions) => {
+        capturedOnError = options.onError;
+        return {
+          start: vi.fn().mockResolvedValue(undefined),
+          stop: vi.fn(),
+          isRunning: vi.fn().mockReturnValue(true),
+        };
+      },
+    );
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -225,7 +245,7 @@ describe("Serve Command", () => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
       return undefined as never;
@@ -235,6 +255,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -247,6 +269,9 @@ describe("Serve Command", () => {
 
     // Emit SIGINT
     process.emit("SIGINT");
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
 
     expect(mockStop).toHaveBeenCalled();
     expect(mockExit).toHaveBeenCalledWith(0);
@@ -260,7 +285,7 @@ describe("Serve Command", () => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
       return undefined as never;
@@ -270,6 +295,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -282,6 +309,9 @@ describe("Serve Command", () => {
 
     // Emit SIGTERM
     process.emit("SIGTERM");
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
 
     expect(mockStop).toHaveBeenCalled();
     expect(mockExit).toHaveBeenCalledWith(0);
