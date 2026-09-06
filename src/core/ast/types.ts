@@ -22,6 +22,10 @@ export interface ASTNode {
   type: string;
   /** Source text of this node */
   text: string;
+  /** True when text was bounded for a response-safe AST view. */
+  text_truncated?: boolean;
+  /** True when child traversal stopped at the AST node budget. */
+  children_truncated?: boolean;
   /** Start position */
   start: Position;
   /** End position */

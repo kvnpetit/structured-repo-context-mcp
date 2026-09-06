@@ -3,7 +3,12 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { collectFiles, createIgnoreFilter, isHidden } from "./index";
+import {
+  collectFiles,
+  createIgnoreFilter,
+  isHidden,
+  isSensitiveFileName,
+} from "./index";
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-files-test-"));
@@ -65,6 +70,21 @@ describe("createIgnoreFilter", () => {
   });
 });
 
+describe("isSensitiveFileName", () => {
+  test("recognizes common secret material", () => {
+    expect(isSensitiveFileName(".env")).toBe(true);
+    expect(isSensitiveFileName(".env.local")).toBe(true);
+    expect(isSensitiveFileName("server.pem")).toBe(true);
+    expect(isSensitiveFileName("id_rsa")).toBe(true);
+    expect(isSensitiveFileName("credentials.json")).toBe(true);
+  });
+
+  test("does not reject ordinary source files", () => {
+    expect(isSensitiveFileName("secrets-manager.ts")).toBe(false);
+    expect(isSensitiveFileName("auth.ts")).toBe(false);
+  });
+});
+
 describe("collectFiles", () => {
   test("collects typescript files recursively", () => {
     const dir = makeTempDir();
@@ -77,10 +97,39 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
+      const relative = files.map((f) =>
+        path.relative(dir, f).replace(/\\/g, "/"),
+      );
       expect(relative).toContain("src/index.ts");
       expect(relative).toContain("src/utils.ts");
       expect(relative).toContain("README.md");
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  test("collects configured parser, fallback, and special files", () => {
+    const dir = makeTempDir();
+    try {
+      const expected = [
+        "page.html",
+        "module.ml",
+        "settings.json",
+        "config.yaml",
+        "query.sql",
+        "Dockerfile",
+      ];
+      for (const filename of expected) {
+        fs.writeFileSync(path.join(dir, filename), "text");
+      }
+      fs.writeFileSync(path.join(dir, "image.png"), "binary");
+
+      const files = collectFiles(dir, createIgnoreFilter(dir), dir);
+      const relative = files.map((file) => path.relative(dir, file));
+
+      expect(relative).toEqual(expect.arrayContaining(expected));
+      expect(relative).not.toContain(".env");
+      expect(relative).not.toContain("image.png");
     } finally {
       cleanup(dir);
     }
@@ -96,9 +145,24 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
+      const relative = files.map((f) =>
+        path.relative(dir, f).replace(/\\/g, "/"),
+      );
       expect(relative).not.toContain(".hidden/secret.ts");
       expect(relative).toContain("visible.ts");
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  test("does not treat a special hidden filename as a directory exception", () => {
+    const dir = makeTempDir();
+    try {
+      fs.mkdirSync(path.join(dir, ".env"));
+      fs.writeFileSync(path.join(dir, ".env", "secret.ts"), "");
+
+      const files = collectFiles(dir, createIgnoreFilter(dir), dir);
+      expect(files).toEqual([]);
     } finally {
       cleanup(dir);
     }
@@ -114,7 +178,9 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
+      const relative = files.map((f) =>
+        path.relative(dir, f).replace(/\\/g, "/"),
+      );
       expect(relative.some((f) => f.startsWith("node_modules"))).toBe(false);
       expect(relative).toContain("app.ts");
     } finally {

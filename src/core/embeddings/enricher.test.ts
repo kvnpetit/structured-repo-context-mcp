@@ -102,9 +102,11 @@ beforeEach(() => {
     parser: {},
     languageInstance: {},
   } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
-  vi.spyOn(symbolsModule, "extractSymbols").mockReturnValue(defaultSymbolsResult as ReturnType<typeof symbolsModule.extractSymbols>);
-  vi.spyOn(symbolsModule, "extractImports").mockReturnValue(defaultImports as ReturnType<typeof symbolsModule.extractImports>);
-  vi.spyOn(symbolsModule, "extractExports").mockReturnValue(defaultExports as ReturnType<typeof symbolsModule.extractExports>);
+  vi.spyOn(symbolsModule, "extractSymbols").mockReturnValue(
+    defaultSymbolsResult as ReturnType<typeof symbolsModule.extractSymbols>,
+  );
+  vi.spyOn(symbolsModule, "extractImports").mockReturnValue(defaultImports);
+  vi.spyOn(symbolsModule, "extractExports").mockReturnValue(defaultExports);
   clearASTCache();
   vi.clearAllMocks();
   setupDefaultMocks();
@@ -470,7 +472,9 @@ describe("enrichChunk edge cases", () => {
 
 describe("enrichChunk parser failure handling", () => {
   test("returns basic enrichment when parser fails", async () => {
-    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parser error"));
+    (parserModule.parseCode as Mock).mockRejectedValue(
+      new Error("Parser error"),
+    );
 
     const chunk: CodeChunk = {
       id: "chunk_fail",
@@ -490,6 +494,30 @@ describe("enrichChunk parser failure handling", () => {
     expect(result.enrichedContent).toContain("---");
     expect(result.enrichedContent).toContain(chunk.content);
     expect(result.containedSymbols).toEqual([]);
+  });
+
+  test("enrichChunksFromFile returns basic enrichment when parser fails", async () => {
+    (parserModule.parseCode as Mock).mockRejectedValue(
+      new Error("Parse failure"),
+    );
+
+    const chunks: CodeChunk[] = [
+      {
+        id: "chunk_from_file",
+        content: "const x = 1;",
+        filePath: "/src/fail.ts",
+        language: "typescript",
+        startLine: 1,
+        endLine: 1,
+      },
+    ];
+
+    const results = await enrichChunksFromFile(chunks, "const x = 1;");
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.wasEnriched).toBe(false);
+    expect(results[0]?.enrichedContent).toContain("File: /src/fail.ts");
+    expect(results[0]?.containedSymbols).toEqual([]);
   });
 });
 
@@ -628,11 +656,28 @@ describe("AST cache behavior", () => {
       endLine: 5,
     };
 
-    await enrichChunk(chunk1, "const a = 1;");
-    await enrichChunk(chunk2, "const b = 2;");
+    const content = "const a = 1;\n\n\n\nconst b = 2;";
+    await enrichChunk(chunk1, content);
+    await enrichChunk(chunk2, content);
 
     // Parser should only be called once due to caching
     expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(1);
+  });
+
+  test("invalidates cached analysis when file content changes", async () => {
+    const chunk: CodeChunk = {
+      id: "chunk",
+      content: "const value = 1;",
+      filePath: "/src/changing-file.ts",
+      language: "typescript",
+      startLine: 1,
+      endLine: 1,
+    };
+
+    await enrichChunk(chunk, "const oldName = 1;");
+    await enrichChunk(chunk, "const newName = 2;");
+
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(2);
   });
 
   test("parses different files separately", async () => {

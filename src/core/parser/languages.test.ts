@@ -5,6 +5,8 @@ import {
   getLanguageFromExtension,
   getLanguageFromPath,
   getLanguages,
+  getIndexableExtensions,
+  getConfiguredLanguageFromPath,
   getSupportedExtensions,
   getSupportedLanguages,
   isLanguageSupported,
@@ -128,6 +130,34 @@ describe("Language Configuration", () => {
       expect(extensions.length).toBeGreaterThan(0);
       expect(extensions).toContain(".ts");
       expect(extensions).toContain(".js");
+    });
+  });
+
+  describe("indexable language catalog", () => {
+    test("includes Tree-sitter and fallback extension classes", () => {
+      const extensions = getIndexableExtensions();
+      expect(extensions).toEqual(
+        expect.arrayContaining([
+          ".html",
+          ".ml",
+          ".json",
+          ".yaml",
+          ".sql",
+          ".md",
+        ]),
+      );
+      expect(extensions).not.toContain(".png");
+      expect(extensions).not.toContain(".wasm");
+    });
+
+    test.each([
+      ["component.html", "html"],
+      ["module.ml", "ocaml"],
+      ["settings.json", "json"],
+      ["Dockerfile.dev", "dockerfile"],
+      [".env.local", "env"],
+    ])("resolves %s as %s", (filePath, language) => {
+      expect(getConfiguredLanguageFromPath(filePath)).toBe(language);
     });
   });
 

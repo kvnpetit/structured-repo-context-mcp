@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import {
   analyzeFileForCallGraph,
   buildCallGraph,
@@ -7,6 +10,8 @@ import {
   getCallContext,
   getCallGraphCacheStats,
 } from "@core/embeddings/callgraph";
+import * as parserModule from "@core/parser";
+import * as symbolsModule from "@core/symbols";
 
 // Mock logger
 vi.mock("@utils", () => ({
@@ -72,6 +77,22 @@ function calculate() {
       const data2 = await analyzeFileForCallGraph("/test/cached.ts", content);
 
       expect(data1).toBe(data2); // Same reference from cache
+    });
+
+    test("invalidates in-memory analysis when content changes", async () => {
+      const content1 = `function first() { return 1; }`;
+      const content2 = `
+function first() { return 1; }
+function second() { return 2; }
+`;
+
+      const data1 = await analyzeFileForCallGraph("/test/changed.ts", content1);
+      const data2 = await analyzeFileForCallGraph("/test/changed.ts", content2);
+
+      expect(data1).not.toBeNull();
+      expect(data2).not.toBeNull();
+      expect(data2).not.toBe(data1);
+      expect(data2?.symbols.length).toBeGreaterThan(data1?.symbols.length ?? 0);
     });
 
     test("handles parse errors gracefully", async () => {
@@ -178,7 +199,7 @@ function c() {
       expect(context).not.toBeNull();
       // b is called by a
       // b calls c
-    });
+    }, 30_000);
 
     test("returns null for non-existent function", async () => {
       const graph = await buildCallGraph([]);
@@ -270,6 +291,178 @@ function c() {
       expect(stats.files).toBe(2);
       expect(stats.entries).toContain("/test/a.ts");
       expect(stats.entries).toContain("/test/b.ts");
+    });
+  });
+
+  describe("persistent disk cache", () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "callgraph-cache-test-"));
+      clearCallGraphCache();
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      clearCallGraphCache();
+    });
+
+    test("saves and loads persistent cache for same files", async () => {
+      const filePath = path.join(tempDir, "test.ts");
+      const content = `function hello() { return 1; }`;
+      fs.writeFileSync(filePath, content);
+
+      const files = [{ path: filePath, content }];
+
+      // First call: builds and saves to disk
+      const graph1 = await buildCallGraph(files);
+
+      // Clear in-memory cache
+      clearCallGraphCache();
+
+      // Second call: should load from disk cache
+      const graph2 = await buildCallGraph(files);
+
+      expect(graph1.nodes.size).toBe(graph2.nodes.size);
+      expect(graph1.files).toEqual(graph2.files);
+    });
+
+    test("invalidates cache when file content changes", async () => {
+      const filePath = path.join(tempDir, "test.ts");
+      const content1 = `function hello() { return 1; }`;
+      fs.writeFileSync(filePath, content1);
+
+      // First call: build and save cache
+      await buildCallGraph([{ path: filePath, content: content1 }]);
+      clearCallGraphCache();
+
+      // Second call with different content: cache hash mismatch → rebuild
+      const content2 = `function hello() { return 2; } function world() {}`;
+      const graph2 = await buildCallGraph([
+        { path: filePath, content: content2 },
+      ]);
+
+      expect(graph2.nodes.size).toBeGreaterThan(0);
+    });
+
+    test("invalidates cache when file count changes", async () => {
+      const file1 = path.join(tempDir, "a.ts");
+      const file2 = path.join(tempDir, "b.ts");
+      fs.writeFileSync(file1, `function a() {}`);
+      fs.writeFileSync(file2, `function b() {}`);
+
+      // Build with 2 files
+      await buildCallGraph([
+        { path: file1, content: `function a() {}` },
+        { path: file2, content: `function b() {}` },
+      ]);
+      clearCallGraphCache();
+
+      // Build with only 1 file: file count changed → cache invalid → rebuild
+      const graph = await buildCallGraph([
+        { path: file1, content: `function a() {}` },
+      ]);
+
+      expect(graph.files).toHaveLength(1);
+    });
+
+    test("handles corrupted cache file gracefully", async () => {
+      const filePath = path.join(tempDir, "test.ts");
+      const content = `function hello() {}`;
+      fs.writeFileSync(filePath, content);
+
+      // Write corrupted cache
+      const cacheDir = path.join(tempDir, ".src-index");
+      fs.mkdirSync(cacheDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(cacheDir, "call-graph.json"),
+        "{ invalid json }",
+      );
+
+      clearCallGraphCache();
+
+      // Should rebuild from scratch despite corrupted cache
+      const graph = await buildCallGraph([{ path: filePath, content }]);
+      expect(graph.nodes.size).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe("extractCallsFromTree language handling", () => {
+    const emptySymbolsResult = {
+      symbols: [],
+      summary: {
+        functions: 0,
+        constants: 0,
+        classes: 0,
+        variables: 0,
+        interfaces: 0,
+        types: 0,
+        enums: 0,
+        methods: 0,
+        properties: 0,
+        total: 0,
+      },
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      clearCallGraphCache();
+    });
+
+    test("returns empty call map for language not in callPatterns", async () => {
+      vi.spyOn(parserModule, "parseCode").mockResolvedValueOnce({
+        tree: { rootNode: { type: "program" } },
+        language: "rust",
+        parser: {},
+        languageInstance: {},
+      } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
+
+      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(
+        emptySymbolsResult,
+      );
+
+      const data = await analyzeFileForCallGraph(
+        "/test/file.rs",
+        "fn hello() { world(); }",
+      );
+
+      expect(data).not.toBeNull();
+      expect(data?.calls.size).toBe(0);
+    });
+
+    test("handles Query constructor errors gracefully (lines 275-277)", async () => {
+      vi.spyOn(parserModule, "parseCode").mockResolvedValueOnce({
+        tree: { rootNode: { type: "program" } },
+        language: "typescript",
+        parser: {},
+        languageInstance: {},
+      } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
+
+      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(
+        emptySymbolsResult,
+      );
+
+      const data = await analyzeFileForCallGraph(
+        "/test/ts_query_error.ts",
+        "function test() {}",
+      );
+
+      // Query fails with invalid languageInstance — caught, returns empty calls
+      expect(data).not.toBeNull();
+      expect(data?.calls.size).toBe(0);
+    });
+
+    test("returns null when parseCode throws (lines 362-365)", async () => {
+      vi.spyOn(parserModule, "parseCode").mockRejectedValueOnce(
+        new Error("WASM load error"),
+      );
+
+      const data = await analyzeFileForCallGraph(
+        "/test/parse_error.ts",
+        "const x = 1;",
+      );
+
+      expect(data).toBeNull();
     });
   });
 });

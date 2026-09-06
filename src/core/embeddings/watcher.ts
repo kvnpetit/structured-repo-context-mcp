@@ -8,33 +8,31 @@
  * - fast-glob for efficient file scanning
  */
 
-import * as fs from "node:fs";
 import * as path from "node:path";
-import * as crypto from "node:crypto";
 import { watch, type FSWatcher } from "chokidar";
-import fg from "fast-glob";
 import type { Ignore } from "ignore";
 import type { EmbeddingConfig } from "@core/embeddings/types";
-import { OllamaClient } from "@core/embeddings/client";
+import {
+  OllamaClient,
+  createLexicalEmbeddingClient,
+  type EmbeddingClient,
+} from "@core/embeddings/client";
 import { VectorStore } from "@core/embeddings/store";
+import { shouldIndexFile } from "@core/embeddings/chunker";
+import type { EnrichmentOptions } from "@core/embeddings/enricher";
 import {
-  chunkFile,
-  shouldIndexFile,
-  SUPPORTED_EXTENSIONS,
-} from "@core/embeddings/chunker";
-import {
-  enrichChunksFromFile,
-  type EnrichmentOptions,
-} from "@core/embeddings/enricher";
+  collectIndexableFiles,
+  embedFileContent,
+  shouldIndexPath,
+} from "@core/embeddings/watcher-indexing";
+import { WatcherHashCache } from "@core/embeddings/watcher-cache";
 import { createIgnoreFilter } from "@core/files";
 import { readPathAliasesCached } from "@core/utils";
+import { readSecureTextFile, resolveSecureDirectory } from "@core/security";
 import { logger } from "@utils";
 
 /** Default debounce delay in milliseconds */
 const DEFAULT_DEBOUNCE_MS = 5000;
-
-/** Cache file name for storing hashes */
-const HASH_CACHE_FILE = ".src-index-hashes.json";
 
 export interface WatcherOptions {
   directory: string;
@@ -47,8 +45,6 @@ export interface WatcherOptions {
   onRemoved?: (filePath: string) => void;
 }
 
-type HashCache = Record<string, string>;
-
 interface PendingChange {
   type: "add" | "change" | "unlink";
   filePath: string;
@@ -59,13 +55,13 @@ export class IndexWatcher {
   private readonly directory: string;
   private readonly config: EmbeddingConfig;
   private readonly debounceMs: number;
-  private readonly ollamaClient: OllamaClient;
+  private readonly embeddingClient: EmbeddingClient;
   private readonly vectorStore: VectorStore;
   private readonly enrichmentOptions: EnrichmentOptions;
   private watcher: FSWatcher | null = null;
   private ig: Ignore;
   private isProcessing = false;
-  private hashCache: HashCache = {};
+  private readonly hashCache: WatcherHashCache;
   private pendingChanges = new Map<string, PendingChange>();
   private operationQueue: (() => Promise<void>)[] = [];
 
@@ -75,14 +71,22 @@ export class IndexWatcher {
   private readonly onRemoved?: (filePath: string) => void;
 
   constructor(options: WatcherOptions) {
-    this.directory = path.resolve(options.directory);
+    const secureDirectory = resolveSecureDirectory(options.directory);
+    if (!secureDirectory.ok) {
+      throw new Error(secureDirectory.error);
+    }
+    this.directory = secureDirectory.path;
     this.config = options.config;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-    this.ollamaClient = new OllamaClient(options.config);
+    this.embeddingClient =
+      options.config.embeddingProvider === "lexical"
+        ? createLexicalEmbeddingClient(options.config.embeddingDimensions)
+        : new OllamaClient(options.config);
     this.vectorStore = new VectorStore(this.directory, options.config);
     this.enrichmentOptions = {
       projectRoot: this.directory,
       pathAliases: readPathAliasesCached(this.directory),
+      includeCrossFileContext: true,
     };
     this.ig = this.createIgnoreFilter();
 
@@ -91,83 +95,31 @@ export class IndexWatcher {
     this.onIndexed = options.onIndexed;
     this.onRemoved = options.onRemoved;
 
-    this.loadHashCache();
-  }
-
-  /**
-   * Compute SHA-256 hash of content
-   */
-  private computeHash(content: string): string {
-    return crypto.createHash("sha256").update(content, "utf8").digest("hex");
-  }
-
-  /**
-   * Get hash cache file path
-   */
-  private getHashCachePath(): string {
-    return path.join(this.directory, ".src-index", HASH_CACHE_FILE);
-  }
-
-  /**
-   * Load hash cache from disk
-   */
-  private loadHashCache(): void {
-    const cachePath = this.getHashCachePath();
-
-    if (fs.existsSync(cachePath)) {
-      try {
-        const content = fs.readFileSync(cachePath, "utf-8");
-        this.hashCache = JSON.parse(content) as HashCache;
-        logger.debug(
-          `Loaded ${String(Object.keys(this.hashCache).length)} cached hashes`,
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`Hash cache corrupted, resetting: ${message}`);
-        this.hashCache = {};
-      }
-    }
-  }
-
-  /**
-   * Save hash cache to disk
-   */
-  private saveHashCache(): void {
-    const cachePath = this.getHashCachePath();
-    const cacheDir = path.dirname(cachePath);
-
-    try {
-      if (!fs.existsSync(cacheDir)) {
-        fs.mkdirSync(cacheDir, { recursive: true });
-      }
-      fs.writeFileSync(cachePath, JSON.stringify(this.hashCache, null, 2));
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.debug(`Failed to save hash cache: ${error.message}`);
-    }
+    this.hashCache = new WatcherHashCache(this.directory, (fingerprint) => {
+      const setSourceFingerprint = (
+        this.vectorStore as unknown as {
+          setSourceFingerprint?: (sourceFingerprint: string) => void;
+        }
+      ).setSourceFingerprint;
+      setSourceFingerprint?.call(this.vectorStore, fingerprint);
+    });
   }
 
   /**
    * Check if file content has changed by comparing hashes
    */
-  private hasContentChanged(filePath: string, content: string): boolean {
-    const newHash = this.computeHash(content);
-    const oldHash = this.hashCache[filePath];
-
-    if (oldHash === newHash) {
-      return false;
-    }
-
-    this.hashCache[filePath] = newHash;
-    return true;
+  private getChangedContentHash(
+    filePath: string,
+    content: string,
+  ): string | undefined {
+    return this.hashCache.changedHash(filePath, content);
   }
 
   /**
    * Remove file from hash cache
    */
   private removeFromHashCache(filePath: string): void {
-    const { [filePath]: _, ...rest } = this.hashCache;
-    this.hashCache = rest;
+    this.hashCache.remove(filePath);
   }
 
   /**
@@ -181,21 +133,7 @@ export class IndexWatcher {
    * Check if a file should be indexed
    */
   private shouldIndex(filePath: string): boolean {
-    const relativePath = path
-      .relative(this.directory, filePath)
-      .replace(/\\/g, "/");
-
-    // Skip hidden files/folders
-    if (relativePath.split("/").some((part) => part.startsWith("."))) {
-      return false;
-    }
-
-    // Skip gitignore patterns
-    if (this.ig.ignores(relativePath)) {
-      return false;
-    }
-
-    return shouldIndexFile(filePath);
+    return shouldIndexPath(this.directory, this.ig, filePath);
   }
 
   /**
@@ -245,54 +183,50 @@ export class IndexWatcher {
     }
 
     try {
-      const content = fs.readFileSync(filePath, "utf-8");
+      const readResult = readSecureTextFile(filePath, this.directory);
+      if (!readResult.ok || readResult.content === undefined) {
+        const readError = readResult.ok
+          ? "File cannot be read"
+          : readResult.error;
+        throw new Error(readError);
+      }
+      const content = readResult.content;
 
       // Skip if content unchanged
-      if (!this.hasContentChanged(filePath, content)) {
+      const newHash = this.getChangedContentHash(filePath, content);
+      if (newHash === undefined) {
         logger.debug(`Skipped (unchanged): ${path.basename(filePath)}`);
         return;
       }
 
-      const chunks = await chunkFile(filePath, content, this.config);
-
-      if (chunks.length === 0) {
+      const embeddedChunks = await embedFileContent(
+        filePath,
+        content,
+        this.config,
+        this.embeddingClient,
+        this.enrichmentOptions,
+      );
+      if (embeddedChunks.length === 0) {
+        await this.vectorStore.replaceFileChunks(filePath, []);
+        this.hashCache.set(filePath, newHash);
+        await this.hashCache.save();
+        logger.debug(`Removed stale chunks: ${path.basename(filePath)}`);
+        this.onIndexed?.(filePath);
         return;
       }
 
-      // Enrich chunks with semantic metadata
-      const enrichedChunks = await enrichChunksFromFile(
-        chunks,
-        content,
-        this.enrichmentOptions,
-      );
+      await this.vectorStore.replaceFileChunks(filePath, embeddedChunks);
 
-      // Use enrichedContent for embedding
-      const texts = enrichedChunks.map((c) => c.enrichedContent);
-      const embeddings = await this.ollamaClient.embedBatch(texts);
-
-      // Store original chunk data (without enrichedContent)
-      const embeddedChunks = enrichedChunks.map((chunk, i) => ({
-        id: chunk.id,
-        content: chunk.content,
-        filePath: chunk.filePath,
-        language: chunk.language,
-        startLine: chunk.startLine,
-        endLine: chunk.endLine,
-        symbolName: chunk.symbolName,
-        symbolType: chunk.symbolType,
-        vector: embeddings[i] ?? [],
-      }));
-
-      await this.vectorStore.deleteByFilePath(filePath);
-      await this.vectorStore.addChunks(embeddedChunks);
-
-      this.saveHashCache();
+      this.hashCache.set(filePath, newHash);
+      await this.hashCache.save();
 
       logger.debug(`Indexed: ${path.relative(this.directory, filePath)}`);
       this.onIndexed?.(filePath);
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.error(`Failed to index ${filePath}: ${error.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      const relativePath = path.relative(this.directory, filePath);
+      const error = new Error(`Failed to index ${relativePath}: ${message}`);
+      logger.error(error.message);
       this.onError?.(error);
     }
   }
@@ -304,13 +238,15 @@ export class IndexWatcher {
     try {
       await this.vectorStore.deleteByFilePath(filePath);
       this.removeFromHashCache(filePath);
-      this.saveHashCache();
+      await this.hashCache.save();
 
       logger.debug(`Removed: ${path.relative(this.directory, filePath)}`);
       this.onRemoved?.(filePath);
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.error(`Failed to remove ${filePath}: ${error.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      const relativePath = path.relative(this.directory, filePath);
+      const error = new Error(`Failed to remove ${relativePath}: ${message}`);
+      logger.error(error.message);
       this.onError?.(error);
     }
   }
@@ -352,25 +288,7 @@ export class IndexWatcher {
    * Collect files using fast-glob
    */
   private async collectFilesWithGlob(): Promise<string[]> {
-    const extensions = SUPPORTED_EXTENSIONS.map((ext) => ext.slice(1));
-    const pattern = `**/*.{${extensions.join(",")}}`;
-
-    const files = await fg(pattern, {
-      cwd: this.directory,
-      absolute: true,
-      ignore: ["**/.*", "**/.*/**"],
-      dot: false,
-      onlyFiles: true,
-      followSymbolicLinks: false,
-    });
-
-    // Filter by gitignore
-    return files.filter((file) => {
-      const relativePath = path
-        .relative(this.directory, file)
-        .replace(/\\/g, "/");
-      return !this.ig.ignores(relativePath);
-    });
+    return collectIndexableFiles(this.directory, this.ig);
   }
 
   /**
@@ -385,48 +303,45 @@ export class IndexWatcher {
 
     for (const filePath of files) {
       try {
-        const content = fs.readFileSync(filePath, "utf-8");
+        const readResult = readSecureTextFile(filePath, this.directory);
+        if (!readResult.ok || readResult.content === undefined) {
+          const readError = readResult.ok
+            ? "File cannot be read"
+            : readResult.error;
+          throw new Error(readError);
+        }
+        const content = readResult.content;
 
-        if (!this.hasContentChanged(filePath, content)) {
+        const newHash = this.getChangedContentHash(filePath, content);
+        if (newHash === undefined) {
           skipped++;
           continue;
         }
 
-        const chunks = await chunkFile(filePath, content, this.config);
-
-        if (chunks.length === 0) {
+        const embeddedChunks = await embedFileContent(
+          filePath,
+          content,
+          this.config,
+          this.embeddingClient,
+          this.enrichmentOptions,
+        );
+        if (embeddedChunks.length === 0) {
+          await this.vectorStore.replaceFileChunks(filePath, []);
+          this.hashCache.set(filePath, newHash);
           continue;
         }
 
-        // Enrich chunks with semantic metadata
-        const enrichedChunks = await enrichChunksFromFile(chunks, content);
-
-        // Use enrichedContent for embedding
-        const texts = enrichedChunks.map((c) => c.enrichedContent);
-        const embeddings = await this.ollamaClient.embedBatch(texts);
-
-        // Store original chunk data (without enrichedContent)
-        const embeddedChunks = enrichedChunks.map((chunk, i) => ({
-          id: chunk.id,
-          content: chunk.content,
-          filePath: chunk.filePath,
-          language: chunk.language,
-          startLine: chunk.startLine,
-          endLine: chunk.endLine,
-          symbolName: chunk.symbolName,
-          symbolType: chunk.symbolType,
-          vector: embeddings[i] ?? [],
-        }));
-
-        await this.vectorStore.addChunks(embeddedChunks);
+        await this.vectorStore.replaceFileChunks(filePath, embeddedChunks);
+        this.hashCache.set(filePath, newHash);
         indexed++;
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        logger.debug(`Error indexing ${filePath}: ${error.message}`);
+        const message = err instanceof Error ? err.message : String(err);
+        const relativePath = path.relative(this.directory, filePath);
+        logger.debug(`Error indexing ${relativePath}: ${message}`);
       }
     }
 
-    this.saveHashCache();
+    await this.hashCache.save();
 
     logger.info(
       `Full index: ${String(indexed)} indexed, ${String(skipped)} skipped`,
@@ -437,7 +352,7 @@ export class IndexWatcher {
    * Start watching for file changes
    */
   async start(): Promise<void> {
-    const health = await this.ollamaClient.healthCheck();
+    const health = await this.embeddingClient.healthCheck();
     if (!health.ok) {
       throw new Error(health.error ?? "Ollama is not available");
     }
@@ -460,8 +375,14 @@ export class IndexWatcher {
         if (!relativePath) {
           return false;
         }
-        // Skip hidden files/folders
-        if (relativePath.split("/").some((part) => part.startsWith("."))) {
+        const pathParts = relativePath.split("/");
+        const parentParts = pathParts.slice(0, -1);
+        // Skip hidden folders, but allow explicitly configured hidden files.
+        if (parentParts.some((part) => part.startsWith("."))) {
+          return true;
+        }
+        const filename = pathParts.at(-1) ?? "";
+        if (filename.startsWith(".") && !shouldIndexFile(filename)) {
           return true;
         }
         return this.ig.ignores(relativePath);
@@ -515,7 +436,7 @@ export class IndexWatcher {
     }
     this.pendingChanges.clear();
 
-    this.saveHashCache();
+    await this.hashCache.save();
 
     if (this.watcher) {
       await this.watcher.close();
@@ -536,11 +457,7 @@ export class IndexWatcher {
    * Clear the hash cache
    */
   clearCache(): void {
-    this.hashCache = {};
-    const cachePath = this.getHashCachePath();
-    if (fs.existsSync(cachePath)) {
-      fs.unlinkSync(cachePath);
-    }
+    this.hashCache.clear();
     logger.info("Hash cache cleared");
   }
 
@@ -548,10 +465,7 @@ export class IndexWatcher {
    * Get cache statistics
    */
   getCacheStats(): { cachedFiles: number; cacheSize: number } {
-    return {
-      cachedFiles: Object.keys(this.hashCache).length,
-      cacheSize: JSON.stringify(this.hashCache).length,
-    };
+    return this.hashCache.stats();
   }
 }
 

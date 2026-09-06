@@ -5,6 +5,7 @@ import {
   extractCodeInfo,
   extractExports,
   extractImports,
+  extractTypeHierarchy,
   extractSymbols,
   findSymbolByName,
   getSymbolAtPosition,
@@ -118,6 +119,35 @@ describe("Symbol Extraction - JavaScript", () => {
 
     // Should not have classes
     expect(symbols.every((s) => s.type !== "class")).toBe(true);
+  });
+});
+
+describe("Type hierarchy extraction", () => {
+  test("extracts TypeScript inheritance and implementation edges", () => {
+    const relations = extractTypeHierarchy(
+      "class Child extends Base implements Serializable {}",
+      "typescript",
+    );
+
+    expect(relations).toEqual([
+      {
+        name: "Child",
+        kind: "class",
+        parents: ["Base", "Serializable"],
+        line: 1,
+      },
+    ]);
+  });
+
+  test("extracts Python bases and Rust trait implementations", () => {
+    expect(
+      extractTypeHierarchy("class Child(Base, Mixin):\n  pass", "python"),
+    ).toEqual([
+      { name: "Child", kind: "class", parents: ["Base", "Mixin"], line: 1 },
+    ]);
+    expect(extractTypeHierarchy("impl Display for Child {}", "rust")).toEqual([
+      { name: "Child", kind: "impl", parents: ["Display"], line: 1 },
+    ]);
   });
 });
 

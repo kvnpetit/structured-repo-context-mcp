@@ -7,7 +7,6 @@
  * 3. Generic text splitting - for any other text files
  */
 import { readFileSync } from "fs";
-import { extname } from "path";
 
 import type { Language, Tree } from "web-tree-sitter";
 
@@ -17,12 +16,8 @@ import {
   splitCode,
   type TextChunk,
 } from "@core/fallback";
-import {
-  getASTRoot,
-  getLanguageFromPath,
-  isLanguageSupported,
-  parseCode,
-} from "@core/parser";
+import { getASTRoot, isLanguageSupported, parseCode } from "@core/parser";
+import type { GrammarMetadata } from "@core/parser";
 import {
   extractSymbolsFromTags,
   findClasses,
@@ -33,78 +28,16 @@ import {
   DEFAULT_CHUNK_SIZE,
   SKIP_KEYWORDS,
 } from "@core/constants";
-import { loadJsonConfig, registerCache } from "@core/utils";
+import { detectLanguage, isBinaryFile } from "./languages";
 
-// Centralized config types
-interface LanguagesConfig {
-  treesitter: Record<
-    string,
-    {
-      wasm: string;
-      queries: string;
-      extensions: string[];
-      aliases?: string[];
-    }
-  >;
-  fallbackExtensions: Record<string, string>;
-  specialFilenames: Record<string, string>;
-  binaryExtensions: string[];
-}
-
-// Config cache
-let configCache: LanguagesConfig | null = null;
-let binaryExtensionsCache: Set<string> | null = null;
-let extensionToLanguageCache: Record<string, string> | null = null;
-let specialFilenamesCache: Record<string, string> | null = null;
-
-function loadConfig(): LanguagesConfig {
-  if (configCache) {
-    return configCache;
-  }
-
-  configCache = loadJsonConfig<LanguagesConfig>("languages.json", {
-    treesitter: {},
-    fallbackExtensions: {},
-    specialFilenames: {},
-    binaryExtensions: [],
-  });
-  return configCache;
-}
-
-function getBinaryExtensions(): Set<string> {
-  if (binaryExtensionsCache) {
-    return binaryExtensionsCache;
-  }
-  const config = loadConfig();
-  binaryExtensionsCache = new Set(config.binaryExtensions);
-  return binaryExtensionsCache;
-}
-
-function getExtensionToLanguage(): Record<string, string> {
-  if (extensionToLanguageCache) {
-    return extensionToLanguageCache;
-  }
-  const config = loadConfig();
-  extensionToLanguageCache = config.fallbackExtensions;
-  return extensionToLanguageCache;
-}
-
-function getSpecialFilenames(): Record<string, string> {
-  if (specialFilenamesCache) {
-    return specialFilenamesCache;
-  }
-  const config = loadConfig();
-  specialFilenamesCache = config.specialFilenames;
-  return specialFilenamesCache;
-}
-
-/** Clear caches (for testing) */
-export function clearUnifiedCache(): void {
-  configCache = null;
-  binaryExtensionsCache = null;
-  extensionToLanguageCache = null;
-  specialFilenamesCache = null;
-}
+export {
+  canParse,
+  clearUnifiedCache,
+  detectLanguage,
+  getParsingCapabilities,
+  getSupportedLanguagesInfo,
+  isBinaryFile,
+} from "./languages";
 
 /**
  * Unified parse result - works for both Tree-sitter and fallback
@@ -120,6 +53,8 @@ export interface UnifiedParseResult {
   content: string;
   /** Line count */
   lineCount: number;
+  /** Exact local Tree-sitter grammar identity when Tree-sitter was used. */
+  grammar?: GrammarMetadata;
 
   // Tree-sitter specific (only when method === "tree-sitter")
   /** Tree-sitter tree (if available) */
@@ -170,6 +105,8 @@ export interface UnifiedParseOptions {
   includeAst?: boolean;
   /** Max AST depth (Tree-sitter only) */
   astMaxDepth?: number;
+  /** Max AST nodes materialized (Tree-sitter only) */
+  astMaxNodes?: number;
   /** Chunk size for fallback splitting */
   chunkSize?: number;
   /** Chunk overlap for fallback splitting */
@@ -196,51 +133,6 @@ function extractNameFromNode(text: string): string {
   }
 
   return "anonymous";
-}
-
-/**
- * Check if a file is binary based on extension
- */
-export function isBinaryFile(filePath: string): boolean {
-  const ext = extname(filePath).toLowerCase();
-  return getBinaryExtensions().has(ext);
-}
-
-/**
- * Detect language from file path (extended detection)
- */
-export function detectLanguage(filePath: string): string {
-  // First try Tree-sitter supported languages
-  const tsConfig = getLanguageFromPath(filePath);
-  if (tsConfig) {
-    return tsConfig.name;
-  }
-
-  // Then try extension mapping from config
-  const ext = extname(filePath).toLowerCase();
-  const extensionMap = getExtensionToLanguage();
-  const mappedLang = extensionMap[ext];
-  if (mappedLang) {
-    return mappedLang;
-  }
-
-  // Check for special filenames from config
-  const filename = filePath.split(/[/\\]/).pop()?.toLowerCase() ?? "";
-  const specialFilenames = getSpecialFilenames();
-  const specialLang = specialFilenames[filename];
-  if (specialLang) {
-    return specialLang;
-  }
-
-  // Check for patterns like .env.local, dockerfile.prod
-  if (filename.startsWith(".env.") || filename === ".env") {
-    return "env";
-  }
-  if (filename.startsWith("dockerfile.") || filename === "dockerfile") {
-    return "dockerfile";
-  }
-
-  return "text";
 }
 
 /**
@@ -287,13 +179,19 @@ export async function parseFile(
         filePath,
         content,
         lineCount,
+        grammar: parseResult.grammar,
         tree: parseResult.tree,
         languageInstance: parseResult.languageInstance,
       };
 
       // Include AST if requested
       if (options.includeAst) {
-        result.ast = getASTRoot(parseResult, options.astMaxDepth);
+        result.ast = getASTRoot(
+          parseResult,
+          options.astMaxDepth,
+          undefined,
+          options.astMaxNodes,
+        );
       }
 
       return result;
@@ -373,12 +271,18 @@ export async function parseContent(
         language: parseResult.language,
         content,
         lineCount,
+        grammar: parseResult.grammar,
         tree: parseResult.tree,
         languageInstance: parseResult.languageInstance,
       };
 
       if (options.includeAst) {
-        result.ast = getASTRoot(parseResult, options.astMaxDepth);
+        result.ast = getASTRoot(
+          parseResult,
+          options.astMaxDepth,
+          undefined,
+          options.astMaxNodes,
+        );
       }
 
       return result;
@@ -520,111 +424,3 @@ export function extractSymbols(result: UnifiedParseResult): UnifiedSymbols {
   // LangChain fallback - no symbol extraction (text splitting only)
   return { method: "regex", functions: [], classes: [], all: [] };
 }
-
-/**
- * Get a summary of parsing capabilities for a file
- */
-export function getParsingCapabilities(filePath: string): {
-  language: string;
-  method: "tree-sitter" | "langchain" | "generic";
-  features: string[];
-} {
-  if (isBinaryFile(filePath)) {
-    return {
-      language: "binary",
-      method: "generic",
-      features: [],
-    };
-  }
-
-  const language = detectLanguage(filePath);
-
-  if (isLanguageSupported(language)) {
-    return {
-      language,
-      method: "tree-sitter",
-      features: [
-        "Full AST parsing",
-        "Accurate symbol extraction",
-        "Syntax highlighting queries",
-        "Code navigation",
-        "Semantic analysis",
-      ],
-    };
-  }
-
-  if (isTextSplitterLanguage(language)) {
-    return {
-      language,
-      method: "langchain",
-      features: [
-        "Intelligent text splitting",
-        "Language-aware chunking",
-        "Basic symbol extraction (regex)",
-      ],
-    };
-  }
-
-  return {
-    language,
-    method: "generic",
-    features: ["Generic text splitting", "Basic symbol extraction (regex)"],
-  };
-}
-
-/**
- * Check if a file can be parsed (not binary)
- */
-export function canParse(filePath: string): boolean {
-  return !isBinaryFile(filePath);
-}
-
-/**
- * Get all supported languages with their parsing method
- */
-export function getSupportedLanguagesInfo(): {
-  language: string;
-  method: "tree-sitter" | "langchain";
-  extensions: string[];
-}[] {
-  const result: {
-    language: string;
-    method: "tree-sitter" | "langchain";
-    extensions: string[];
-  }[] = [];
-
-  const config = loadConfig();
-
-  // Tree-sitter languages from config
-  for (const [name, langConfig] of Object.entries(config.treesitter)) {
-    result.push({
-      language: name,
-      method: "tree-sitter",
-      extensions: langConfig.extensions,
-    });
-  }
-
-  // LangChain languages - group extensions by language from fallbackExtensions
-  const langchainExtensions: Record<string, string[]> = {};
-  for (const [ext, lang] of Object.entries(config.fallbackExtensions)) {
-    // Skip languages already covered by Tree-sitter
-    if (config.treesitter[lang]) {
-      continue;
-    }
-    langchainExtensions[lang] ??= [];
-    langchainExtensions[lang].push(ext);
-  }
-
-  for (const [lang, extensions] of Object.entries(langchainExtensions)) {
-    result.push({
-      language: lang,
-      method: "langchain",
-      extensions,
-    });
-  }
-
-  return result;
-}
-
-// Register cache for centralized clearing
-registerCache("unified:config", clearUnifiedCache);

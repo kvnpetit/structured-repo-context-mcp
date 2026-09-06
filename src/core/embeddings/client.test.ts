@@ -1,5 +1,11 @@
 import { describe, expect, test, vi, beforeEach, type Mock } from "vitest";
-import { OllamaClient, createOllamaClient } from "@core/embeddings/client";
+import {
+  LexicalEmbeddingClient,
+  OllamaClient,
+  createLexicalEmbeddingClient,
+  createOllamaClient,
+  validateEmbeddingBatch,
+} from "@core/embeddings/client";
 import { Ollama } from "ollama";
 
 // Mock the ollama library
@@ -22,11 +28,11 @@ describe("OllamaClient", () => {
     mockList = vi.fn();
 
     // Use regular function (not arrow) so it can be used as constructor with `new`
-    (Ollama as Mock).mockImplementation(function (this: Ollama) {
+    vi.mocked(Ollama).mockImplementation(function (this: Ollama) {
       this.embed = mockEmbed;
       this.list = mockList;
       return this;
-    } as unknown as typeof Ollama);
+    });
   });
 
   describe("embed", () => {
@@ -139,5 +145,50 @@ describe("OllamaClient", () => {
       const client = createOllamaClient(mockConfig);
       expect(client).toBeInstanceOf(OllamaClient);
     });
+  });
+});
+
+describe("validateEmbeddingBatch", () => {
+  test("accepts a complete finite batch", () => {
+    expect(() => {
+      validateEmbeddingBatch(
+        [
+          [0.1, 0.2],
+          [0.3, 0.4],
+        ],
+        2,
+        2,
+      );
+    }).not.toThrow();
+  });
+
+  test("rejects missing or malformed embeddings", () => {
+    expect(() => {
+      validateEmbeddingBatch([[0.1, 0.2]], 2, 2);
+    }).toThrow("1 embeddings for 2 inputs");
+    expect(() => {
+      validateEmbeddingBatch([[0.1]], 1, 2);
+    }).toThrow("expected 2 finite dimensions");
+    expect(() => {
+      validateEmbeddingBatch([[Number.NaN, 0.2]], 1, 2);
+    }).toThrow("Invalid embedding");
+  });
+});
+
+describe("LexicalEmbeddingClient", () => {
+  test("provides deterministic normalized local vectors without Ollama", async () => {
+    const client = createLexicalEmbeddingClient(8);
+    const first = await client.embed("UserService handles user sessions");
+    const second = await client.embed("UserService handles user sessions");
+
+    expect(client).toBeInstanceOf(LexicalEmbeddingClient);
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(8);
+    expect(first.every(Number.isFinite)).toBe(true);
+    expect(
+      Math.sqrt(first.reduce((sum, value) => sum + value * value, 0)),
+    ).toBeCloseTo(1);
+    expect(await client.embedBatch(["a", "b"])).toHaveLength(2);
+    expect(await client.healthCheck()).toEqual({ ok: true });
   });
 });

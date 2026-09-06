@@ -51,7 +51,26 @@ export interface EnrichmentOptions {
 /**
  * AST cache per file path to avoid re-parsing
  */
-const astCache = new Map<string, FileAnalysisCache>();
+interface CachedFileAnalysis {
+  content: string;
+  optionsKey: string;
+  analysis: FileAnalysisCache;
+}
+
+const astCache = new Map<string, CachedFileAnalysis>();
+
+function getOptionsKey(options?: EnrichmentOptions): string {
+  const aliases = Object.entries(options?.pathAliases ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify({
+    includeCrossFileContext:
+      options?.includeCrossFileContext ??
+      ENRICHMENT_CONFIG.includeCrossFileContext,
+    projectRoot: options?.projectRoot ?? null,
+    pathAliases: aliases,
+  });
+}
 
 /**
  * Clear the AST cache
@@ -78,9 +97,10 @@ async function getFileAnalysis(
   options?: EnrichmentOptions,
 ): Promise<FileAnalysisCache | null> {
   // Check cache first
+  const optionsKey = getOptionsKey(options);
   const cached = astCache.get(filePath);
-  if (cached) {
-    return cached;
+  if (cached?.content === content && cached.optionsKey === optionsKey) {
+    return cached.analysis;
   }
 
   try {
@@ -143,7 +163,7 @@ async function getFileAnalysis(
     }
 
     // Cache for future chunks from same file
-    astCache.set(filePath, analysis);
+    astCache.set(filePath, { content, optionsKey, analysis });
 
     return analysis;
   } catch (error) {

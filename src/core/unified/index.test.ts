@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  getGrammarMetadata,
+  getSupportedLanguages,
+} from "@core/parser/languages";
+import {
   canParse,
   detectLanguage,
   extractSymbols,
@@ -123,6 +127,25 @@ describe("Unified Parser", () => {
 // TREE-SITTER LANGUAGES (18 WASM) - Full AST Parsing Tests
 // ============================================================
 describe("Tree-sitter Languages (18 WASM)", () => {
+  test.each(getSupportedLanguages())(
+    "%s exposes a reproducible grammar identity",
+    async (language) => {
+      const metadata = getGrammarMetadata(language);
+      if (metadata === undefined) {
+        throw new Error(`Expected bundled grammar metadata for ${language}`);
+      }
+      expect(metadata.bytes).toBeGreaterThan(0);
+      expect(metadata.sha256).toMatch(/^[a-f0-9]{64}$/u);
+
+      const result = await parseContent("const value = 1;\n", language);
+      if (result === undefined) {
+        throw new Error(`Expected Tree-sitter result for ${language}`);
+      }
+      expect(result.method).toBe("tree-sitter");
+      expect(result.grammar).toEqual(metadata);
+    },
+  );
+
   // JavaScript
   describe("JavaScript", () => {
     test("parses JavaScript code", async () => {

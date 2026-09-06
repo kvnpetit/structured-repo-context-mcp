@@ -10,6 +10,7 @@ import * as path from "node:path";
 import ignore, { type Ignore } from "ignore";
 
 import { shouldIndexFile } from "@core/embeddings/chunker";
+import { getMaxFileBytes } from "@core/security";
 
 export type { Ignore };
 
@@ -21,6 +22,17 @@ const DEFAULT_EXCLUSIONS = [
   "build",
   ".src-index",
 ];
+
+const SENSITIVE_FILE_PATTERNS = [
+  /^\.env(?:\..*)?$/iu,
+  /^(?:credentials?|secrets?)(?:\.(?:json|ya?ml|toml|ini|txt|env|config))?$/iu,
+  /(?:^|[._-])(?:id_rsa|id_ed25519)(?:[._-]|$)/iu,
+  /\.(?:pem|key|p12|pfx|kdbx)$/iu,
+];
+
+export function isSensitiveFileName(name: string): boolean {
+  return SENSITIVE_FILE_PATTERNS.some((pattern) => pattern.test(name));
+}
 
 /**
  * Create an ignore filter combining default exclusions, .gitignore, and extra patterns
@@ -69,7 +81,10 @@ export function collectFiles(
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (isHidden(entry.name)) {
+    if (
+      isHidden(entry.name) &&
+      (entry.isDirectory() || !shouldIndexFile(entry.name))
+    ) {
       continue;
     }
 
@@ -82,7 +97,12 @@ export function collectFiles(
 
     if (entry.isDirectory()) {
       files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
+    } else if (
+      entry.isFile() &&
+      !isSensitiveFileName(entry.name) &&
+      shouldIndexFile(entry.name) &&
+      fs.statSync(fullPath).size <= getMaxFileBytes()
+    ) {
       files.push(fullPath);
     }
   }

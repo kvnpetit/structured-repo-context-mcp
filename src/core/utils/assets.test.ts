@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { existsSync } from "node:fs";
 import * as nodeFs from "node:fs";
 import * as path from "path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -10,6 +10,8 @@ import {
   getAssetsDir,
   loadJsonConfig,
 } from "@core/utils";
+
+vi.mock("node:fs", { spy: true });
 
 describe("Assets Utilities", () => {
   afterEach(() => {

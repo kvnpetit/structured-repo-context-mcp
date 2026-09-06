@@ -12,6 +12,7 @@ import { parseCode } from "@core/parser";
 import { extractExports, extractSymbols } from "@core/symbols";
 import { registerCache } from "@core/utils";
 import { logger } from "@utils";
+import { readSecureTextFile, resolveSecureFile } from "@core/security";
 
 /**
  * Resolved import with source file information
@@ -118,24 +119,29 @@ function resolveImportPath(
   }
 
   // Try to find the actual file
+  const secureCandidate = (candidate: string): string | null => {
+    const secured = resolveSecureFile(candidate, projectRoot);
+    return secured.ok ? secured.path : null;
+  };
+
   // First, check if it's a direct file with extension
   for (const ext of EXTENSIONS) {
     const withExt = resolvedPath + ext;
     if (fs.existsSync(withExt) && fs.statSync(withExt).isFile()) {
-      return withExt;
+      return secureCandidate(withExt);
     }
   }
 
   // Check if the path itself exists and is a file (already has extension)
   if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
-    return resolvedPath;
+    return secureCandidate(resolvedPath);
   }
 
   // Check for index file in directory
   for (const ext of EXTENSIONS) {
     const indexPath = path.join(resolvedPath, `index${ext}`);
     if (fs.existsSync(indexPath) && fs.statSync(indexPath).isFile()) {
-      return indexPath;
+      return secureCandidate(indexPath);
     }
   }
 
@@ -155,7 +161,12 @@ async function analyzeResolvedFile(
   }
 
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const readResult = readSecureTextFile(filePath);
+    if (!readResult.ok || readResult.content === undefined) {
+      resolvedFileCache.set(filePath, null);
+      return null;
+    }
+    const content = readResult.content;
     const parseResult = await parseCode(content, { filePath });
 
     const { symbols } = extractSymbols(

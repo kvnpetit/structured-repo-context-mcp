@@ -21,6 +21,11 @@ export {
   type CacheClearFn,
 } from "./cache";
 
+// Small local state files
+export { writeJsonAtomically, writeTextAtomically } from "./atomic";
+export { withProcessFileLock, type ProcessLockOptions } from "./process-lock";
+export { truncateUtf8, truncateUtf8WithStatus } from "./utf8";
+
 // TSConfig utilities
 export {
   clearPathAliasCache,

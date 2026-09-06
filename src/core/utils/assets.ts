@@ -32,6 +32,7 @@ export function getAssetsDir(): string {
 
   // Try various paths relative to current file location
   const possiblePaths = [
+    join(currentDir, "..", "assets"), // From a bundled dist/*.mjs file
     join(currentDir, "..", "..", "..", "assets"), // From dist/core/utils
     join(currentDir, "..", "..", "assets"), // From src/core/utils (dev)
     join(process.cwd(), "assets"), // From project root

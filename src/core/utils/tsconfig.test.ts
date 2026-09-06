@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -7,6 +7,8 @@ import {
   readPathAliasesCached,
   clearPathAliasCache,
 } from "./tsconfig";
+
+vi.mock("node:fs", { spy: true });
 
 describe("readPathAliases", () => {
   let tempDir: string;
@@ -182,6 +184,18 @@ describe("readPathAliases", () => {
 
     const result = readPathAliases(tempDir);
     expect(result).toEqual({});
+  });
+
+  test("returns empty object when file read throws an error", () => {
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), "{}");
+    const spy = vi.spyOn(fs, "readFileSync").mockImplementationOnce(() => {
+      throw new Error("Permission denied");
+    });
+
+    const result = readPathAliases(tempDir);
+    expect(result).toEqual({});
+
+    spy.mockRestore();
   });
 
   test("skips path entries with empty targets", () => {

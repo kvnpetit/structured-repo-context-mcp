@@ -1,10 +1,17 @@
-export type { Feature, FeatureResult } from "@features/types";
+export type {
+  Feature,
+  FeatureAnnotations,
+  FeatureExecutionContext,
+  FeatureResult,
+} from "@features/types";
 
 export interface ServerConfig {
   name: string;
   fullName: string;
   version: string;
   description?: string;
+  homepage?: string;
+  instructions?: string;
 }
 
 export interface CLICommand {

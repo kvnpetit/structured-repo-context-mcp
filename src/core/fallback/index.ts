@@ -84,14 +84,17 @@ function calculateLineNumbers(
   startSearchIndex: number,
 ): { startLine: number; endLine: number; foundIndex: number } {
   const chunkIndex = fullContent.indexOf(chunkContent, startSearchIndex);
-  const actualIndex = chunkIndex >= 0 ? chunkIndex : startSearchIndex;
+  const actualIndex =
+    chunkIndex >= 0
+      ? chunkIndex
+      : Math.min(startSearchIndex, fullContent.length);
   const beforeChunk = fullContent.slice(0, actualIndex);
   const startLine = (beforeChunk.match(/\n/g) ?? []).length + 1;
   const chunkLines = (chunkContent.match(/\n/g) ?? []).length;
   return {
     startLine,
     endLine: startLine + chunkLines,
-    foundIndex: actualIndex + chunkContent.length,
+    foundIndex: actualIndex,
   };
 }
 
@@ -120,7 +123,8 @@ export async function splitCode(
       doc.pageContent,
       searchIndex,
     );
-    searchIndex = foundIndex;
+    // Overlapping chunks can begin before the previous chunk ends.
+    searchIndex = foundIndex + 1;
     chunks.push({ content: doc.pageContent, startLine, endLine, index: i });
   }
 

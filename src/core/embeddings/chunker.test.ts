@@ -141,7 +141,13 @@ describe("shouldIndexFile", () => {
     expect(shouldIndexFile("file.png")).toBe(false);
     expect(shouldIndexFile("file.exe")).toBe(false);
     expect(shouldIndexFile("file.zip")).toBe(false);
-    expect(shouldIndexFile(".gitignore")).toBe(false);
+  });
+
+  test("includes configured special filenames", () => {
+    expect(shouldIndexFile(".gitignore")).toBe(true);
+    expect(shouldIndexFile(".env.local")).toBe(true);
+    expect(shouldIndexFile("Dockerfile.production")).toBe(true);
+    expect(shouldIndexFile("Makefile")).toBe(true);
   });
 
   test("handles case insensitivity", () => {
@@ -163,9 +169,9 @@ describe("SUPPORTED_EXTENSIONS", () => {
 });
 
 describe("detectLanguage edge cases", () => {
-  test("handles file without extension", () => {
-    expect(detectLanguage("Makefile")).toBe("unknown");
-    expect(detectLanguage("Dockerfile")).toBe("unknown");
+  test("handles configured files without extensions", () => {
+    expect(detectLanguage("Makefile")).toBe("makefile");
+    expect(detectLanguage("Dockerfile")).toBe("dockerfile");
   });
 
   test("handles file with multiple dots", () => {
@@ -308,12 +314,12 @@ public class MyClass {
 describe("shouldIndexFile edge cases", () => {
   test("handles files with no extension", () => {
     expect(shouldIndexFile("README")).toBe(false);
-    expect(shouldIndexFile("Makefile")).toBe(false);
+    expect(shouldIndexFile("Makefile")).toBe(true);
   });
 
-  test("handles hidden files", () => {
-    expect(shouldIndexFile(".env")).toBe(false);
-    expect(shouldIndexFile(".gitignore")).toBe(false);
+  test("handles configured hidden files", () => {
+    expect(shouldIndexFile(".env")).toBe(true);
+    expect(shouldIndexFile(".gitignore")).toBe(true);
   });
 });
 
@@ -644,8 +650,8 @@ describe("shouldIndexFile additional edge cases", () => {
   });
 
   test("handles files starting with dot", () => {
-    expect(shouldIndexFile(".gitignore")).toBe(false);
-    expect(shouldIndexFile(".eslintrc")).toBe(false);
+    expect(shouldIndexFile(".gitignore")).toBe(true);
+    expect(shouldIndexFile(".eslintrc")).toBe(true);
     expect(shouldIndexFile(".bashrc")).toBe(false);
   });
 
@@ -794,5 +800,38 @@ describe("chunkFile indexOf edge cases", () => {
 
     expect(chunks.length).toBeGreaterThan(0);
     expect(chunks[0]?.language).toBe("javascript");
+  });
+});
+
+describe("chunk line metadata", () => {
+  test("reports exact source lines when fallback chunks overlap", async () => {
+    const sourceLines = [
+      "first line",
+      "second line",
+      "third line",
+      "fourth line",
+      "fifth line",
+    ];
+    const chunks = await chunkFile(
+      "/test/notes.unknown",
+      sourceLines.join("\n"),
+      {
+        defaultChunkSize: 24,
+        defaultChunkOverlap: 10,
+      },
+    );
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.content).toBe(
+        sourceLines.slice(chunk.startLine - 1, chunk.endLine).join("\n"),
+      );
+    }
+    expect(
+      chunks.some((chunk, index) => {
+        const previous = chunks[index - 1];
+        return previous !== undefined && chunk.startLine <= previous.endLine;
+      }),
+    ).toBe(true);
   });
 });

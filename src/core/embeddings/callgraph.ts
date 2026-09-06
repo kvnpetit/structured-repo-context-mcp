@@ -12,177 +12,25 @@
 import { Query } from "web-tree-sitter";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as crypto from "node:crypto";
 import type { Position, Symbol } from "@core/ast/types";
+import {
+  computeCallGraphHash,
+  loadCallGraphCache,
+  saveCallGraphCache,
+} from "@core/embeddings/callgraph-cache";
+import type {
+  CallGraph,
+  CallGraphNode,
+  FileCallData,
+  FunctionCall,
+} from "@core/embeddings/callgraph-types";
 import { parseCode, type ParseResult } from "@core/parser";
 import { extractSymbols } from "@core/symbols";
 import { registerCache } from "@core/utils";
 import { logger } from "@utils";
 
-/**
- * A function call found in code
- */
-export interface FunctionCall {
-  /** Name of the called function */
-  callee: string;
-  /** Position of the call */
-  position: Position;
-  /** Arguments passed (if extractable) */
-  arguments?: string[];
-}
-
-/**
- * A node in the call graph
- */
-export interface CallGraphNode {
-  /** Function/method name */
-  name: string;
-  /** Full qualified name (file:function) */
-  qualifiedName: string;
-  /** File path */
-  filePath: string;
-  /** Function type */
-  type: string;
-  /** Start position */
-  start: Position;
-  /** End position */
-  end: Position;
-  /** Functions this node calls */
-  calls: string[];
-  /** Functions that call this node */
-  calledBy: string[];
-}
-
-/**
- * The complete call graph for a codebase
- */
-export interface CallGraph {
-  /** All nodes in the graph */
-  nodes: Map<string, CallGraphNode>;
-  /** File paths included in the graph */
-  files: string[];
-  /** Total number of call edges */
-  edgeCount: number;
-}
-
-/**
- * Serializable call graph for persistent cache
- */
-interface SerializedCallGraph {
-  nodes: Record<string, CallGraphNode>;
-  files: string[];
-  edgeCount: number;
-  fileHashes: Record<string, string>;
-  timestamp: number;
-}
-
-/**
- * Compute SHA-256 hash of content
- */
-function computeHash(content: string): string {
-  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
-}
-
-/**
- * Get call graph cache path for a directory
- */
-function getCachePath(directory: string): string {
-  return path.join(directory, ".src-index", "call-graph.json");
-}
-
-/**
- * Save call graph to persistent cache
- */
-function saveCallGraphCache(
-  directory: string,
-  graph: CallGraph,
-  fileHashes: Record<string, string>,
-): void {
-  try {
-    const cachePath = getCachePath(directory);
-    const cacheDir = path.dirname(cachePath);
-
-    // Ensure cache directory exists
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
-
-    const serialized: SerializedCallGraph = {
-      nodes: Object.fromEntries(graph.nodes),
-      files: graph.files,
-      edgeCount: graph.edgeCount,
-      fileHashes,
-      timestamp: Date.now(),
-    };
-
-    fs.writeFileSync(cachePath, JSON.stringify(serialized), "utf-8");
-    logger.debug(`Call graph cache saved: ${String(graph.nodes.size)} nodes`);
-  } catch {
-    // Silently ignore cache save errors (directory not writable, etc.)
-    logger.debug("Call graph cache save skipped: directory not writable");
-  }
-}
-
-/**
- * Load call graph from persistent cache if valid
- */
-function loadCallGraphCache(
-  directory: string,
-  currentHashes: Record<string, string>,
-): CallGraph | null {
-  const cachePath = getCachePath(directory);
-
-  if (!fs.existsSync(cachePath)) {
-    return null;
-  }
-
-  try {
-    const content = fs.readFileSync(cachePath, "utf-8");
-    const cached = JSON.parse(content) as SerializedCallGraph;
-
-    // Validate hashes - check if any file has changed
-    const cachedFiles = new Set(Object.keys(cached.fileHashes));
-    const currentFiles = new Set(Object.keys(currentHashes));
-
-    // Check for added or removed files
-    if (cachedFiles.size !== currentFiles.size) {
-      logger.debug("Call graph cache invalid: file count changed");
-      return null;
-    }
-
-    // Check for modified files
-    for (const [filePath, hash] of Object.entries(currentHashes)) {
-      if (cached.fileHashes[filePath] !== hash) {
-        logger.debug(`Call graph cache invalid: ${filePath} changed`);
-        return null;
-      }
-    }
-
-    // Cache is valid - restore the Map
-    const nodes = new Map<string, CallGraphNode>(Object.entries(cached.nodes));
-
-    logger.debug(`Call graph cache loaded: ${String(nodes.size)} nodes`);
-
-    return {
-      nodes,
-      files: cached.files,
-      edgeCount: cached.edgeCount,
-    };
-  } catch (error) {
-    logger.debug(
-      `Failed to load call graph cache: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
-  }
-}
-
-/**
- * Call graph cache per file
- */
-interface FileCallData {
-  symbols: Symbol[];
-  calls: Map<string, FunctionCall[]>; // symbol name -> calls made
-}
+export type { CallGraph, CallGraphNode, FunctionCall } from "./callgraph-types";
+export { formatCallContext, getCallContext } from "./callgraph-context";
 
 const callGraphCache = new Map<string, FileCallData>();
 
@@ -327,9 +175,11 @@ export async function analyzeFileForCallGraph(
   filePath: string,
   content: string,
 ): Promise<FileCallData | null> {
+  const contentHash = computeCallGraphHash(content);
+
   // Check cache
   const cached = callGraphCache.get(filePath);
-  if (cached) {
+  if (cached?.contentHash === contentHash) {
     return cached;
   }
 
@@ -353,6 +203,7 @@ export async function analyzeFileForCallGraph(
     const callsBySymbol = associateCallsWithSymbols(symbols, allCalls);
 
     const data: FileCallData = {
+      contentHash,
       symbols,
       calls: callsBySymbol,
     };
@@ -382,7 +233,7 @@ export async function buildCallGraph(
   // Compute hashes for all files
   const fileHashes: Record<string, string> = {};
   for (const file of files) {
-    fileHashes[file.path] = computeHash(file.content);
+    fileHashes[file.path] = computeCallGraphHash(file.content);
   }
 
   // Determine base directory from common path prefix
@@ -396,6 +247,7 @@ export async function buildCallGraph(
 
   // Build the call graph
   const nodes = new Map<string, CallGraphNode>();
+  const nodesByName = new Map<string, string[]>();
   const filePaths: string[] = [];
   let edgeCount = 0;
 
@@ -422,6 +274,9 @@ export async function buildCallGraph(
           calls: [],
           calledBy: [],
         });
+        const matchingNodes = nodesByName.get(symbol.name) ?? [];
+        matchingNodes.push(qualifiedName);
+        nodesByName.set(symbol.name, matchingNodes);
       }
     }
   }
@@ -442,17 +297,19 @@ export async function buildCallGraph(
       }
 
       for (const call of calls) {
-        // Try to find the callee in our nodes
-        // This is a simplified approach - in reality we'd need to resolve imports
-        for (const [nodeKey, node] of nodes) {
-          if (node.name === call.callee) {
-            // Add edge
-            if (callerNode) {
-              callerNode.calls.push(nodeKey);
-            }
-            node.calledBy.push(callerKey);
-            edgeCount++;
+        // Try to find the callee by name. This remains a conservative
+        // syntactic resolution, but avoids scanning every graph node for each
+        // call on large repositories.
+        for (const nodeKey of nodesByName.get(call.callee) ?? []) {
+          const node = nodes.get(nodeKey);
+          if (!node) {
+            continue;
           }
+          if (callerNode) {
+            callerNode.calls.push(nodeKey);
+          }
+          node.calledBy.push(callerKey);
+          edgeCount++;
         }
       }
     }
@@ -521,73 +378,6 @@ function findCommonDirectory(paths: string[]): string {
   }
 
   return commonDir || ".";
-}
-
-/**
- * Get callers and callees for a specific function
- */
-export function getCallContext(
-  graph: CallGraph,
-  filePath: string,
-  functionName: string,
-): {
-  callers: CallGraphNode[];
-  callees: CallGraphNode[];
-} | null {
-  const qualifiedName = `${filePath}:${functionName}`;
-  const node = graph.nodes.get(qualifiedName);
-
-  if (!node) {
-    return null;
-  }
-
-  const callers: CallGraphNode[] = [];
-  const callees: CallGraphNode[] = [];
-
-  for (const callerKey of node.calledBy) {
-    const caller = graph.nodes.get(callerKey);
-    if (caller) {
-      callers.push(caller);
-    }
-  }
-
-  for (const calleeKey of node.calls) {
-    const callee = graph.nodes.get(calleeKey);
-    if (callee) {
-      callees.push(callee);
-    }
-  }
-
-  return { callers, callees };
-}
-
-/**
- * Format call context as a string for enrichment
- */
-export function formatCallContext(
-  callers: CallGraphNode[],
-  callees: CallGraphNode[],
-  maxItems = 5,
-): string {
-  const lines: string[] = [];
-
-  if (callers.length > 0) {
-    const callerNames = callers
-      .slice(0, maxItems)
-      .map((c) => c.name)
-      .join(", ");
-    lines.push(`Called by: ${callerNames}`);
-  }
-
-  if (callees.length > 0) {
-    const calleeNames = callees
-      .slice(0, maxItems)
-      .map((c) => c.name)
-      .join(", ");
-    lines.push(`Calls: ${calleeNames}`);
-  }
-
-  return lines.join("\n");
 }
 
 /**

@@ -203,6 +203,34 @@ export interface ExtractOptions {
   includeTypes?: string[];
   /** Node types to exclude */
   excludeTypes?: string[];
+  /** Maximum UTF-8 bytes retained in each node's text */
+  maxTextBytes?: number;
+  /** Maximum AST nodes materialized in the response */
+  maxNodes?: number;
+}
+
+function boundedText(
+  text: string,
+  maxTextBytes: number | undefined,
+): { text: string; truncated: boolean } {
+  if (
+    maxTextBytes === undefined ||
+    Buffer.byteLength(text, "utf8") <= maxTextBytes
+  ) {
+    return { text, truncated: false };
+  }
+
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(text.slice(0, middle), "utf8") <= maxTextBytes) {
+      low = middle;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return { text: text.slice(0, low), truncated: true };
 }
 
 /**
@@ -212,7 +240,16 @@ export function extractAST(
   rootNode: Node,
   options: ExtractOptions = {},
 ): ASTNode {
-  const { maxDepth, namedOnly = true, includeTypes, excludeTypes } = options;
+  const {
+    maxDepth,
+    namedOnly = true,
+    includeTypes,
+    excludeTypes,
+    maxTextBytes,
+    maxNodes = 10_000,
+  } = options;
+  const nodeLimit = Math.max(1, maxNodes);
+  let extractedNodes = 0;
 
   function shouldInclude(node: Node): boolean {
     if (namedOnly && !node.isNamed) {
@@ -228,12 +265,15 @@ export function extractAST(
   }
 
   function extract(node: Node, depth: number): ASTNode {
+    extractedNodes++;
+    const text = boundedText(node.text, maxTextBytes);
     const astNode: ASTNode = {
       type: node.type,
-      text: node.text,
+      text: text.text,
       start: toPosition(node.startPosition, node.startIndex),
       end: toPosition(node.endPosition, node.endIndex),
       isNamed: node.isNamed,
+      ...(text.truncated ? { text_truncated: true } : {}),
     };
 
     // Check depth limit
@@ -244,6 +284,10 @@ export function extractAST(
     // Process children
     const children: ASTNode[] = [];
     for (const child of node.namedChildren) {
+      if (extractedNodes >= nodeLimit) {
+        astNode.children_truncated = true;
+        break;
+      }
       if (shouldInclude(child)) {
         children.push(extract(child, depth + 1));
       }

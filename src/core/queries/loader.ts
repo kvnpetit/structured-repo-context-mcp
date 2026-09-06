@@ -13,12 +13,7 @@ import { assetExists, getAssetsDir, registerCache } from "@core/utils";
  * Query type available in Tree-sitter grammars
  */
 export type SCMQueryType =
-  | "tags"
-  | "highlights"
-  | "locals"
-  | "injections"
-  | "indents"
-  | "folds";
+  "tags" | "highlights" | "locals" | "injections" | "indents" | "folds";
 
 /**
  * Cache for loaded SCM queries (with inheritance resolved)

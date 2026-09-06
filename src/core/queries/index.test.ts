@@ -11,6 +11,7 @@ import {
   findImports,
   findStrings,
   getAvailablePresets,
+  getCompiledQueryCacheStats,
   getClassName,
   getFunctionName,
   getQueryPattern,
@@ -118,6 +119,31 @@ describe("Query Execution - JavaScript", () => {
     );
 
     expect(queryResult.count).toBe(1);
+  });
+
+  test("reuses bounded compiled preset queries and clears them with parser state", async () => {
+    const parsed = await parseCode("function cached() {}", {
+      language: "javascript",
+    });
+    executePresetQuery(
+      parsed.tree,
+      parsed.languageInstance,
+      "javascript",
+      "functions",
+    );
+    const first = getCompiledQueryCacheStats();
+    executePresetQuery(
+      parsed.tree,
+      parsed.languageInstance,
+      "javascript",
+      "functions",
+    );
+
+    expect(first.queries).toBeGreaterThan(0);
+    expect(getCompiledQueryCacheStats()).toEqual(first);
+    expect(first.queries).toBeLessThanOrEqual(first.limit);
+    resetParser();
+    expect(getCompiledQueryCacheStats().queries).toBe(0);
   });
 
   test("executeQuery throws for invalid query", async () => {
