@@ -62,9 +62,24 @@ export default tseslint.config(
   },
   {
     // Allow console in CLI files
-    files: ["src/cli/**/*.ts", "src/bin.ts"],
+    files: ["src/cli/**/*.ts", "src/bin.ts", "scripts/**/*.ts"],
     rules: {
       "no-console": "off",
     },
-  }
+  },
+  {
+    // Keep production modules reviewable; large test matrices are exempt.
+    files: ["src/**/*.ts"],
+    ignores: ["src/**/*.test.ts"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 500, skipBlankLines: false, skipComments: false },
+      ],
+      "max-lines-per-function": [
+        "error",
+        { max: 350, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
 );

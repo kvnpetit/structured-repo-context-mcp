@@ -45,11 +45,29 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Local MCP conformance matrix
+        run: bun run conformance:local
+
+      - name: Mutation smoke
+        run: bun run mutation:smoke
+
       - name: Test with coverage
         run: bun run test:coverage
 
+      - name: Benchmark smoke test
+        run: bun run benchmark -- --directory=src --iterations=1 --max-files=100 --dataset=benchmarks/retrieval.json --k=5
+
+      - name: Multilingual retrieval quality gate
+        run: bun run benchmark -- --directory=benchmarks/golden-multilang --iterations=1 --max-files=100 --dataset=benchmarks/golden-multilang.json --k=1 --min-precision-at-k=1 --min-recall-at-k=1 --min-mrr=1 --min-ndcg-at-k=1
+
       - name: Build
         run: bun run build
+
+      - name: Verify published package
+        run: bun run pack:verify
+
+      - name: MCP conformance smoke
+        run: bun run conformance:smoke
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'

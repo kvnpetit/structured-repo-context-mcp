@@ -3,7 +3,7 @@ import { defineConfig } from "tsdown";
 const isProd = process.env.NODE_ENV === "production";
 
 export default defineConfig({
-  entry: ["./src/index.ts", "./src/bin.ts"],
+  entry: ["./src/index.ts", "./src/bin.ts", "./src/public.ts"],
   outDir: "dist",
   clean: true,
 

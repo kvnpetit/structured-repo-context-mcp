@@ -95,6 +95,10 @@ jobs:
         if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
         run: bun run build
 
+      - name: Verify published package
+        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
+        run: bun run pack:verify
+
       - name: Generate changelog
         if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
         run: bun run changelog

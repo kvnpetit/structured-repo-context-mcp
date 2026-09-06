@@ -55,5 +55,5 @@
       "@utils/*": ["src/utils/*"]
     }
   },
-  "include": ["src/**/*.ts", "*.config.ts", "*.config.mjs"]
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "*.config.ts", "*.config.mjs"]
 }

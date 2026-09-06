@@ -1,0 +1,237 @@
+import type { ContractSurfaceSnapshot } from "./verify-contract-surface";
+
+/**
+ * Deliberately reviewed public-surface baseline.
+ *
+ * Update these fingerprints only when a contract change is intentional. A
+ * refactor must keep this object byte-for-byte equivalent.
+ */
+export const EXPECTED_CONTRACT_SURFACE: ContractSurfaceSnapshot = {
+  featureContracts: {
+    get_server_info:
+      "a4e5ff068fffcc94664b7ac203c9be2227debe81ea0dd39b78da98060e6daa77",
+    index_codebase:
+      "60bb6507f0503f432ab332187820a19adfa6200a52e825d614141c10013dc28a",
+    search_code:
+      "c6f63862eeab69c9c684b05774309543ceecbc42dd0fbaaedae62ea7a2704119",
+    get_index_status:
+      "3b4be52f7e17c7a8a1fe7f4ba57f55329020b5de9b40e0567d4790584bddfbbc",
+    update_index:
+      "81b275ea50ee212a155f2363aa7d78b16fffe9cec9694d332b62627d71b2edbd",
+    parse_ast:
+      "9b876fcf56855ebb3d89e86dcc714fc6c190e81e168cabcc8c17ea31d44b7b23",
+    query_code:
+      "58aecf49bd8f106b90eeee63d6fc2b77bf0a31f00611fbe77d031aa9b227b1bd",
+    list_symbols:
+      "94eba1e8d401e88b41fd345dcd7c04d7be316ce72cb1548db16b2deb21442527",
+    analyze_file:
+      "20a333af95b61a1ad728e3676dc2f168688f0fb48339ea829b77801844155b20",
+    get_call_graph:
+      "b6ef3e5595b7eda2e8412e4a07e142710f100436a16829880e4ec6da371bcfab",
+    find_symbols:
+      "fe0f528826d6e25aa40a7ce34898863dca9c4bd86c9b0b7206cc1a53102914ae",
+    get_dependency_graph:
+      "ee79d3f3fe603aa7275e74d78b7f98376ff034f215f339fb9c7920897c198e95",
+    get_code_snippet:
+      "192e6c2b99b09b2e95664f7a0b8966d9c41153ce89e12d471e6585d7b206cb4f",
+    analyze_impact:
+      "2150dece76a293d3b68d96f7611d6cdf02451dd7628dd59af830ef3e742cd748",
+    get_diagnostics:
+      "0cc529a78527df6fcdc5805d2b4212e73bfef40c1f622fda615d4ea706a82b9d",
+    get_observability:
+      "4e53d3aa44980a634dcd71b669f17528eea81f3fc6f8576070cb4a02899197fa",
+    list_projects:
+      "8de73f016d3b212f343785fbab5791cf5aba83e2828f4f89f08ff6166a87a8d8",
+    get_repository_map:
+      "4844b4075c1de745a6fc4238df39ff991d9ba138e90b1d30df0a235c308cd3b9",
+    get_symbol_at_position:
+      "e97a2fed6f8280a223ef7c6f054c1b7f808d23b8445043436513f9144eece8bb",
+    assemble_task_context:
+      "a3cdc06c561a669bd19b714bd7047e2ea04d44c8b0911d91b346ee93910e0fa2",
+    find_dead_code:
+      "efdb99cd1e23a2a23f04ebc92394fc5f9677a7824193195d234b1cfaa8158adf",
+    get_changed_symbols:
+      "182476af073bfd80d47468d8e02a3fb8eb9ad8a2b3115af7e2c975c1c6f42421",
+    get_project_artifacts:
+      "69affe5074f6b95c4403991f80a491d5ca534c90b9cf2c43467a21d96bc7c540",
+    get_project_context:
+      "379e3a20ec6e4bf0d5220426c23f9ee6bf229107bba4bc14a7d601bed876e6f1",
+    semantic_navigation:
+      "0993c254d305b645407d6ba3a10b669746be63a3e7e28e66f741d658ff3e57e6",
+    get_symbol_graph:
+      "acd77ead2f7da356f17c17c02511a1081b561fb5166bbc43ff8e44267e593cd5",
+    get_project_memory:
+      "8dc1e242d5dbbaa8a9bbcf760ec033f5a8f4af8bf70e8703efc79e0327c7ae21",
+    set_project_memory:
+      "2ba532923c4438bda7ca0caf074137b36ed29e23d0ff1c06b6a0eaef2e0782c8",
+    get_project_catalog:
+      "edfcd532613de407f3827418e5df2bf799ae4b6ec336fb4496802faf0c756d33",
+    refresh_project_catalog:
+      "351f9074333d21fcf242b4217695dc4860111c4a934c79fde614ae4c32cc33ab",
+    get_git_context:
+      "2e544179116547732a24a2033669cb429a50268e36ac53c1dfa906f3aca0eb66",
+    manage_index_snapshots:
+      "73895309ecd9458d0228ecdbe9e5412b3f78e6ed8ccfa3c8bb222f21861a75c1",
+    run_static_analysis:
+      "ac2c647cfe2195e7ad16ce5fd026e2e9f4c61ef34a60939b61c948347e441d5c",
+    import_scip_index:
+      "e84a7c3a2575573d7eb3b92696f29dc054c53f1a3d57ea3c5b12e5662c9022b7",
+    maintain_index:
+      "897c6b4f621119f2bdf4da6d4155e1cdf445e63cafd4b04c9028edbe1524910a",
+  },
+  mcpTools: {
+    names: [
+      "get_server_info",
+      "index_codebase",
+      "search_code",
+      "get_index_status",
+      "update_index",
+      "parse_ast",
+      "query_code",
+      "list_symbols",
+      "analyze_file",
+      "get_call_graph",
+      "find_symbols",
+      "get_dependency_graph",
+      "get_code_snippet",
+      "analyze_impact",
+      "get_diagnostics",
+      "get_observability",
+      "list_projects",
+      "get_repository_map",
+      "get_symbol_at_position",
+      "assemble_task_context",
+      "find_dead_code",
+      "get_changed_symbols",
+      "get_project_artifacts",
+      "get_project_context",
+      "semantic_navigation",
+      "get_symbol_graph",
+      "get_project_memory",
+      "set_project_memory",
+      "get_project_catalog",
+      "refresh_project_catalog",
+      "get_git_context",
+      "manage_index_snapshots",
+      "run_static_analysis",
+      "import_scip_index",
+      "maintain_index",
+    ],
+    digest: "2d4ad7a4c31104156cdb4695605ef3731554acdf85740b6952086956459c994e",
+  },
+  cliCommands: {
+    names: [
+      "serve",
+      "version",
+      "get_server_info",
+      "index_codebase",
+      "search_code",
+      "get_index_status",
+      "update_index",
+      "parse_ast",
+      "query_code",
+      "list_symbols",
+      "analyze_file",
+      "get_call_graph",
+      "find_symbols",
+      "get_dependency_graph",
+      "get_code_snippet",
+      "analyze_impact",
+      "get_diagnostics",
+      "get_observability",
+      "list_projects",
+      "get_repository_map",
+      "get_symbol_at_position",
+      "assemble_task_context",
+      "find_dead_code",
+      "get_changed_symbols",
+      "get_project_artifacts",
+      "get_project_context",
+      "semantic_navigation",
+      "get_symbol_graph",
+      "get_project_memory",
+      "set_project_memory",
+      "get_project_catalog",
+      "refresh_project_catalog",
+      "get_git_context",
+      "manage_index_snapshots",
+      "run_static_analysis",
+      "import_scip_index",
+      "maintain_index",
+    ],
+    digest: "a74340078a71035aa5de170308eec412f130129b010e63358617a1beda00ae32",
+  },
+  prompts: {
+    names: [
+      "src-overview",
+      "code-search-workflow",
+      "search-tips",
+      "project-onboarding",
+      "architecture-review",
+      "security-review",
+      "refactor-impact",
+    ],
+    digest: "cc0c15074c3e76d36c7607f55a66f52133bc9072d167ac08b161fc8995826e23",
+  },
+  resources: {
+    count: 3,
+    digest: "d1b3ff52bbdddfe8749382632c24cab8c380a4efe8833a9ddc3210738c2e5e85",
+  },
+  publicExports: {
+    names: [
+      "EMBEDDING_CONFIG",
+      "ENV",
+      "closeLspSessions",
+      "config",
+      "createServer",
+      "features",
+      "getEmbeddingConfig",
+      "getEnrichmentConfig",
+      "getFeature",
+      "getMaxResultBytes",
+      "getProjectCatalogFeature",
+      "getProjectCatalogOutputSchema",
+      "getProjectCatalogSchema",
+      "getProjectMemoryFeature",
+      "getProjectMemoryOutputSchema",
+      "getProjectMemorySchema",
+      "gitContextFeature",
+      "gitContextOutputSchema",
+      "gitContextSchema",
+      "indexMaintenanceFeature",
+      "indexMaintenanceOutputSchema",
+      "indexMaintenanceSchema",
+      "indexSnapshotsFeature",
+      "indexSnapshotsOutputSchema",
+      "indexSnapshotsSchema",
+      "observabilityFeature",
+      "observabilityOutputSchema",
+      "observabilitySchema",
+      "refreshProjectCatalogFeature",
+      "refreshProjectCatalogOutputSchema",
+      "refreshProjectCatalogSchema",
+      "scipImportFeature",
+      "scipImportOutputSchema",
+      "scipImportSchema",
+      "searchCodeFeature",
+      "searchCodeOutputSchema",
+      "searchCodeSchema",
+      "semanticNavigationFeature",
+      "semanticNavigationSchema",
+      "setProjectMemoryFeature",
+      "setProjectMemoryOutputSchema",
+      "setProjectMemorySchema",
+      "startHttpServer",
+      "startServer",
+      "staticAnalysisFeature",
+      "staticAnalysisOutputSchema",
+      "staticAnalysisSchema",
+      "symbolGraphFeature",
+      "symbolGraphSchema",
+    ],
+    digest: "90f3aa224f6742b2ca910ddb8613cf68b49111e7dfc0943328801007b692b07f",
+  },
+  defaults: {
+    digest: "b8e328db08ade489dc41af2f84aa58ed8d5c6f44b840953a587158ee59379688",
+  },
+};

@@ -1,0 +1,18 @@
+[
+  {
+    "query": "task extension durable lifecycle",
+    "relevant": [
+      "core/tasks/manager.ts",
+      "core/tasks/integration.ts",
+      "core/tasks/store.ts"
+    ]
+  },
+  {
+    "query": "secure allowed roots path containment",
+    "relevant": ["core/security/paths.ts"]
+  },
+  {
+    "query": "hybrid search reranking",
+    "relevant": ["features/search-code/index.ts", "core/embeddings/store.ts"]
+  }
+]
