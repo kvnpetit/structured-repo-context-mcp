@@ -3,13 +3,13 @@
  *
  * Provides consistent file/content handling across features
  */
-import * as nodeFs from "node:fs";
+import { getMaxFileBytes, readSecureTextFile } from "@core/security";
 
 /**
  * Result of reading content
  */
 export type ContentResult =
-  | { success: true; content: string }
+  | { success: true; content: string; filePath?: string }
   | { success: false; error: string };
 
 /**
@@ -25,21 +25,37 @@ export type ContentResult =
 export function readContent(
   filePath?: string,
   content?: string,
+  root?: string,
 ): ContentResult {
   // If content is provided directly, use it
   if (content !== undefined) {
+    const size = Buffer.byteLength(content, "utf8");
+    if (size > getMaxFileBytes()) {
+      return {
+        success: false,
+        error: `Content exceeds the ${String(getMaxFileBytes())}-byte safety limit`,
+      };
+    }
     return { success: true, content };
   }
 
   // If file path is provided, read it
   if (filePath !== undefined) {
-    try {
-      const fileContent = nodeFs.readFileSync(filePath, "utf-8");
-      return { success: true, content: fileContent };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return { success: false, error: `Failed to read file: ${message}` };
+    const fileResult = readSecureTextFile(filePath, root);
+    if (!fileResult.ok) {
+      return {
+        success: false,
+        error: `Failed to read file: ${fileResult.error}`,
+      };
     }
+    if (fileResult.content === undefined) {
+      return { success: false, error: "Failed to read file: empty result" };
+    }
+    return {
+      success: true,
+      content: fileResult.content,
+      filePath: fileResult.path,
+    };
   }
 
   // Neither provided

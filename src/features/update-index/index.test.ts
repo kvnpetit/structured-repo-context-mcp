@@ -20,6 +20,20 @@ vi.mock("@core/embeddings", () => ({
   chunkFile: vi.fn(),
   enrichChunksFromFile: vi.fn(),
   shouldIndexFile: vi.fn(),
+  validateEmbeddingBatch: vi.fn(
+    (
+      vectors: number[][],
+      expectedCount: number,
+      expectedDimensions: number,
+    ) => {
+      if (
+        vectors.length !== expectedCount ||
+        vectors.some((vector) => vector.length !== expectedDimensions)
+      ) {
+        throw new Error("Invalid embedding batch");
+      }
+    },
+  ),
 }));
 
 describe("updateIndexSchema", () => {
@@ -96,9 +110,8 @@ describe("execute", () => {
   let mockExists: Mock;
   let mockConnect: Mock;
   let mockClose: Mock;
-  let mockAddChunks: Mock;
   let mockGetIndexedFiles: Mock;
-  let mockDeleteByFilePath: Mock;
+  let mockReplaceFilesChunks: Mock;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "update-index-test-"));
@@ -116,23 +129,22 @@ describe("execute", () => {
     mockExists = vi.fn().mockReturnValue(true);
     mockConnect = vi.fn().mockResolvedValue(undefined);
     mockClose = vi.fn().mockResolvedValue(undefined);
-    mockAddChunks = vi.fn().mockResolvedValue(undefined);
     mockGetIndexedFiles = vi.fn().mockResolvedValue([]);
-    mockDeleteByFilePath = vi.fn().mockResolvedValue(undefined);
+    mockReplaceFilesChunks = vi.fn().mockResolvedValue(undefined);
 
     (embeddings.createOllamaClient as Mock).mockReturnValue({
       healthCheck: mockHealthCheck,
       embedBatch: mockEmbedBatch,
-    } as unknown as embeddings.OllamaClient);
+    });
 
     (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: mockExists,
       connect: mockConnect,
       close: mockClose,
-      addChunks: mockAddChunks,
+      assertMetadataCompatible: vi.fn(),
       getIndexedFiles: mockGetIndexedFiles,
-      deleteByFilePath: mockDeleteByFilePath,
-    } as unknown as embeddings.VectorStore);
+      replaceFilesChunks: mockReplaceFilesChunks,
+    });
 
     (embeddings.chunkFile as Mock).mockResolvedValue([
       {
@@ -184,6 +196,23 @@ describe("execute", () => {
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain("No index found");
+  });
+
+  test("honors an already-aborted request before contacting the provider", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await execute(
+      {
+        directory: tempDir,
+        dryRun: false,
+        force: false,
+      },
+      { signal: controller.signal },
+    );
+
+    expect(result).toEqual({ success: false, error: "Operation cancelled" });
+    expect(mockHealthCheck).not.toHaveBeenCalled();
   });
 
   test("returns error when Ollama health check fails", async () => {
@@ -263,7 +292,7 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockAddChunks).toHaveBeenCalled();
+    expect(mockReplaceFilesChunks).toHaveBeenCalled();
   });
 
   test("handles errors during file processing", async () => {
@@ -281,6 +310,57 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveProperty("errors");
+  });
+
+  test("retains the old hash and retries a modified file after failure", async () => {
+    const testFile = path.join(tempDir, "retry.ts");
+    fs.writeFileSync(testFile, "const current = true;");
+    mockGetIndexedFiles.mockResolvedValue([testFile]);
+
+    const cacheDir = path.join(tempDir, ".src-index");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cachePath = path.join(cacheDir, ".src-index-hashes.json");
+    fs.writeFileSync(cachePath, JSON.stringify({ [testFile]: "old-hash" }));
+
+    (embeddings.chunkFile as Mock).mockRejectedValueOnce(
+      new Error("transient parse failure"),
+    );
+
+    const firstResult = await execute({ directory: tempDir });
+    expect(firstResult.success).toBe(true);
+    expect(mockReplaceFilesChunks).not.toHaveBeenCalled();
+    expect(JSON.parse(fs.readFileSync(cachePath, "utf-8"))).toEqual({
+      [testFile]: "old-hash",
+    });
+
+    const secondResult = await execute({ directory: tempDir });
+    expect(secondResult.success).toBe(true);
+    expect(embeddings.chunkFile).toHaveBeenCalledTimes(2);
+    expect(mockReplaceFilesChunks).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not commit a partial embedding batch and retries it", async () => {
+    const testFile = path.join(tempDir, "partial.ts");
+    fs.writeFileSync(testFile, "const current = true;");
+    mockGetIndexedFiles.mockResolvedValue([testFile]);
+
+    const cacheDir = path.join(tempDir, ".src-index");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cachePath = path.join(cacheDir, ".src-index-hashes.json");
+    fs.writeFileSync(cachePath, JSON.stringify({ [testFile]: "old-hash" }));
+
+    mockEmbedBatch.mockResolvedValueOnce([]);
+
+    const firstResult = await execute({ directory: tempDir });
+    expect(firstResult.success).toBe(true);
+    expect(mockReplaceFilesChunks).not.toHaveBeenCalled();
+    expect(JSON.parse(fs.readFileSync(cachePath, "utf-8"))).toEqual({
+      [testFile]: "old-hash",
+    });
+
+    const secondResult = await execute({ directory: tempDir });
+    expect(secondResult.success).toBe(true);
+    expect(mockReplaceFilesChunks).toHaveBeenCalledTimes(1);
   });
 
   test("handles general errors", async () => {
@@ -361,13 +441,20 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockDeleteByFilePath).toHaveBeenCalledWith(deletedFile);
+    const replacements = mockReplaceFilesChunks.mock.calls[0]?.[0] as Map<
+      string,
+      embeddings.EmbeddedChunk[]
+    >;
+    expect(replacements.get(deletedFile)).toEqual([]);
   });
 
   test("processes multiple files in parallel", async () => {
     // Create multiple test files
     for (let i = 0; i < 5; i++) {
-      fs.writeFileSync(path.join(tempDir, `file${String(i)}.ts`), `const x${String(i)} = ${String(i)};`);
+      fs.writeFileSync(
+        path.join(tempDir, `file${String(i)}.ts`),
+        `const x${String(i)} = ${String(i)};`,
+      );
     }
 
     const result = await execute({
@@ -378,8 +465,144 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockAddChunks).toHaveBeenCalled();
+    expect(mockReplaceFilesChunks).toHaveBeenCalled();
     // All 5 files should have been processed
     expect(mockEmbedBatch).toHaveBeenCalledTimes(5);
+  });
+
+  test("returns up to date message when no files changed", async () => {
+    // Empty directory, no indexed files → nothing to do
+    const result = await execute({
+      directory: tempDir,
+      dryRun: false,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("up to date");
+  });
+
+  test("handles corrupted hash cache gracefully", async () => {
+    // Write invalid JSON to the hash cache file
+    const indexDir = path.join(tempDir, ".src-index");
+    fs.mkdirSync(indexDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(indexDir, ".src-index-hashes.json"),
+      "{ invalid json }",
+    );
+
+    const testFile = path.join(tempDir, "test.ts");
+    fs.writeFileSync(testFile, "const x = 1;");
+
+    // Should succeed even with a corrupted cache (falls back to treating files as new)
+    const result = await execute({
+      directory: tempDir,
+      dryRun: true,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("add");
+  });
+
+  test("deletes and re-indexes modified files", async () => {
+    const testFile = path.join(tempDir, "test.ts");
+    fs.writeFileSync(testFile, "const x = 1;");
+
+    // Mark file as already indexed so it becomes a "modify" instead of "add"
+    mockGetIndexedFiles.mockResolvedValue([testFile]);
+    // No hash cache → hash is different → file is modified
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: false,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    const replacements = mockReplaceFilesChunks.mock.calls[0]?.[0] as Map<
+      string,
+      embeddings.EmbeddedChunk[]
+    >;
+    expect(replacements.get(testFile)).toHaveLength(1);
+  });
+
+  test("skips files that produce no chunks", async () => {
+    const testFile = path.join(tempDir, "test.ts");
+    fs.writeFileSync(testFile, "const x = 1;");
+
+    (embeddings.chunkFile as Mock).mockResolvedValue([]);
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: false,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    const replacements = mockReplaceFilesChunks.mock.calls[0]?.[0] as Map<
+      string,
+      embeddings.EmbeddedChunk[]
+    >;
+    expect(replacements.get(testFile)).toEqual([]);
+  });
+
+  test("dry run truncates list when more than 10 files added", async () => {
+    // Create 12 files so the "...and X more" branch is triggered
+    for (let i = 0; i < 12; i++) {
+      fs.writeFileSync(
+        path.join(tempDir, `file${String(i)}.ts`),
+        `const x${String(i)} = ${String(i)};`,
+      );
+    }
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: true,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("... and");
+    expect(result.message).toContain("more");
+  });
+
+  test("dry run truncates list when more than 10 files removed", async () => {
+    // Put 12 non-existent files in the index
+    const deletedFiles = Array.from({ length: 12 }, (_, i) =>
+      path.join(tempDir, `deleted${String(i)}.ts`),
+    );
+    mockGetIndexedFiles.mockResolvedValue(deletedFiles);
+    // None exist on disk → all are "removed"
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: true,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("... and");
+  });
+
+  test("dry run truncates list when more than 10 files modified", async () => {
+    // Create 12 files and mark them all as indexed (so they become "modified")
+    const files: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const f = path.join(tempDir, `mod${String(i)}.ts`);
+      fs.writeFileSync(f, `const m${String(i)} = ${String(i)};`);
+      files.push(f);
+    }
+    mockGetIndexedFiles.mockResolvedValue(files);
+    // No hash cache → all files have changed hashes → all are "modified"
+
+    const result = await execute({
+      directory: tempDir,
+      dryRun: true,
+      force: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("... and");
   });
 });

@@ -12,156 +12,186 @@
  * - 'fts': Keyword search only
  *
  * Optional features:
- * - LLM re-ranking for improved relevance
+ * - deterministic lexical re-ranking for improved symbol/name relevance
  * - Call context to show callers/callees for each result
  */
 
-import { z } from "zod";
-import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Feature, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
   createOllamaClient,
+  createLexicalEmbeddingClient,
   createVectorStore,
   buildCallGraph,
   getCallContext,
-  type SearchResult,
-  type SearchMode,
+  type IndexMetadata,
 } from "@core/embeddings";
 import { collectFiles, createIgnoreFilter } from "@core/files";
+import {
+  createPaginationCursor,
+  createPaginationScope,
+  decodePaginationCursor,
+} from "@core/pagination";
+import {
+  readSecureTextFile,
+  resolveSecureDirectory,
+  safeErrorMessage,
+} from "@core/security";
+import {
+  searchCodeOutputSchema,
+  searchCodeSchema,
+  type SearchCodeInput,
+} from "./schema";
+import {
+  MAX_NEIGHBOR_RESULTS,
+  classifyQuery,
+  confidenceForResult,
+  deduplicateResults,
+  expandNeighborResults,
+  hasSearchFilters,
+  matchesSearchFilters,
+  rerankResults,
+} from "./retrieval";
+import { formatResults } from "./format";
+import type { SearchCandidate, SearchOutput } from "./types";
 
-export const searchCodeSchema = z.object({
-  query: z.string().min(1).describe("Natural language search query"),
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Path to the indexed directory (defaults to current directory)"),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .default(10)
-    .describe("Maximum number of results to return"),
-  threshold: z
-    .number()
-    .min(0)
-    .max(2)
-    .optional()
-    .describe("Maximum distance threshold for results (lower = more similar)"),
-  mode: z
-    .enum(["vector", "fts", "hybrid"])
-    .optional()
-    .default("hybrid")
-    .describe(
-      "Search mode: 'vector' (semantic only), 'fts' (keyword only), 'hybrid' (combined with RRF fusion)",
-    ),
-  includeCallContext: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe(
-      "Include caller/callee information for each result (uses cached call graph)",
-    ),
-});
-
-export type SearchCodeInput = z.infer<typeof searchCodeSchema>;
-
-interface CallContextInfo {
-  callers: string[];
-  callees: string[];
-}
-
-interface FormattedResult {
-  filePath: string;
-  language: string;
-  startLine: number;
-  endLine: number;
-  content: string;
-  score: number;
-  symbolName?: string;
-  symbolType?: string;
-  callContext?: CallContextInfo;
-}
-
-interface SearchOutput {
-  query: string;
-  directory: string;
-  resultsCount: number;
-  results: FormattedResult[];
-}
-
-
-/**
- * Format search results for output
- */
-function formatResults(
-  results: SearchResult[],
-  baseDir: string,
-): FormattedResult[] {
-  return results.map((r) => ({
-    filePath: path.relative(baseDir, r.chunk.filePath),
-    language: r.chunk.language,
-    startLine: r.chunk.startLine,
-    endLine: r.chunk.endLine,
-    content: r.chunk.content,
-    score: r.score,
-    symbolName: r.chunk.symbolName,
-    symbolType: r.chunk.symbolType,
-  }));
-}
+export {
+  searchCodeOutputSchema,
+  searchCodeSchema,
+  type SearchCodeInput,
+} from "./schema";
 
 /**
  * Execute the search_code feature
  */
 export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
-  const { query, directory, limit, threshold, mode, includeCallContext } =
-    input;
+  const parsedInput = searchCodeSchema.parse(input);
+  const {
+    query,
+    directory,
+    limit,
+    cursor,
+    min_confidence,
+    threshold,
+    mode,
+    vectorWeight,
+    includeCallContext,
+    rerank,
+    language,
+    path_prefix,
+    symbol_type,
+    include_tests,
+    redact_secrets,
+    max_content_bytes,
+    neighbor_window,
+  } = parsedInput;
 
-  // Validate directory exists
-  if (!fs.existsSync(directory)) {
+  const secureDirectory = resolveSecureDirectory(directory);
+  if (!secureDirectory.ok) {
     return {
       success: false,
-      error: `Directory not found: ${directory}`,
+      error:
+        secureDirectory.error === "Path not found"
+          ? "Directory not found"
+          : secureDirectory.error,
     };
   }
 
-  const absoluteDir = path.resolve(directory);
+  const absoluteDir = secureDirectory.path;
+  const paginationScope = createPaginationScope({
+    directory: absoluteDir,
+    query,
+    mode,
+    vectorWeight,
+    rerank,
+    language: language ?? null,
+    path_prefix: path_prefix ?? null,
+    symbol_type: symbol_type ?? null,
+    include_tests,
+    min_confidence,
+    max_content_bytes,
+    neighbor_window,
+  });
+  const cursorResult = decodePaginationCursor(cursor, paginationScope);
+  if (!cursorResult.ok) {
+    return { success: false, error: cursorResult.error };
+  }
+  const cursorOffset = cursorResult.offset;
 
   // Initialize components
   const ollamaClient = createOllamaClient(EMBEDDING_CONFIG);
+  const embeddingClient =
+    EMBEDDING_CONFIG.embeddingProvider === "lexical"
+      ? createLexicalEmbeddingClient(EMBEDDING_CONFIG.embeddingDimensions)
+      : ollamaClient;
   const vectorStore = createVectorStore(absoluteDir, EMBEDDING_CONFIG);
 
   // Check if index exists
   if (!vectorStore.exists()) {
     return {
       success: false,
-      error: `No index found for directory. Run index_codebase first: ${absoluteDir}`,
+      error: "No index found for directory. Run index_codebase first.",
     };
   }
 
   try {
-    // Check Ollama health
-    const health = await ollamaClient.healthCheck();
-    if (!health.ok) {
-      return {
-        success: false,
-        error: health.error ?? "Ollama is not available",
-      };
+    // FTS is a true no-model path. Vector and hybrid modes use the configured
+    // provider (Ollama by default, or the deterministic local lexical provider).
+    const effectiveMode = mode === "fts" ? "fts" : mode;
+    if (effectiveMode !== "fts") {
+      const health = await embeddingClient.healthCheck();
+      if (!health.ok) {
+        return {
+          success: false,
+          error:
+            health.error ??
+            (EMBEDDING_CONFIG.embeddingProvider === "lexical"
+              ? "Embedding provider is not available"
+              : "Ollama is not available"),
+        };
+      }
     }
 
     // Connect to vector store
     await vectorStore.connect();
+    vectorStore.assertMetadataCompatible();
 
     // Generate query embedding
-    const queryVector = await ollamaClient.embed(query);
+    const queryVector =
+      effectiveMode === "fts" ? [] : await embeddingClient.embed(query);
 
     // Search for similar chunks using hybrid search (vector + BM25 + RRF)
-    let results = await vectorStore.searchHybrid(queryVector, query, limit, {
-      mode: mode as SearchMode,
-    });
+    const filters = {
+      ...(language === undefined ? {} : { language }),
+      ...(path_prefix === undefined ? {} : { path_prefix }),
+      ...(symbol_type === undefined ? {} : { symbol_type }),
+      include_tests,
+    };
+    const neighborhoodBudget =
+      neighbor_window === 0
+        ? 0
+        : Math.min(MAX_NEIGHBOR_RESULTS, limit * neighbor_window * 2);
+    const requestedCandidateLimit = Math.max(
+      cursorOffset + limit + 1,
+      limit + neighborhoodBudget,
+    );
+    const candidateLimit = hasSearchFilters(filters)
+      ? Math.min(500, Math.max(requestedCandidateLimit, limit * 10, 50))
+      : cursor === undefined
+        ? neighbor_window === 0
+          ? limit
+          : Math.min(500, Math.max(limit, requestedCandidateLimit))
+        : Math.min(500, Math.max(requestedCandidateLimit, 50));
+    let results: SearchCandidate[] = await vectorStore.searchHybrid(
+      queryVector,
+      query,
+      candidateLimit,
+      {
+        mode: effectiveMode,
+        vectorWeight,
+      },
+    );
 
     // Apply threshold filter if specified (only for vector mode where lower = better)
     // For hybrid/fts modes, RRF scores are higher = better, so threshold is ignored
@@ -169,19 +199,92 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       results = results.filter((r) => r.score <= threshold);
     }
 
+    results = results.filter((result) =>
+      matchesSearchFilters(result, absoluteDir, filters),
+    );
+    const candidatesConsidered = results.length;
+    const deduplicated = deduplicateResults(results);
+    const expanded = await expandNeighborResults(
+      vectorStore,
+      deduplicated.results,
+      absoluteDir,
+      filters,
+      neighbor_window,
+      effectiveMode,
+      rerank,
+    );
+    results = rerankResults(expanded.results, query, rerank);
+    const scoredResults = results.map((result, index, all) => ({
+      result,
+      confidence: confidenceForResult(result, index, all, query),
+    }));
+    const confidentResults = scoredResults.filter(
+      ({ confidence }) => confidence >= min_confidence,
+    );
+    const abstained =
+      min_confidence > 0 &&
+      scoredResults.length > 0 &&
+      confidentResults.length === 0;
+    const abstentionReason = abstained
+      ? `No result reached the requested confidence floor of ${String(min_confidence)}`
+      : undefined;
+    const pageResults = confidentResults.slice(
+      cursorOffset,
+      cursorOffset + limit,
+    );
+    const truncated =
+      cursorOffset + pageResults.length < confidentResults.length;
+    const nextCursor = truncated
+      ? createPaginationCursor(
+          paginationScope,
+          cursorOffset + pageResults.length,
+        )
+      : undefined;
+
+    const getMetadata = (
+      vectorStore as unknown as {
+        getMetadata?: () => IndexMetadata | undefined;
+      }
+    ).getMetadata;
+    const indexMetadata =
+      typeof getMetadata === "function"
+        ? getMetadata.call(vectorStore)
+        : undefined;
+    const index = indexMetadata
+      ? {
+          schema_version: indexMetadata.schemaVersion,
+          embedding_provider: indexMetadata.embeddingProvider,
+          embedding_model: indexMetadata.embeddingModel,
+          embedding_dimensions: indexMetadata.embeddingDimensions,
+          updated_at: indexMetadata.updatedAt,
+          ...(indexMetadata.sourceFingerprint === undefined
+            ? {}
+            : { source_fingerprint: indexMetadata.sourceFingerprint }),
+        }
+      : {};
+
     vectorStore.close();
 
-    let formattedResults = formatResults(results, absoluteDir);
+    const formatted = formatResults(
+      pageResults.map(({ result }) => result),
+      absoluteDir,
+      redact_secrets,
+      pageResults.map(({ confidence }) => confidence),
+      max_content_bytes,
+    );
+    let formattedResults = formatted.results;
 
     // Add call context if requested
     if (includeCallContext && formattedResults.length > 0) {
       // Build call graph for the directory
       const ig = createIgnoreFilter(absoluteDir);
       const files = collectFiles(absoluteDir, ig, absoluteDir);
-      const fileContents = files.map((f) => ({
-        path: f,
-        content: fs.readFileSync(f, "utf-8"),
-      }));
+      const fileContents = files.flatMap((f) => {
+        const readResult = readSecureTextFile(f, absoluteDir);
+        return readResult.ok && readResult.content !== undefined
+          ? [{ path: f, content: readResult.content }]
+          : [];
+      });
 
       const callGraph = await buildCallGraph(fileContents);
 
@@ -212,13 +315,40 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       query,
       directory: absoluteDir,
       resultsCount: formattedResults.length,
+      truncated,
+      cursor_offset: cursorOffset,
+      ...(nextCursor === undefined ? {} : { next_cursor: nextCursor }),
+      retrieval: {
+        query_kind: classifyQuery(query),
+        reranker: rerank,
+        candidates_considered: candidatesConsidered,
+        duplicates_removed: deduplicated.removed + expanded.duplicatesRemoved,
+        min_confidence,
+        abstained,
+        ...(abstentionReason === undefined
+          ? {}
+          : { abstention_reason: abstentionReason }),
+        content_limit_bytes: max_content_bytes,
+        content_truncated_count: formatted.contentTruncatedCount,
+        neighbor_window,
+        neighbors_added: expanded.added,
+        neighbor_candidates_considered: expanded.candidatesConsidered,
+        neighbors_truncated: expanded.truncated,
+      },
+      filters,
+      index,
+      source_is_untrusted: true,
+      secrets_redacted: formatted.redacted,
+      instruction_signals: formatted.instruction_signals,
       results: formattedResults,
     };
 
     if (formattedResults.length === 0) {
       return {
         success: true,
-        message: "No matching code found",
+        message: abstained
+          ? (abstentionReason ?? "No sufficiently confident code found")
+          : "No matching code found",
         data: output,
       };
     }
@@ -258,7 +388,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     };
   } catch (err) {
     vectorStore.close();
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorMsg = safeErrorMessage(err, "Search operation failed");
     return {
       success: false,
       error: `Search failed: ${errorMsg}`,
@@ -269,7 +399,8 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
 export const searchCodeFeature: Feature<typeof searchCodeSchema> = {
   name: "search_code",
   description:
-    "Search code semantically using natural language queries. USE THIS to find code by concept/meaning (e.g., 'authentication logic', 'error handling'). Requires index_codebase first. Returns relevant code chunks with file locations, function names, and call relationships (who calls what).",
+    "Search code semantically using natural language queries, hybrid vector/BM25 retrieval, and deterministic identifier reranking. USE THIS to find code by concept/meaning (e.g., 'authentication logic', 'error handling'). Requires index_codebase first. Returns relevant code chunks with file locations, function names, and call relationships (who calls what).",
   schema: searchCodeSchema,
+  outputSchema: searchCodeOutputSchema,
   execute,
 };

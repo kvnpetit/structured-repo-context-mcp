@@ -309,5 +309,20 @@ def greet(name):
       expect(result.success).toBe(true);
       expect(result.message).toContain("matches");
     });
+
+    test("bounds query matches and reports truncation", async () => {
+      const result = await execute({
+        content: ["function a() {}", "function b() {}", "function c() {}"].join(
+          "\n",
+        ),
+        language: "javascript",
+        preset: "functions",
+        max_matches: 2,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject({ count: 2, truncated: true });
+      expect((result.data as { matches: unknown[] }).matches).toHaveLength(2);
+    });
   });
 });

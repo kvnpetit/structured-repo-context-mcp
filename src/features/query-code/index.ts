@@ -1,15 +1,17 @@
 import { z } from "zod";
 
 import { parseCode } from "@core/parser";
+import { redactStructuredValue } from "@core/security";
 import {
   executePresetQuery,
   executeQuery,
   getAvailablePresets,
-  type QueryPreset,
 } from "@core/queries";
 
 import type { Feature, FeatureResult } from "@features/types";
 import {
+  astNodeSchema,
+  createFeatureResultSchema,
   errorMessage,
   errorResult,
   readContent,
@@ -59,8 +61,14 @@ export const queryCodeSchema = z
       .number()
       .int()
       .positive()
+      .max(1000)
       .optional()
-      .describe("Maximum number of matches to return"),
+      .describe("Maximum number of matches to return (default: 500)"),
+    redact_secrets: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Redact common secrets in query match text (default: true)"),
   })
   .refine((data) => data.file_path ?? data.content, {
     message: "Either file_path or content must be provided",
@@ -69,9 +77,38 @@ export const queryCodeSchema = z
     message: "Either query or preset must be provided",
   });
 
-export type QueryCodeInput = z.infer<typeof queryCodeSchema>;
+export type QueryCodeInput = z.input<typeof queryCodeSchema>;
 
-export async function execute(input: QueryCodeInput): Promise<FeatureResult> {
+const queryMatchSchema = z
+  .object({
+    pattern: z.number().int().nonnegative(),
+    captures: z
+      .object({ name: z.string(), node: astNodeSchema })
+      .strict()
+      .array(),
+  })
+  .strict();
+
+const queryCodeDataSchema = z
+  .object({
+    matches: queryMatchSchema.array(),
+    count: z.number().int().nonnegative(),
+    available_count: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    source_is_untrusted: z.literal(true),
+    language: z.string(),
+    query: z.string(),
+    secrets_redacted: z.boolean(),
+  })
+  .strict();
+
+export const queryCodeOutputSchema =
+  createFeatureResultSchema(queryCodeDataSchema);
+
+export async function execute(
+  rawInput: QueryCodeInput,
+): Promise<FeatureResult> {
+  const input = queryCodeSchema.parse(rawInput);
   const {
     file_path,
     content: inputContent,
@@ -79,7 +116,9 @@ export async function execute(input: QueryCodeInput): Promise<FeatureResult> {
     query,
     preset,
     max_matches,
+    redact_secrets,
   } = input;
+  const effectiveMaxMatches = max_matches ?? 500;
 
   // Get content
   const contentResult = readContent(file_path, inputContent);
@@ -88,10 +127,12 @@ export async function execute(input: QueryCodeInput): Promise<FeatureResult> {
   }
 
   try {
+    const safeFilePath = contentResult.filePath ?? file_path;
+
     // Parse the code
     const parseResult = await parseCode(contentResult.content, {
       language,
-      filePath: file_path,
+      filePath: safeFilePath,
     });
 
     // Execute query
@@ -109,8 +150,8 @@ export async function execute(input: QueryCodeInput): Promise<FeatureResult> {
         parseResult.tree,
         parseResult.languageInstance,
         parseResult.language,
-        preset as QueryPreset,
-        { maxMatches: max_matches },
+        preset,
+        { maxMatches: effectiveMaxMatches + 1 },
       );
     } else if (query) {
       result = executeQuery(
@@ -118,20 +159,34 @@ export async function execute(input: QueryCodeInput): Promise<FeatureResult> {
         parseResult.languageInstance,
         query,
         parseResult.language,
-        { maxMatches: max_matches },
+        { maxMatches: effectiveMaxMatches + 1 },
       );
     } else {
       return errorMessage("Either query or preset must be provided");
     }
 
+    const matches = result.matches.slice(0, effectiveMaxMatches);
+    const truncated = result.matches.length > effectiveMaxMatches;
+    const data = {
+      matches,
+      count: matches.length,
+      available_count: result.count,
+      truncated,
+      source_is_untrusted: true,
+      language: result.language,
+      query: result.query,
+    };
+    const redacted = redact_secrets
+      ? redactStructuredValue(data)
+      : { value: data, redacted: false };
+    const safeData = {
+      ...(redacted.value as Record<string, unknown>),
+      secrets_redacted: redacted.redacted,
+    };
+
     return successResult(
-      {
-        matches: result.matches,
-        count: result.count,
-        language: result.language,
-        query: result.query,
-      },
-      `Found ${String(result.count)} match${result.count === 1 ? "" : "es"} in ${parseResult.language} code`,
+      safeData,
+      `Found ${String(matches.length)} match${matches.length === 1 ? "" : "es"} in ${parseResult.language} code${truncated ? " (truncated)" : ""}`,
     );
   } catch (error) {
     return errorResult("query", error);
@@ -143,5 +198,6 @@ export const queryCodeFeature: Feature<typeof queryCodeSchema> = {
   description:
     "Execute Tree-sitter SCM queries on code to find patterns. Use preset queries (functions, classes, imports, exports, comments, strings, variables, types) or custom SCM query patterns.",
   schema: queryCodeSchema,
+  outputSchema: queryCodeOutputSchema,
   execute,
 };

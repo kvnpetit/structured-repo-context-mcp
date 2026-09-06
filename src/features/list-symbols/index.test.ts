@@ -44,6 +44,24 @@ describe("list_symbols feature", () => {
       });
       expect(result.success).toBe(true);
     });
+
+    test("defaults and validates the symbol output limit", () => {
+      const defaults = listSymbolsSchema.safeParse({
+        content: "function test() {}",
+        language: "javascript",
+      });
+      expect(defaults.success).toBe(true);
+      if (defaults.success) {
+        expect(defaults.data.max_symbols).toBe(1000);
+      }
+
+      expect(
+        listSymbolsSchema.safeParse({
+          content: "function test() {}",
+          max_symbols: 0,
+        }).success,
+      ).toBe(false);
+    });
   });
 
   describe("execute", () => {
@@ -167,6 +185,18 @@ class MyClass:
       expect(
         data.symbols.every((s) => s.type === "function" || s.type === "class"),
       ).toBe(true);
+    });
+
+    test("bounds returned symbols and reports truncation", async () => {
+      const result = await execute({
+        content: "function first() {}\nfunction second() {}",
+        language: "javascript",
+        max_symbols: 1,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject({ total: 2, truncated: true });
+      expect((result.data as { symbols: unknown[] }).symbols).toHaveLength(1);
     });
 
     test("includes symbol location information", async () => {

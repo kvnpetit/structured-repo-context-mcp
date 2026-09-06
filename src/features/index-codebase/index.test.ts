@@ -20,6 +20,20 @@ vi.mock("@core/embeddings", () => ({
   chunkFile: vi.fn(),
   enrichChunksFromFile: vi.fn(),
   shouldIndexFile: vi.fn(),
+  validateEmbeddingBatch: vi.fn(
+    (
+      vectors: number[][],
+      expectedCount: number,
+      expectedDimensions: number,
+    ) => {
+      if (
+        vectors.length !== expectedCount ||
+        vectors.some((vector) => vector.length !== expectedDimensions)
+      ) {
+        throw new Error("Invalid embedding batch");
+      }
+    },
+  ),
 }));
 
 describe("indexCodebaseSchema", () => {
@@ -99,7 +113,7 @@ describe("execute", () => {
     (embeddings.createOllamaClient as Mock).mockReturnValue({
       healthCheck: mockHealthCheck,
       embedBatch: mockEmbedBatch,
-    } as unknown as embeddings.OllamaClient);
+    });
 
     (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: mockExists,
@@ -107,7 +121,7 @@ describe("execute", () => {
       close: mockClose,
       clear: mockClear,
       addChunks: mockAddChunks,
-    } as unknown as embeddings.VectorStore);
+    });
 
     (embeddings.chunkFile as Mock).mockImplementation(
       async (filePath: string, content: string) =>
@@ -125,7 +139,7 @@ describe("execute", () => {
 
     // Mock enrichChunksFromFile to return enriched chunks
     (embeddings.enrichChunksFromFile as Mock).mockImplementation(
-      async (chunks) =>
+      async (chunks: embeddings.CodeChunk[]) =>
         Promise.resolve(
           chunks.map((chunk) => ({
             ...chunk,
@@ -158,6 +172,24 @@ describe("execute", () => {
     expect(result.error).toContain("Directory not found");
   });
 
+  test("honors an already-aborted request before contacting the provider", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await execute(
+      {
+        directory: tempDir,
+        force: false,
+        concurrency: 4,
+        exclude: [],
+      },
+      { signal: controller.signal },
+    );
+
+    expect(result).toEqual({ success: false, error: "Operation cancelled" });
+    expect(mockHealthCheck).not.toHaveBeenCalled();
+  });
+
   test("returns message for empty directory", async () => {
     const result = await execute({
       directory: tempDir,
@@ -168,6 +200,22 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
     expect(result.message).toContain("No indexable files found");
+    expect(mockClose).toHaveBeenCalledOnce();
+  });
+
+  test("clears a previous index when force re-indexing an empty directory", async () => {
+    mockExists.mockReturnValue(true);
+
+    const result = await execute({
+      directory: tempDir,
+      force: true,
+      concurrency: 4,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockClear).toHaveBeenCalledOnce();
+    expect(mockAddChunks).not.toHaveBeenCalled();
   });
 
   test("indexes TypeScript files", async () => {
@@ -187,6 +235,33 @@ describe("execute", () => {
     expect(result.success).toBe(true);
     expect(result.data).toHaveProperty("filesIndexed", 1);
     expect(result.data).toHaveProperty("chunksCreated");
+  });
+
+  test("persists hashes for update_index after initial indexing", async () => {
+    const filePath = path.join(tempDir, "test.ts");
+    fs.writeFileSync(filePath, 'export function hello() { return "world"; }');
+
+    const result = await execute({
+      directory: tempDir,
+      force: false,
+      concurrency: 4,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+
+    const cachePath = path.join(
+      tempDir,
+      ".src-index",
+      ".src-index-hashes.json",
+    );
+    expect(fs.existsSync(cachePath)).toBe(true);
+
+    const cache = JSON.parse(fs.readFileSync(cachePath, "utf8")) as Record<
+      string,
+      string
+    >;
+    expect(cache[path.resolve(filePath)]).toMatch(/^[a-f0-9]{64}$/);
   });
 
   test("excludes specified patterns", async () => {
@@ -229,7 +304,14 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data).toHaveProperty("filesIndexed", 1);
+    expect(result.data).toHaveProperty("filesIndexed", 2);
+    const indexedPaths = vi
+      .mocked(embeddings.chunkFile)
+      .mock.calls.map(([filePath]) => path.basename(filePath));
+    expect(indexedPaths).toEqual(
+      expect.arrayContaining([".gitignore", "main.ts"]),
+    );
+    expect(indexedPaths).not.toContain("pkg.ts");
   });
 
   test("excludes hidden folders starting with dot", async () => {
@@ -344,10 +426,33 @@ describe("execute", () => {
       exclude: [],
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     const data = result.data as { errors: string[] };
     expect(data.errors.length).toBeGreaterThan(0);
     expect(data.errors[0]).toContain("Embedding batch error");
+    expect(mockAddChunks).not.toHaveBeenCalled();
+  });
+
+  test("does not publish later embedding batches after one batch fails", async () => {
+    for (let index = 0; index < 11; index++) {
+      fs.writeFileSync(
+        path.join(tempDir, `file-${String(index)}.ts`),
+        `export const value${String(index)} = ${String(index)};`,
+      );
+    }
+    mockEmbedBatch.mockRejectedValueOnce(new Error("first batch failed"));
+
+    const result = await execute({
+      directory: tempDir,
+      force: true,
+      concurrency: 4,
+      exclude: [],
+    });
+
+    expect(mockEmbedBatch).toHaveBeenCalledTimes(2);
+    expect(result.success).toBe(false);
+    expect(mockClear).not.toHaveBeenCalled();
+    expect(mockAddChunks).not.toHaveBeenCalled();
   });
 
   test("reports message with errors when partial success", async () => {
@@ -425,7 +530,7 @@ describe("execute", () => {
       exclude: [],
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     const data = result.data as { errors: string[] };
     expect(data.errors[0]).toContain("embedding string error");
   });

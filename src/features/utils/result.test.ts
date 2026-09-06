@@ -30,6 +30,16 @@ describe("Result Utilities", () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to test:");
     });
+
+    test("does not expose absolute paths from parser/provider errors", () => {
+      const result = errorResult(
+        "parse file",
+        new Error("Cannot open C:\\Users\\kevin\\private\\secret.ts"),
+      );
+
+      expect(result.error).toBe("Failed to parse file: operation failed");
+      expect(result.error).not.toContain("secret.ts");
+    });
   });
 
   describe("errorMessage", () => {

@@ -2,9 +2,10 @@ import { writeFileSync, unlinkSync, mkdirSync, rmdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { resetParser } from "@core/parser";
+import * as unified from "@core/unified";
 
 import { execute, analyzeFileSchema } from "@features/analyze-file";
 
@@ -345,6 +346,21 @@ describe("analyze_file feature", () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
+    });
+
+    test("returns error when unexpected exception occurs during parsing", async () => {
+      writeFileSync(tempFile, "const x = 1;");
+      const spy = vi
+        .spyOn(unified, "parseFile")
+        .mockRejectedValue(new Error("Unexpected internal error"));
+
+      const result = await execute({ file_path: tempFile });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Failed to analyze file");
+      expect(result.error).toContain("Unexpected internal error");
+
+      spy.mockRestore();
     });
   });
 });

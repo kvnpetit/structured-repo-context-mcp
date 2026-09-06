@@ -1,10 +1,12 @@
-import { unlinkSync, writeFileSync } from "fs";
+import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as nodeFs from "node:fs";
 
 import { hasContentSource, readContent } from "@features/utils";
+
+vi.mock("node:fs", { spy: true });
 
 describe("Content Utilities", () => {
   let tempFilePath: string;
@@ -73,6 +75,17 @@ describe("Content Utilities", () => {
         expect(result.content).toBe("");
       }
     });
+
+    test("bounds direct content using the same limit as file reads", () => {
+      vi.stubEnv("SRC_MAX_FILE_BYTES", "3");
+
+      const result = readContent(undefined, "1234");
+
+      expect(result).toEqual({
+        success: false,
+        error: "Content exceeds the 3-byte safety limit",
+      });
+    });
   });
 
   describe("hasContentSource", () => {
@@ -99,13 +112,31 @@ describe("Content Utilities", () => {
 });
 
 describe("Content Utilities - Error Handling", () => {
+  let readErrorPath: string;
+
+  beforeAll(() => {
+    readErrorPath = join(
+      tmpdir(),
+      `test-content-errors-${String(Date.now())}.ts`,
+    );
+    writeFileSync(readErrorPath, "const value = 1;");
+  });
+
+  afterAll(() => {
+    try {
+      unlinkSync(readErrorPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
   test("handles non-Error thrown values", () => {
     vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw "string error"; // Throw a string instead of Error
     });
 
-    const result = readContent("/some/path.ts");
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -122,7 +153,7 @@ describe("Content Utilities - Error Handling", () => {
       throw 42; // Throw a number
     });
 
-    const result = readContent("/some/path.ts");
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -139,7 +170,7 @@ describe("Content Utilities - Error Handling", () => {
       throw { code: "EACCES", message: "Permission denied" };
     });
 
-    const result = readContent("/some/path.ts");
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
