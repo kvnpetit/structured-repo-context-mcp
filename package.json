@@ -33,6 +33,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "benchmark": "tsx scripts/benchmark.ts",
+    "benchmark:retrieval": "tsx scripts/benchmark-retrieval.ts",
     "conformance:smoke": "tsx scripts/conformance.ts",
     "conformance:local": "tsx scripts/conformance-local.ts",
     "mutation:smoke": "tsx scripts/mutation-smoke.ts",
