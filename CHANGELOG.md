@@ -31,6 +31,10 @@ by the guarded release workflow after a reviewed `[release]` commit reaches
   maps, artifacts, catalog, memory, task context, diagnostics, observability,
   snapshots, maintenance, SCIP import, and semantic navigation
   ([135684a](https://github.com/kvnpetit/structured-repo-context-mcp/commit/135684a80208192fb8edacd2514bb226d527e9ca))
+* harden durable task persistence and concurrency handling
+  ([ead583f](https://github.com/kvnpetit/structured-repo-context-mcp/commit/ead583fb4b5e27f163dcfe6c13078ab21b4aaf17))
+* harden indexed retrieval and watcher lifecycle behavior
+  ([b7e9b31](https://github.com/kvnpetit/structured-repo-context-mcp/commit/b7e9b31a744543fe8c9e00765633077c13ea6402))
 * unify CLI and MCP feature execution, validation, output formatting, and
   lifecycle handling
   ([a0934b8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/a0934b8e47f306b3f677324eee56ddcd57b644cd))
@@ -88,7 +92,12 @@ by the guarded release workflow after a reviewed `[release]` commit reaches
   retaining bearer authentication, configured roots, and host allow-lists
 * isolate local Git and SCIP helper processes from credentials and implicit network
   or editor prompts
-  ([3e9299d](https://github.com/kvnpetit/structured-repo-context-mcp/commit/3e9299d81c35ae25a8b9f053a4c83b5e4cac4ef9))
+  ([3e9299d](https://github.com/kvnpetit/structured-repo-context-mcp/commit/3e9299d81c35ae25a8b9f053a4c83b5e4cac4ef9)),
+  ([1147dce](https://github.com/kvnpetit/structured-repo-context-mcp/commit/1147dcedca11f33fbfad534f7ef6cd651cc7c054))
+* bound project state and analysis resources to canonical, project-scoped
+  directories and reject unsafe replacements
+  ([a5e0b0e](https://github.com/kvnpetit/structured-repo-context-mcp/commit/a5e0b0efbe89ea8f3e986c3e764cdcd737477733)),
+  ([2172a40](https://github.com/kvnpetit/structured-repo-context-mcp/commit/2172a40344635158e6b3473664d9375444c1d4fd))
 * pin privileged release actions, disable checkout credential persistence, and
   keep the npm publication toolchain fixed
   ([f0c8b03](https://github.com/kvnpetit/structured-repo-context-mcp/commit/f0c8b030adebaff0396b7c89c0d645f436e9e5f0))
@@ -128,7 +137,15 @@ by the guarded release workflow after a reviewed `[release]` commit reaches
   ([0f2b073](https://github.com/kvnpetit/structured-repo-context-mcp/commit/0f2b0731c3449201509d7547562abacca771ca7c))
 * remove obsolete Dependabot configuration after consolidating dependency update
   ownership
-  ([466ffd8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/466ffd8bcb56378a5b43d74d7c2e59f77d684f56))
+  ([466ffd8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/466ffd8bcb56378a5b43d74d7c2e59f77d684f56)),
+  ([dcbca0b](https://github.com/kvnpetit/structured-repo-context-mcp/commit/dcbca0b5c25168873262f545e3d3368c00af20e3))
+* refresh the dependency lockfile and synchronize the development branch before
+  the release preparation work
+  ([026282d](https://github.com/kvnpetit/structured-repo-context-mcp/commit/026282d97812d8d497a083e5db0667505dd4c9b4)),
+  ([fca48fe](https://github.com/kvnpetit/structured-repo-context-mcp/commit/fca48feded4942e258b2d9d52b545d39ae1dc437))
+* preserve the preceding `v1.0.3` changelog update while assembling this
+  complete historical ledger
+  ([d3a67d9](https://github.com/kvnpetit/structured-repo-context-mcp/commit/d3a67d902608f94969d29e27b1c0fc56e8d32fde))
 
 ## [1.0.3](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.2...v1.0.3) (2026-01-20)
 
