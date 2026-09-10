@@ -54,6 +54,7 @@ interface PendingChange {
 
 export class IndexWatcher {
   private readonly directory: string;
+  private readonly watchDirectory: string;
   private readonly config: EmbeddingConfig;
   private readonly debounceMs: number;
   private readonly embeddingClient: EmbeddingClient;
@@ -79,15 +80,19 @@ export class IndexWatcher {
     if (!secureDirectory.ok) {
       throw new Error(secureDirectory.error);
     }
+    this.directory = secureDirectory.path;
     // chokidar ultimately delegates to Node's native fs.watch on Windows.
-    // Resolve any short-path or symlink alias before opening that watcher so
-    // libuv receives one canonical directory spelling throughout its lifetime.
+    // Resolve short-path aliases before opening that watcher, while keeping
+    // the caller's resolved path for project-relative index and cache entries.
     try {
-      this.directory = fs.realpathSync.native(secureDirectory.path);
+      this.watchDirectory =
+        process.platform === "win32"
+          ? fs.realpathSync.native(secureDirectory.path)
+          : secureDirectory.path;
     } catch {
       // The secure resolver already confirmed that the directory exists. Keep
       // its resolved path if native canonicalization is unavailable.
-      this.directory = secureDirectory.path;
+      this.watchDirectory = secureDirectory.path;
     }
     this.config = options.config;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
@@ -144,6 +149,20 @@ export class IndexWatcher {
    */
   private shouldIndex(filePath: string): boolean {
     return shouldIndexPath(this.directory, this.ig, filePath);
+  }
+
+  /** Map paths reported by a canonical watcher back to the project path. */
+  private normalizeWatchedPath(filePath: string): string {
+    if (this.watchDirectory === this.directory) {
+      return filePath;
+    }
+    const relativePath = path.relative(this.watchDirectory, filePath);
+    const isDescendant =
+      relativePath === "" ||
+      (relativePath !== ".." &&
+        !relativePath.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relativePath));
+    return isDescendant ? path.resolve(this.directory, relativePath) : filePath;
   }
 
   /**
@@ -358,9 +377,10 @@ export class IndexWatcher {
       await this.fullIndex();
     });
 
-    this.watcher = watch(this.directory, {
+    this.watcher = watch(this.watchDirectory, {
       ignored: (filePath: string) => {
-        const relativePath = path.relative(this.directory, filePath).replace(/\\/g, "/");
+        const projectPath = this.normalizeWatchedPath(filePath);
+        const relativePath = path.relative(this.directory, projectPath).replace(/\\/g, "/");
         // Skip empty paths or root directory
         if (!relativePath) {
           return false;
@@ -386,20 +406,23 @@ export class IndexWatcher {
     });
 
     this.watcher.on("add", (filePath: string) => {
-      if (shouldIndexFile(filePath)) {
-        this.scheduleChange("add", filePath);
+      const projectPath = this.normalizeWatchedPath(filePath);
+      if (shouldIndexFile(projectPath)) {
+        this.scheduleChange("add", projectPath);
       }
     });
 
     this.watcher.on("change", (filePath: string) => {
-      if (shouldIndexFile(filePath)) {
-        this.scheduleChange("change", filePath);
+      const projectPath = this.normalizeWatchedPath(filePath);
+      if (shouldIndexFile(projectPath)) {
+        this.scheduleChange("change", projectPath);
       }
     });
 
     this.watcher.on("unlink", (filePath: string) => {
-      if (shouldIndexFile(filePath)) {
-        this.scheduleChange("unlink", filePath);
+      const projectPath = this.normalizeWatchedPath(filePath);
+      if (shouldIndexFile(projectPath)) {
+        this.scheduleChange("unlink", projectPath);
       }
     });
 
