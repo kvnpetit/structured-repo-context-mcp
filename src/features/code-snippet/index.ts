@@ -9,6 +9,7 @@ import {
   scanInstructionSignals,
 } from "@core/security";
 import type { Position } from "@core/ast/types";
+import { stringIndexAtByteOffset } from "@core/utils/utf8";
 import type { Feature, FeatureResult } from "@features/types";
 import {
   createFeatureResultSchema,
@@ -77,20 +78,6 @@ export const codeSnippetOutputSchema = createFeatureResultSchema(
   codeSnippetDataSchema,
 );
 
-function stringIndexAtByteOffset(content: string, byteOffset: number): number {
-  let low = 0;
-  let high = content.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (Buffer.byteLength(content.slice(0, middle), "utf8") <= byteOffset) {
-      low = middle;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return low;
-}
-
 function positionAt(content: string, index: number): Position {
   const prefix = content.slice(0, index);
   const lineStart = prefix.lastIndexOf("\n");
@@ -136,16 +123,24 @@ export async function execute(
   if (input.start_offset > fileBytes) {
     return { success: false, error: "start_offset is outside the file" };
   }
-  const requestedEnd =
-    input.end_offset ??
-    Math.min(fileBytes, input.start_offset + input.max_bytes);
-  const endOffset = Math.min(
+  const startIndex = stringIndexAtByteOffset(content, input.start_offset);
+  if (
+    Buffer.byteLength(content.slice(0, startIndex), "utf8") !==
+    input.start_offset
+  ) {
+    return {
+      success: false,
+      error: "start_offset must be a UTF-8 character boundary",
+    };
+  }
+  const requestedEnd = input.end_offset ?? fileBytes;
+  const boundedEnd = Math.min(
     requestedEnd,
     input.start_offset + input.max_bytes,
     fileBytes,
   );
-  const startIndex = stringIndexAtByteOffset(content, input.start_offset);
-  const endIndex = stringIndexAtByteOffset(content, endOffset);
+  const endIndex = stringIndexAtByteOffset(content, boundedEnd);
+  const endOffset = Buffer.byteLength(content.slice(0, endIndex), "utf8");
   const source = input.redact_secrets
     ? redactSourceText(content.slice(startIndex, endIndex))
     : { text: content.slice(startIndex, endIndex), redacted: false };

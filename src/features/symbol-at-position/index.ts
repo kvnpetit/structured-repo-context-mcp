@@ -3,6 +3,7 @@ import * as path from "node:path";
 
 import { parseCode } from "@core/parser";
 import { extractCodeInfo } from "@core/symbols";
+import { stringIndexAtByteOffset } from "@core/utils/utf8";
 import {
   redactSourceText,
   readSecureTextFile,
@@ -91,20 +92,6 @@ const symbolAtPositionDataSchema = z
 export const symbolAtPositionOutputSchema = createFeatureResultSchema(
   symbolAtPositionDataSchema,
 );
-
-function stringIndexAtByteOffset(content: string, byteOffset: number): number {
-  let low = 0;
-  let high = content.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (Buffer.byteLength(content.slice(0, middle), "utf8") <= byteOffset) {
-      low = middle;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return low;
-}
 
 function byteOffsetAtPosition(
   content: string,

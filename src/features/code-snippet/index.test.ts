@@ -55,6 +55,64 @@ describe("get_code_snippet", () => {
     expect(result.success).toBe(false);
   });
 
+  test("never splits a supplementary character and reports the actual byte range", async () => {
+    fs.writeFileSync(path.join(directory, "unicode.ts"), "a😀b");
+    const result = await execute({
+      directory,
+      file_path: "unicode.ts",
+      start_offset: 1,
+      max_bytes: 3,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      content: "",
+      start_offset: 1,
+      end_offset: 1,
+      truncated: true,
+      start: { offset: 1 },
+      end: { offset: 1 },
+    });
+    const complete = await execute({
+      directory,
+      file_path: "unicode.ts",
+      start_offset: 1,
+      max_bytes: 4,
+    });
+    expect(complete.data).toMatchObject({
+      content: "😀",
+      end_offset: 5,
+      truncated: true,
+    });
+  });
+
+  test("rejects a start inside a multibyte character", async () => {
+    fs.writeFileSync(path.join(directory, "unicode.ts"), "a😀b");
+    for (const start_offset of [2, 3, 4]) {
+      const result = await execute({
+        directory,
+        file_path: "unicode.ts",
+        start_offset,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: "start_offset must be a UTF-8 character boundary",
+      });
+    }
+  });
+
+  test("marks the remaining file as truncated when max_bytes limits an implicit end", async () => {
+    const result = await execute({
+      directory,
+      file_path: "unicode.ts",
+      max_bytes: 5,
+    });
+    expect(result.data).toMatchObject({
+      content: "const",
+      end_offset: 5,
+      truncated: true,
+    });
+  });
+
   test("can redact inline secrets while preserving original offsets", async () => {
     fs.writeFileSync(
       path.join(directory, "secret.ts"),

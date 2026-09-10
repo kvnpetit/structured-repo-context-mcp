@@ -25,3 +25,10 @@ export function truncateUtf8WithStatus(
     truncated,
   };
 }
+/** Map a byte offset to a UTF-16 index, rounding down to a whole code point. */
+export function stringIndexAtByteOffset(
+  value: string,
+  byteOffset: number,
+): number {
+  return truncateUtf8(value, byteOffset).length;
+}
