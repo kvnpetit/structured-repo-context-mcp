@@ -100,6 +100,10 @@ jobs:
         if: steps.check.outputs.should-release == 'true'
         run: bun install --frozen-lockfile
 
+      - name: Validate changelog structure
+        if: steps.check.outputs.should-release == 'true'
+        run: bun run changelog:check
+
       - name: Build
         if: steps.check.outputs.should-release == 'true'
         run: bun run build
@@ -118,7 +122,7 @@ jobs:
           const version = process.env.RELEASE_VERSION;
           if (!version) throw new Error('Release version is missing');
           const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const heading = new RegExp(`^##\\s+(?:${escaped}|\\[${escaped}\\])(?:\\([^\\n]*\\))?(?:\\s|$)`, 'm');
+          const heading = new RegExp(`^##\\s+\\[${escaped}\\]\\s+-\\s+\\d{4}-\\d{2}-\\d{2}\\s*$`, 'm');
           const changelog = readFileSync('CHANGELOG.md', 'utf8');
           if (!heading.test(changelog)) {
             throw new Error(`CHANGELOG.md has no reviewed entry for v${version}. Ask the AI to update it before releasing.`);
