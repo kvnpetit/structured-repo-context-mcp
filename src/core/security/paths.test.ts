@@ -59,9 +59,9 @@ describe("path containment", () => {
   });
 
   test("does not confuse sibling prefixes with descendants", () => {
-    expect(isPathWithin("C:\\workspace\\repo", "C:\\workspace\\repo2")).toBe(
-      process.platform !== "win32",
-    );
+    const root = path.join("workspace", "repo");
+    const sibling = path.join("workspace", "repo2");
+    expect(isPathWithin(root, sibling)).toBe(false);
   });
 
   test("rejects a file outside the configured workspace", () => {

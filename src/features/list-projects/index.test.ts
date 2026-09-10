@@ -33,8 +33,8 @@ describe("list_projects feature", () => {
     expect(result.data).toMatchObject({
       configuredRoots: 2,
       projects: [
-        { path: first, source: "SRC_ALLOWED_ROOTS", exists: true },
-        { path: second, source: "SRC_ALLOWED_ROOTS", exists: true },
+        { path: fs.realpathSync.native(first), source: "SRC_ALLOWED_ROOTS", exists: true },
+        { path: fs.realpathSync.native(second), source: "SRC_ALLOWED_ROOTS", exists: true },
       ],
     });
   });
