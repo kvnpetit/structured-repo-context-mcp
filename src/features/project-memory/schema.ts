@@ -7,13 +7,7 @@ export const MEMORY_FILE = "project-memory.json";
 export const MAX_MEMORY_RECORDS = 500;
 const MAX_MEMORY_BODY = 20_000;
 const MAX_MEMORY_TITLE = 200;
-const MEMORY_KINDS = [
-  "decision",
-  "constraint",
-  "fact",
-  "todo",
-  "note",
-] as const;
+const MEMORY_KINDS = ["decision", "constraint", "fact", "todo", "note"] as const;
 const DEFAULT_MEMORY_SCOPE = "project";
 export const revisionStateSchema = z.enum(["current", "stale", "unknown"]);
 const dateTimeSchema = z
@@ -27,16 +21,8 @@ const memoryScopeSchema = z
   .string()
   .trim()
   .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/iu)
-  .describe(
-    "Local memory namespace; it never crosses the selected project root",
-  );
-const LINK_KINDS = [
-  "references",
-  "implements",
-  "supersedes",
-  "blocks",
-  "related",
-] as const;
+  .describe("Local memory namespace; it never crosses the selected project root");
+const LINK_KINDS = ["references", "implements", "supersedes", "blocks", "related"] as const;
 
 export const memoryLinkSchema = z
   .object({
@@ -150,17 +136,12 @@ const getProjectMemoryDataSchema = z
         unknown: z.number().int().nonnegative(),
       })
       .strict(),
-    records: memoryRecordSchema
-      .extend({ revision_state: revisionStateSchema })
-      .strict()
-      .array(),
+    records: memoryRecordSchema.extend({ revision_state: revisionStateSchema }).strict().array(),
     errors: z.string().array(),
   })
   .strict();
 
-export const getProjectMemoryOutputSchema = createFeatureResultSchema(
-  getProjectMemoryDataSchema,
-);
+export const getProjectMemoryOutputSchema = createFeatureResultSchema(getProjectMemoryDataSchema);
 
 const upsertMemorySchema = z.object({
   ...baseMemoryInput,
@@ -176,9 +157,7 @@ const upsertMemorySchema = z.object({
     .boolean()
     .optional()
     .default(true)
-    .describe(
-      "Capture the current local Git HEAD when source_revision is omitted",
-    ),
+    .describe("Capture the current local Git HEAD when source_revision is omitted"),
   expires_at: dateTimeSchema.optional(),
   confidence: z.number().min(0).max(1).optional().default(0.7),
   expected_updated_at: z.string().optional(),
@@ -215,9 +194,7 @@ const setProjectMemoryDataSchema = z
   })
   .strict();
 
-export const setProjectMemoryOutputSchema = createFeatureResultSchema(
-  setProjectMemoryDataSchema,
-);
+export const setProjectMemoryOutputSchema = createFeatureResultSchema(setProjectMemoryDataSchema);
 
 export type MemoryStore = z.infer<typeof memoryStoreSchema>;
 export type MemoryRecord = z.infer<typeof memoryRecordSchema>;

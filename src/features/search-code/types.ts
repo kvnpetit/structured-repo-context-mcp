@@ -1,8 +1,5 @@
 import type { AdjacentChunks, SearchResult } from "@core/embeddings";
-import type {
-  mergeInstructionSignals,
-  scanInstructionSignals,
-} from "@core/security";
+import type { mergeInstructionSignals, scanInstructionSignals } from "@core/security";
 
 export interface CallContextInfo {
   callers: string[];

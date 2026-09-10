@@ -312,9 +312,7 @@ def greet(name):
 
     test("bounds query matches and reports truncation", async () => {
       const result = await execute({
-        content: ["function a() {}", "function b() {}", "function c() {}"].join(
-          "\n",
-        ),
+        content: ["function a() {}", "function b() {}", "function c() {}"].join("\n"),
         language: "javascript",
         preset: "functions",
         max_matches: 2,

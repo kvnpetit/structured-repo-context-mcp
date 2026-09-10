@@ -51,8 +51,5 @@ export function lspPositionToUtf8Offset(
   const lineStart = lines
     .slice(0, position.line)
     .reduce((total, value) => total + value.length + 1, 0);
-  return (
-    Buffer.byteLength(content.slice(0, lineStart), "utf8") +
-    Buffer.byteLength(prefix, "utf8")
-  );
+  return Buffer.byteLength(content.slice(0, lineStart), "utf8") + Buffer.byteLength(prefix, "utf8");
 }

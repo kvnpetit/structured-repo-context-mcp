@@ -1,6 +1,6 @@
-import { writeFileSync, unlinkSync, mkdirSync, rmdirSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { writeFileSync, unlinkSync, mkdirSync, rmdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -212,24 +212,16 @@ describe("analyze_file feature", () => {
       expect(shallowResult.success).toBe(true);
       expect(deepResult.success).toBe(true);
 
-      const shallowAst = (
-        shallowResult.data as { ast: { children?: unknown[] } }
-      ).ast;
-      const deepAst = (deepResult.data as { ast: { children?: unknown[] } })
-        .ast;
+      const shallowAst = (shallowResult.data as { ast: { children?: unknown[] } }).ast;
+      const deepAst = (deepResult.data as { ast: { children?: unknown[] } }).ast;
 
       // Deep AST should have more nested structure
-      const countDepth = (
-        node: { children?: unknown[] },
-        depth: number,
-      ): number => {
+      const countDepth = (node: { children?: unknown[] }, depth: number): number => {
         if (!node.children || node.children.length === 0) {
           return depth;
         }
         return Math.max(
-          ...node.children.map((child) =>
-            countDepth(child as { children?: unknown[] }, depth + 1),
-          ),
+          ...node.children.map((child) => countDepth(child as { children?: unknown[] }, depth + 1)),
         );
       };
 
@@ -262,8 +254,7 @@ describe("analyze_file feature", () => {
 
     test("includes chunks when requested for fallback parsing", async () => {
       tempFile = join(tempDir, "test.md");
-      const content =
-        "# Title\n\nSome content here.\n\n## Section\n\nMore content.";
+      const content = "# Title\n\nSome content here.\n\n## Section\n\nMore content.";
       writeFileSync(tempFile, content);
 
       const result = await execute({

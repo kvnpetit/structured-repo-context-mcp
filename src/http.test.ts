@@ -1,15 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { request as httpRequest } from "node:http";
-import {
-  hasValidBearerToken,
-  isLoopbackHost,
-  isWildcardHost,
-  startHttpServer,
-} from "@/http";
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from "@modelcontextprotocol/client";
+import { hasValidBearerToken, isLoopbackHost, isWildcardHost, startHttpServer } from "@/http";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
 describe("HTTP transport", () => {
   async function postChunked(url: string, chunks: string[]): Promise<number> {
@@ -60,10 +52,7 @@ describe("HTTP transport", () => {
     expect(hasValidBearerToken(request, "secret")).toBe(true);
     expect(hasValidBearerToken(request, "other")).toBe(false);
     expect(
-      hasValidBearerToken(
-        { headers: { authorization: "Basic secret" } } as never,
-        "secret",
-      ),
+      hasValidBearerToken({ headers: { authorization: "Basic secret" } } as never, "secret"),
     ).toBe(false);
     expect(hasValidBearerToken(request, undefined)).toBe(true);
   });
@@ -154,9 +143,7 @@ describe("HTTP transport", () => {
       await client.connect(transport);
       expect(client.getProtocolEra()).toBe("modern");
       const tools = await client.listTools();
-      expect(tools.tools.some((tool) => tool.name === "get_code_snippet")).toBe(
-        true,
-      );
+      expect(tools.tools.some((tool) => tool.name === "get_code_snippet")).toBe(true);
     } finally {
       await client.close();
       await running.close();
@@ -196,11 +183,7 @@ describe("HTTP transport", () => {
     });
 
     try {
-      const status = await postChunked(running.url, [
-        '{"payload":"',
-        "01234567890123456789",
-        '"}',
-      ]);
+      const status = await postChunked(running.url, ['{"payload":"', "01234567890123456789", '"}']);
       expect(status).toBe(413);
     } finally {
       await running.close();

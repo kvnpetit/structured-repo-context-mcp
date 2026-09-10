@@ -22,17 +22,11 @@ const localRevisionSchema = z
     (value) => !value.includes("..") && !value.includes("@{"),
     "Revision ranges and reflog expressions are not accepted",
   )
-  .describe(
-    "Local Git revision; ranges, reflogs, and remote fetches are rejected",
-  );
+  .describe("Local Git revision; ranges, reflogs, and remote fetches are rejected");
 
 export const gitContextSchema = z
   .object({
-    directory: z
-      .string()
-      .optional()
-      .default(".")
-      .describe("Local Git repository root"),
+    directory: z.string().optional().default(".").describe("Local Git repository root"),
     files: z
       .string()
       .array()
@@ -46,60 +40,25 @@ export const gitContextSchema = z
     include_blame: z.boolean().optional().default(false),
     include_codeowners: z.boolean().optional().default(true),
     include_changed_symbols: z.boolean().optional().default(true),
-    max_diff_bytes: z
-      .number()
-      .int()
-      .positive()
-      .max(MAX_DIFF_BYTES)
-      .optional()
-      .default(50_000),
-    max_history: z
-      .number()
-      .int()
-      .positive()
-      .max(MAX_HISTORY)
-      .optional()
-      .default(20),
+    max_diff_bytes: z.number().int().positive().max(MAX_DIFF_BYTES).optional().default(50_000),
+    max_history: z.number().int().positive().max(MAX_HISTORY).optional().default(20),
     include_hotspots: z
       .boolean()
       .optional()
       .default(false)
       .describe("Aggregate historical file churn from local commits"),
-    max_hotspots: z
-      .number()
-      .int()
-      .positive()
-      .max(MAX_HOTSPOTS)
-      .optional()
-      .default(25),
+    max_hotspots: z.number().int().positive().max(MAX_HOTSPOTS).optional().default(25),
     compare_from: localRevisionSchema.optional(),
     compare_to: localRevisionSchema.optional(),
-    max_compare_files: z
-      .number()
-      .int()
-      .positive()
-      .max(MAX_FILES)
-      .optional()
-      .default(MAX_FILES),
-    max_blame_lines: z
-      .number()
-      .int()
-      .positive()
-      .max(MAX_BLAME_LINES)
-      .optional()
-      .default(200),
+    max_compare_files: z.number().int().positive().max(MAX_FILES).optional().default(MAX_FILES),
+    max_blame_lines: z.number().int().positive().max(MAX_BLAME_LINES).optional().default(200),
     redact_secrets: z.boolean().optional().default(true),
   })
   .superRefine((value, context) => {
-    if (
-      (value.compare_from === undefined) !==
-      (value.compare_to === undefined)
-    ) {
+    if ((value.compare_from === undefined) !== (value.compare_to === undefined)) {
       context.addIssue({
         code: "custom",
-        path: [
-          value.compare_from === undefined ? "compare_from" : "compare_to",
-        ],
+        path: [value.compare_from === undefined ? "compare_from" : "compare_to"],
         message: "compare_from and compare_to must be provided together",
       });
     }
@@ -180,13 +139,7 @@ const gitContextDataSchema = z
         files: z
           .object({
             path: z.string(),
-            status: z.enum([
-              "added",
-              "modified",
-              "deleted",
-              "renamed",
-              "unknown",
-            ]),
+            status: z.enum(["added", "modified", "deleted", "renamed", "unknown"]),
             old_path: z.string().optional(),
           })
           .strict()
@@ -208,9 +161,7 @@ const gitContextDataSchema = z
         .strict()
         .array(),
     ),
-    codeowners: z
-      .object({ path: z.string().optional(), lines: z.string().array() })
-      .strict(),
+    codeowners: z.object({ path: z.string().optional(), lines: z.string().array() }).strict(),
     change_analysis: z
       .object({
         files_changed: z.number().int().nonnegative(),
@@ -239,5 +190,4 @@ const gitContextDataSchema = z
   })
   .strict();
 
-export const gitContextOutputSchema =
-  createFeatureResultSchema(gitContextDataSchema);
+export const gitContextOutputSchema = createFeatureResultSchema(gitContextDataSchema);

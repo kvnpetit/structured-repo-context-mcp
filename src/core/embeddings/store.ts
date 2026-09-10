@@ -17,11 +17,7 @@ import {
   searchLexical as findLexical,
   searchVector,
 } from "./store-search";
-import {
-  readIndexedFiles,
-  readIndexStatus,
-  readMaintenanceStatus,
-} from "./store-status";
+import { readIndexedFiles, readIndexStatus, readMaintenanceStatus } from "./store-status";
 import type {
   AdjacentChunks,
   HybridSearchOptions,
@@ -59,9 +55,7 @@ export class VectorStore {
   private readonly metadataStore: IndexMetadataStore;
   private ftsIndexCreated = false;
 
-  private async getChunkIdsForFiles(
-    filePaths: Iterable<string>,
-  ): Promise<string[]> {
+  private async getChunkIdsForFiles(filePaths: Iterable<string>): Promise<string[]> {
     if (!this.table) {
       return [];
     }
@@ -69,10 +63,10 @@ export class VectorStore {
     const normalizedPaths = new Set(
       Array.from(filePaths, (filePath) => normalizeFilePath(filePath)),
     );
-    const rows = (await this.table
-      .query()
-      .select(["id", "filePath"])
-      .toArray()) as Pick<LanceDBRow, "id" | "filePath">[];
+    const rows = (await this.table.query().select(["id", "filePath"]).toArray()) as Pick<
+      LanceDBRow,
+      "id" | "filePath"
+    >[];
     return rows
       .filter((row) => normalizedPaths.has(normalizeFilePath(row.filePath)))
       .map((row) => row.id);
@@ -84,9 +78,7 @@ export class VectorStore {
     }
 
     const tableNames = await this.db.tableNames();
-    this.table = tableNames.includes(TABLE_NAME)
-      ? await this.db.openTable(TABLE_NAME)
-      : null;
+    this.table = tableNames.includes(TABLE_NAME) ? await this.db.openTable(TABLE_NAME) : null;
   }
 
   private async addChunksUnlocked(chunks: EmbeddedChunk[]): Promise<void> {
@@ -215,12 +207,7 @@ export class VectorStore {
   }
 
   async searchFts(queryText: string, limit = 10): Promise<SearchResult[]> {
-    return findFts(
-      this.table,
-      async () => this.createFtsIndex(),
-      queryText,
-      limit,
-    );
+    return findFts(this.table, async () => this.createFtsIndex(), queryText, limit);
   }
 
   async searchHybrid(
@@ -239,21 +226,13 @@ export class VectorStore {
     );
   }
 
-  async getAdjacentChunks(
-    filePath: string,
-    chunkId: string,
-    window = 1,
-  ): Promise<AdjacentChunks> {
+  async getAdjacentChunks(filePath: string, chunkId: string, window = 1): Promise<AdjacentChunks> {
     validateAbsoluteFilePath(filePath, "getAdjacentChunks");
     return findAdjacentChunks(this.table, filePath, chunkId, window);
   }
 
   async getMaintenanceStatus(): Promise<IndexMaintenanceStatus> {
-    return readMaintenanceStatus(
-      this.table,
-      this.metadataStore.value,
-      this.metadataStore.error,
-    );
+    return readMaintenanceStatus(this.table, this.metadataStore.value, this.metadataStore.error);
   }
 
   /** Compact fragments and prune old local Lance table versions. */
@@ -277,18 +256,14 @@ export class VectorStore {
       });
       return {
         compaction: {
-          fragmentsRemoved: nonNegativeInteger(
-            result.compaction.fragmentsRemoved,
-          ),
+          fragmentsRemoved: nonNegativeInteger(result.compaction.fragmentsRemoved),
           fragmentsAdded: nonNegativeInteger(result.compaction.fragmentsAdded),
           filesRemoved: nonNegativeInteger(result.compaction.filesRemoved),
           filesAdded: nonNegativeInteger(result.compaction.filesAdded),
         },
         prune: {
           bytesRemoved: nonNegativeInteger(result.prune.bytesRemoved),
-          oldVersionsRemoved: nonNegativeInteger(
-            result.prune.oldVersionsRemoved,
-          ),
+          oldVersionsRemoved: nonNegativeInteger(result.prune.oldVersionsRemoved),
         },
       };
     });
@@ -312,13 +287,9 @@ export class VectorStore {
         typeof manifestTable.usesV2ManifestPaths !== "function" ||
         typeof manifestTable.migrateManifestPathsV2 !== "function"
       ) {
-        throw new Error(
-          "The installed LanceDB runtime cannot migrate manifest paths",
-        );
+        throw new Error("The installed LanceDB runtime cannot migrate manifest paths");
       }
-      const alreadyMigrated = await manifestTable.usesV2ManifestPaths.call(
-        this.table,
-      );
+      const alreadyMigrated = await manifestTable.usesV2ManifestPaths.call(this.table);
       if (alreadyMigrated) {
         return false;
       }
@@ -356,18 +327,13 @@ export class VectorStore {
    * LanceDB merge-insert commits the updates, inserts, and removal of stale
    * rows as one table version. Empty replacements are a single delete.
    */
-  async replaceFileChunks(
-    filePath: string,
-    chunks: EmbeddedChunk[],
-  ): Promise<void> {
+  async replaceFileChunks(filePath: string, chunks: EmbeddedChunk[]): Promise<void> {
     validateAbsoluteFilePath(filePath, "replaceFileChunks");
     await this.replaceFilesChunks(new Map([[filePath, chunks]]));
   }
 
   /** Atomically replace chunks for one or more files in a single table version. */
-  async replaceFilesChunks(
-    replacements: ReadonlyMap<string, EmbeddedChunk[]>,
-  ): Promise<void> {
+  async replaceFilesChunks(replacements: ReadonlyMap<string, EmbeddedChunk[]>): Promise<void> {
     if (replacements.size === 0) {
       return;
     }
@@ -376,8 +342,7 @@ export class VectorStore {
       validateAbsoluteFilePath(filePath, "replaceFilesChunks");
 
       const mismatchedChunk = chunks.find(
-        (chunk) =>
-          normalizeFilePath(chunk.filePath) !== normalizeFilePath(filePath),
+        (chunk) => normalizeFilePath(chunk.filePath) !== normalizeFilePath(filePath),
       );
       if (mismatchedChunk) {
         throw new Error(
@@ -413,9 +378,7 @@ export class VectorStore {
       const replacementRows = toLanceRecords(replacementChunks);
       const uniqueIds = new Set(replacementRows.map((row) => row.id));
       if (uniqueIds.size !== replacementRows.length) {
-        throw new Error(
-          "replaceFilesChunks requires unique replacement chunk IDs",
-        );
+        throw new Error("replaceFilesChunks requires unique replacement chunk IDs");
       }
 
       const oldChunkIds = await this.getChunkIdsForFiles(replacements.keys());
@@ -426,10 +389,7 @@ export class VectorStore {
         return;
       }
 
-      let merge = this.table
-        .mergeInsert("id")
-        .whenMatchedUpdateAll()
-        .whenNotMatchedInsertAll();
+      let merge = this.table.mergeInsert("id").whenMatchedUpdateAll().whenNotMatchedInsertAll();
       if (oldChunkIds.length > 0) {
         merge = merge.whenNotMatchedBySourceDelete({
           where: chunkIdPredicate(oldChunkIds),
@@ -485,10 +445,7 @@ export class VectorStore {
 /**
  * Create a vector store for a directory
  */
-export function createVectorStore(
-  directory: string,
-  config: VectorStoreConfig,
-): VectorStore {
+export function createVectorStore(directory: string, config: VectorStoreConfig): VectorStore {
   return new VectorStore(directory, config);
 }
 

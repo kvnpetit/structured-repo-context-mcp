@@ -167,6 +167,4 @@ const dependencyGraphDataSchema = z
   })
   .strict();
 
-export const dependencyGraphOutputSchema = createFeatureResultSchema(
-  dependencyGraphDataSchema,
-);
+export const dependencyGraphOutputSchema = createFeatureResultSchema(dependencyGraphDataSchema);

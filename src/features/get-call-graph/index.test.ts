@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -137,9 +129,7 @@ describe("execute", () => {
       ],
     });
 
-    (embeddings.formatCallContext as Mock).mockReturnValue(
-      "Calls: helperFunction",
-    );
+    (embeddings.formatCallContext as Mock).mockReturnValue("Calls: helperFunction");
   });
 
   afterEach(() => {
@@ -253,9 +243,7 @@ function helperFunction() {
       truncated: true,
       maxNodes: 2,
     });
-    expect(
-      Object.keys((result.data as { graph: { nodes: object } }).graph.nodes),
-    ).toHaveLength(2);
+    expect(Object.keys((result.data as { graph: { nodes: object } }).graph.nodes)).toHaveLength(2);
   });
 
   test("queries specific function when functionName is provided", async () => {
@@ -300,9 +288,7 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    (embeddings.buildCallGraph as Mock).mockRejectedValue(
-      new Error("Parse error"),
-    );
+    (embeddings.buildCallGraph as Mock).mockRejectedValue(new Error("Parse error"));
 
     const result = await execute({
       directory: tempDir,
@@ -351,12 +337,10 @@ function helperFunction() {
 
     // First call returns null (not found in specified path)
     // Second call finds it in the graph
-    (embeddings.getCallContext as Mock)
-      .mockReturnValueOnce(null)
-      .mockReturnValue({
-        callers: [],
-        callees: [],
-      });
+    (embeddings.getCallContext as Mock).mockReturnValueOnce(null).mockReturnValue({
+      callers: [],
+      callees: [],
+    });
 
     (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map([

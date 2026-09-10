@@ -12,15 +12,11 @@ export const parseAstSchema = z
     file_path: z
       .string()
       .optional()
-      .describe(
-        "Path to the file to parse (either file_path or content required)",
-      ),
+      .describe("Path to the file to parse (either file_path or content required)"),
     content: z
       .string()
       .optional()
-      .describe(
-        "Code content to parse directly (either file_path or content required)",
-      ),
+      .describe("Code content to parse directly (either file_path or content required)"),
     language: z
       .string()
       .optional()
@@ -53,9 +49,7 @@ export const parseAstSchema = z
       .max(100_000)
       .optional()
       .default(10_000)
-      .describe(
-        "Maximum AST nodes materialized in the response (default: 10000)",
-      ),
+      .describe("Maximum AST nodes materialized in the response (default: 10000)"),
   })
   .refine((data) => data.file_path ?? data.content, {
     message: "Either file_path or content must be provided",
@@ -84,8 +78,7 @@ const parseAstDataSchema = z
   })
   .strict();
 
-export const parseAstOutputSchema =
-  createFeatureResultSchema(parseAstDataSchema);
+export const parseAstOutputSchema = createFeatureResultSchema(parseAstDataSchema);
 
 export async function execute(input: ParseAstInput): Promise<FeatureResult> {
   const parsedInput = parseAstSchema.parse(input);
@@ -118,17 +111,12 @@ export async function execute(input: ParseAstInput): Promise<FeatureResult> {
     const root = getASTRoot(parseResult, max_depth, max_text_bytes, max_nodes);
 
     // Count nodes directly from the tree (accurate regardless of max_depth)
-    const observedNodeCount = countNodes(
-      parseResult.tree.rootNode,
-      max_nodes + 1,
-    );
+    const observedNodeCount = countNodes(parseResult.tree.rootNode, max_nodes + 1);
     const nodeCount = Math.min(observedNodeCount, max_nodes);
 
     const data = {
       language: parseResult.language,
-      ...(parseResult.grammar === undefined
-        ? {}
-        : { grammar: parseResult.grammar }),
+      ...(parseResult.grammar === undefined ? {} : { grammar: parseResult.grammar }),
       root,
       node_count: nodeCount,
       text_max_bytes: max_text_bytes,

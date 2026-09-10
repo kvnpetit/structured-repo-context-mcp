@@ -66,8 +66,7 @@ describe("repository map", () => {
         path.join(directory, "large.ts"),
         Array.from(
           { length: 40 },
-          (_, index) =>
-            `export function function${String(index)}() { return ${String(index)}; }`,
+          (_, index) => `export function function${String(index)}() { return ${String(index)}; }`,
         ).join("\n"),
       );
 

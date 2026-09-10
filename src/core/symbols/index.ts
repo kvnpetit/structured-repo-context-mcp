@@ -3,13 +3,7 @@
  */
 import type { Language, Tree } from "web-tree-sitter";
 
-import type {
-  Export,
-  Import,
-  QueryMatch,
-  Symbol,
-  SymbolType,
-} from "@core/ast/types";
+import type { Export, Import, QueryMatch, Symbol, SymbolType } from "@core/ast/types";
 import {
   executeQuery,
   executePresetQuery,
@@ -90,17 +84,11 @@ export function extractSymbols(
       ? extractSymbolsFromTags(tree, languageInstance, language).definitions
       : undefined;
 
-  const matchesFor = (
-    preset: "functions" | "classes",
-    kinds: readonly string[],
-  ): QueryMatch[] => {
+  const matchesFor = (preset: "functions" | "classes", kinds: readonly string[]): QueryMatch[] => {
     if (officialDefinitions === undefined) {
-      return executePresetQuery(tree, languageInstance, language, preset)
-        .matches;
+      return executePresetQuery(tree, languageInstance, language, preset).matches;
     }
-    const matching = officialDefinitions.filter((definition) =>
-      kinds.includes(definition.kind),
-    );
+    const matching = officialDefinitions.filter((definition) => kinds.includes(definition.kind));
     if (matching.length > 0) {
       const singular = preset === "functions" ? "function" : "class";
       return matching.map((definition) => ({
@@ -133,8 +121,7 @@ export function extractSymbols(
         const nameCapture = findCapture(match.captures, "function.name");
 
         if (defCapture) {
-          const name =
-            nameCapture?.node.text ?? getFunctionName(defCapture.node);
+          const name = nameCapture?.node.text ?? getFunctionName(defCapture.node);
           if (name) {
             const isMethod =
               defCapture.node.type.includes("method") ||
@@ -170,10 +157,7 @@ export function extractSymbols(
           // Determine type based on AST node type
           const nodeType = defCapture.node.type;
           let symbolType: SymbolType = "class";
-          if (
-            nodeType.includes("interface") ||
-            nodeType === "interface_declaration"
-          ) {
+          if (nodeType.includes("interface") || nodeType === "interface_declaration") {
             symbolType = "interface";
           } else if (nodeType.includes("struct")) {
             symbolType = "interface";
@@ -196,12 +180,7 @@ export function extractSymbols(
   // Extract variables and constants
   if (shouldInclude("variable") || shouldInclude("constant")) {
     try {
-      const varResult = executePresetQuery(
-        tree,
-        languageInstance,
-        language,
-        "variables",
-      );
+      const varResult = executePresetQuery(tree, languageInstance, language, "variables");
 
       for (const match of varResult.matches) {
         const nameCapture = findCaptureByNames(match.captures, [
@@ -238,18 +217,9 @@ export function extractSymbols(
   }
 
   // Extract types (interfaces, type aliases, enums)
-  if (
-    shouldInclude("interface") ||
-    shouldInclude("type") ||
-    shouldInclude("enum")
-  ) {
+  if (shouldInclude("interface") || shouldInclude("type") || shouldInclude("enum")) {
     try {
-      const typeResult = executePresetQuery(
-        tree,
-        languageInstance,
-        language,
-        "types",
-      );
+      const typeResult = executePresetQuery(tree, languageInstance, language, "types");
 
       for (const match of typeResult.matches) {
         const nameCapture = findCaptureByNames(match.captures, [
@@ -316,10 +286,9 @@ function extractFunctionSignature(node: {
   const text = node.text;
 
   // For JavaScript/TypeScript-like syntax
-  const jsMatch =
-    /^(async\s+)?function\s*\*?\s*(\w*)\s*(<[^>]*>)?\s*\([^)]*\)(\s*:\s*[^{]+)?/.exec(
-      text,
-    );
+  const jsMatch = /^(async\s+)?function\s*\*?\s*(\w*)\s*(<[^>]*>)?\s*\([^)]*\)(\s*:\s*[^{]+)?/.exec(
+    text,
+  );
   if (jsMatch) {
     return jsMatch[0].trim();
   }

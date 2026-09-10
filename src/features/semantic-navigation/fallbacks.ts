@@ -48,9 +48,7 @@ export function executeScipFallback(
   }
   const catalogResult = readScipCatalog(root);
   if (!catalogResult.ok) {
-    return input.backend === "scip"
-      ? { success: false, error: catalogResult.error }
-      : undefined;
+    return input.backend === "scip" ? { success: false, error: catalogResult.error } : undefined;
   }
   if (catalogResult.catalog === undefined) {
     return undefined;
@@ -75,11 +73,7 @@ export function executeScipFallback(
         };
   let secretsRedacted = false;
   if (input.operation === "hover") {
-    const bounded = boundedText(
-      lookup.hover ?? "",
-      input.max_source_bytes,
-      input.redact_secrets,
-    );
+    const bounded = boundedText(lookup.hover ?? "", input.max_source_bytes, input.redact_secrets);
     secretsRedacted ||= bounded.redacted;
     const output: SemanticNavigationOutput = {
       operation: input.operation,
@@ -98,9 +92,7 @@ export function executeScipFallback(
       external_locations_ignored: 0,
       source_is_untrusted: true,
       secrets_redacted: secretsRedacted,
-      warnings: [
-        "SCIP is a local imported snapshot; re-import it after source changes.",
-      ],
+      warnings: ["SCIP is a local imported snapshot; re-import it after source changes."],
     };
     return {
       success: true,
@@ -114,10 +106,7 @@ export function executeScipFallback(
   let truncated = lookup.locations.length > input.max_results;
   const seen = new Set<string>();
   for (const location of lookup.locations) {
-    const secureFile = resolveSecureFile(
-      path.resolve(root, location.file_path),
-      root,
-    );
+    const secureFile = resolveSecureFile(path.resolve(root, location.file_path), root);
     if (!secureFile.ok) {
       ignoredExternal += 1;
       continue;
@@ -180,9 +169,7 @@ export function executeScipFallback(
     external_locations_ignored: ignoredExternal,
     source_is_untrusted: true,
     secrets_redacted: secretsRedacted,
-    warnings: [
-      "SCIP is a local imported snapshot; re-import it after source changes.",
-    ],
+    warnings: ["SCIP is a local imported snapshot; re-import it after source changes."],
   };
   return {
     success: true,
@@ -210,11 +197,9 @@ export async function executeFallback(
     return symbolResult;
   }
   const symbolData = symbolResult.data as SymbolAtPositionData | undefined;
-  const containingSymbol =
-    symbolData === undefined ? undefined : fallbackPosition(symbolData);
+  const containingSymbol = symbolData === undefined ? undefined : fallbackPosition(symbolData);
   const queryName =
-    identifierAtPosition(content, input.line, input.column) ??
-    containingSymbol?.name;
+    identifierAtPosition(content, input.line, input.column) ?? containingSymbol?.name;
   const symbol =
     queryName === undefined
       ? containingSymbol
@@ -226,8 +211,7 @@ export async function executeFallback(
   ];
   let secretsRedacted = false;
   if (symbolData?.symbol?.source !== undefined) {
-    secretsRedacted =
-      input.redact_secrets && symbolData.symbol.source.includes("[REDACTED");
+    secretsRedacted = input.redact_secrets && symbolData.symbol.source.includes("[REDACTED");
   }
 
   if (input.operation === "diagnostics") {
@@ -242,8 +226,7 @@ export async function executeFallback(
         const lastColumn = Array.from(lines[lastLine - 1] ?? "").length;
         diagnostics = [
           {
-            message:
-              "Tree-sitter detected one or more syntax errors in this file",
+            message: "Tree-sitter detected one or more syntax errors in this file",
             start: { line: 1, column: 0, offset: 0 },
             end: {
               line: lastLine,
@@ -283,10 +266,7 @@ export async function executeFallback(
     };
   }
 
-  if (
-    input.operation === "implementation" ||
-    input.operation === "type_hierarchy"
-  ) {
+  if (input.operation === "implementation" || input.operation === "type_hierarchy") {
     warnings.push(
       `${input.operation === "implementation" ? "Implementation" : "Type hierarchy"} lookup requires a local LSP; no approximate result was fabricated.`,
     );
@@ -342,16 +322,9 @@ export async function executeFallback(
   if (input.operation === "hover") {
     const raw = symbolData?.symbol;
     const hoverText = [raw?.documentation, raw?.signature, raw?.source]
-      .filter(
-        (value): value is string =>
-          value !== undefined && value.trim().length > 0,
-      )
+      .filter((value): value is string => value !== undefined && value.trim().length > 0)
       .join("\n\n");
-    const bounded = boundedText(
-      hoverText,
-      input.max_source_bytes,
-      input.redact_secrets,
-    );
+    const bounded = boundedText(hoverText, input.max_source_bytes, input.redact_secrets);
     secretsRedacted ||= bounded.redacted;
     const output: SemanticNavigationOutput = {
       operation: input.operation,
@@ -394,11 +367,8 @@ export async function executeFallback(
     .filter(
       (
         match,
-      ): match is Required<Pick<typeof match, "file_path" | "start" | "end">> &
-        typeof match =>
-        match.file_path !== undefined &&
-        match.start !== undefined &&
-        match.end !== undefined,
+      ): match is Required<Pick<typeof match, "file_path" | "start" | "end">> & typeof match =>
+        match.file_path !== undefined && match.start !== undefined && match.end !== undefined,
     )
     .map((match) => ({
       file_path: match.file_path,

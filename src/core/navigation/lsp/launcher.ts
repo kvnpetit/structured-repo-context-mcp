@@ -13,11 +13,7 @@ const NPM_SERVERS: Readonly<Record<string, string>> = {
   "pyright-langserver": "pyright",
 };
 
-function packageEntry(
-  directory: string,
-  packageName: string,
-  binName: string,
-): string | undefined {
+function packageEntry(directory: string, packageName: string, binName: string): string | undefined {
   try {
     const manifest = path.join(directory, "package.json");
     if (fs.statSync(manifest).size > 64 * 1024) {
@@ -68,14 +64,10 @@ export function resolveLspCommand(
     return descriptor;
   }
   const pathValue =
-    Object.entries(environment).find(
-      ([key]) => key.toUpperCase() === "PATH",
-    )?.[1] ?? "";
+    Object.entries(environment).find(([key]) => key.toUpperCase() === "PATH")?.[1] ?? "";
   const directories = path.isAbsolute(descriptor.command)
     ? [path.dirname(descriptor.command)]
-    : pathValue
-        .split(path.delimiter)
-        .filter((directory) => path.isAbsolute(directory));
+    : pathValue.split(path.delimiter).filter((directory) => path.isAbsolute(directory));
   for (const directory of directories) {
     const native = path.join(directory, `${binName}.exe`);
     try {

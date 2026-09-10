@@ -2,8 +2,7 @@ import type { TaskOwner } from "./ownership";
 
 export const TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks" as const;
 
-export type TaskStatus =
-  "working" | "input_required" | "completed" | "failed" | "cancelled";
+export type TaskStatus = "working" | "input_required" | "completed" | "failed" | "cancelled";
 
 export interface TaskError {
   code: number;

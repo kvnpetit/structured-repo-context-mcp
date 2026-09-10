@@ -1,11 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  errorMessage,
-  errorResult,
-  successMessage,
-  successResult,
-} from "@features/utils";
+import { errorMessage, errorResult, successMessage, successResult } from "@features/utils";
 
 describe("Result Utilities", () => {
   describe("errorResult", () => {

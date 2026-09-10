@@ -151,9 +151,7 @@ function resolveImportPath(
 /**
  * Analyze a resolved file and extract its symbols
  */
-async function analyzeResolvedFile(
-  filePath: string,
-): Promise<ResolvedFileCache | null> {
+async function analyzeResolvedFile(filePath: string): Promise<ResolvedFileCache | null> {
   // Check cache
   const cached = resolvedFileCache.get(filePath);
   if (cached !== undefined) {
@@ -241,11 +239,7 @@ export async function resolveCrossFileContext(
 
   // Process imports (limited to maxImports)
   for (const imp of imports.slice(0, maxImports)) {
-    const resolvedPath = resolveImportPath(
-      imp.source,
-      currentFilePath,
-      options,
-    );
+    const resolvedPath = resolveImportPath(imp.source, currentFilePath, options);
 
     if (!resolvedPath) {
       resolvedImports.push({
@@ -270,11 +264,10 @@ export async function resolveCrossFileContext(
     }
 
     // Find symbols that match the imported names
-    const importedSymbols = findImportedSymbols(
-      imp,
-      analysis.symbols,
-      analysis.exports,
-    ).slice(0, maxSymbolsPerFile);
+    const importedSymbols = findImportedSymbols(imp, analysis.symbols, analysis.exports).slice(
+      0,
+      maxSymbolsPerFile,
+    );
 
     resolvedImports.push({
       import: imp,
@@ -296,9 +289,7 @@ export async function resolveCrossFileContext(
 /**
  * Build a summary string of imported symbols for enrichment
  */
-function buildImportedSymbolsSummary(
-  resolvedImports: ResolvedImport[],
-): string {
+function buildImportedSymbolsSummary(resolvedImports: ResolvedImport[]): string {
   const lines: string[] = [];
 
   for (const resolved of resolvedImports) {
@@ -315,9 +306,7 @@ function buildImportedSymbolsSummary(
     });
 
     if (symbolDescriptions.length > 0) {
-      lines.push(
-        `From ${resolved.import.source}: ${symbolDescriptions.join("; ")}`,
-      );
+      lines.push(`From ${resolved.import.source}: ${symbolDescriptions.join("; ")}`);
     }
   }
 

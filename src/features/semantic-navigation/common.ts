@@ -4,10 +4,7 @@ import { redactSourceText } from "@core/security";
 
 import type { NavigationLocation } from "./types";
 
-export function stringIndexAtByteOffset(
-  content: string,
-  byteOffset: number,
-): number {
+export function stringIndexAtByteOffset(content: string, byteOffset: number): number {
   let low = 0;
   let high = content.length;
   while (low < high) {
@@ -29,8 +26,7 @@ export function positionFromLsp(
   if (offset === undefined) {
     return undefined;
   }
-  const lineText =
-    content.split("\n")[position.line]?.replace(/\r$/u, "") ?? "";
+  const lineText = content.split("\n")[position.line]?.replace(/\r$/u, "") ?? "";
   const prefix = lineText.slice(0, position.character);
   return {
     line: position.line + 1,
@@ -63,13 +59,8 @@ export function boundedText(
   maxBytes: number,
   redact: boolean,
 ): { text: string; truncated: boolean; redacted: boolean } {
-  const source = redact
-    ? redactSourceText(value)
-    : { text: value, redacted: false };
-  const bounded = source.text.slice(
-    0,
-    stringIndexAtByteOffset(source.text, maxBytes),
-  );
+  const source = redact ? redactSourceText(value) : { text: value, redacted: false };
+  const bounded = source.text.slice(0, stringIndexAtByteOffset(source.text, maxBytes));
   return {
     text: bounded,
     truncated: bounded.length < source.text.length,

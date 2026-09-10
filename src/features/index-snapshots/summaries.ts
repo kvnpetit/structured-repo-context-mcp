@@ -14,8 +14,7 @@ export function summarizeSnapshots(
   truncated: boolean;
 } {
   const valid = snapshots.filter(
-    (entry): entry is { manifest: SnapshotManifest; id: string } =>
-      entry.manifest !== undefined,
+    (entry): entry is { manifest: SnapshotManifest; id: string } => entry.manifest !== undefined,
   );
   return {
     summaries: valid.slice(0, limit).map((entry) => ({
@@ -28,10 +27,7 @@ export function summarizeSnapshots(
       total_bytes: entry.manifest.total_bytes,
       valid: true,
     })),
-    totalBytes: valid.reduce(
-      (total, entry) => total + entry.manifest.total_bytes,
-      0,
-    ),
+    totalBytes: valid.reduce((total, entry) => total + entry.manifest.total_bytes, 0),
     truncated: snapshots.length > limit,
   };
 }

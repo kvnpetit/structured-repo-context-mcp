@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
 export const navigationOperations = [
   "definition",
@@ -21,9 +18,7 @@ export const semanticNavigationSchema = z.object({
   file_path: z.string().describe("Source file path relative to directory"),
   line: z.number().int().positive().describe("1-based source line"),
   column: z.number().int().min(0).describe("0-based character column"),
-  operation: z
-    .enum(navigationOperations)
-    .describe("Semantic navigation operation to perform"),
+  operation: z.enum(navigationOperations).describe("Semantic navigation operation to perform"),
   backend: z
     .enum(backendValues)
     .optional()
@@ -45,11 +40,7 @@ export const semanticNavigationSchema = z.object({
     .optional()
     .default(500)
     .describe("Maximum files used by the Tree-sitter fallback"),
-  include_source: z
-    .boolean()
-    .optional()
-    .default(true)
-    .describe("Include bounded source snippets"),
+  include_source: z.boolean().optional().default(true).describe("Include bounded source snippets"),
   max_source_bytes: z
     .number()
     .int()
@@ -74,9 +65,7 @@ export const semanticNavigationSchema = z.object({
 });
 
 export type SemanticNavigationInput = z.input<typeof semanticNavigationSchema>;
-export type SemanticNavigationOptions = z.infer<
-  typeof semanticNavigationSchema
->;
+export type SemanticNavigationOptions = z.infer<typeof semanticNavigationSchema>;
 
 const navigationPositionSchema = z
   .object({ line: z.number(), column: z.number(), offset: z.number() })
@@ -87,10 +76,7 @@ const semanticNavigationDataSchema = z
     operation: z.enum(navigationOperations),
     requested_backend: z.enum(backendValues),
     backend_used: z.enum(["lsp", "scip", "treesitter"]),
-    lsp_server: z
-      .object({ id: z.string(), command: z.string() })
-      .strict()
-      .optional(),
+    lsp_server: z.object({ id: z.string(), command: z.string() }).strict().optional(),
     file_path: z.string(),
     language: z.string(),
     source_revision: z.string().optional(),

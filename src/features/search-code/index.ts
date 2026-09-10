@@ -33,16 +33,8 @@ import {
   createPaginationScope,
   decodePaginationCursor,
 } from "@core/pagination";
-import {
-  readSecureTextFile,
-  resolveSecureDirectory,
-  safeErrorMessage,
-} from "@core/security";
-import {
-  searchCodeOutputSchema,
-  searchCodeSchema,
-  type SearchCodeInput,
-} from "./schema";
+import { readSecureTextFile, resolveSecureDirectory, safeErrorMessage } from "@core/security";
+import { searchCodeOutputSchema, searchCodeSchema, type SearchCodeInput } from "./schema";
 import {
   classifyQuery,
   confidenceForResult,
@@ -92,9 +84,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     return {
       success: false,
       error:
-        secureDirectory.error === "Path not found"
-          ? "Directory not found"
-          : secureDirectory.error,
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
@@ -143,12 +133,9 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       }
     ).getMetadata;
     const indexMetadata =
-      typeof getMetadata === "function"
-        ? getMetadata.call(vectorStore)
-        : undefined;
+      typeof getMetadata === "function" ? getMetadata.call(vectorStore) : undefined;
     // Generate query embedding
-    const queryVector =
-      effectiveMode === "fts" ? [] : await embeddingClient.embed(query);
+    const queryVector = effectiveMode === "fts" ? [] : await embeddingClient.embed(query);
 
     // Search for similar chunks using hybrid search (vector + BM25 + RRF)
     const filters = {
@@ -204,9 +191,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     const candidatesTruncated = results.length > MAX_SEARCH_CANDIDATES;
     results = results.slice(0, MAX_SEARCH_CANDIDATES).sort((left, right) => {
       const scoreOrder =
-        effectiveMode === "vector"
-          ? left.score - right.score
-          : right.score - left.score;
+        effectiveMode === "vector" ? left.score - right.score : right.score - left.score;
       return (
         scoreOrder ||
         left.chunk.filePath.localeCompare(right.chunk.filePath) ||
@@ -224,9 +209,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       results = results.filter((r) => r.score <= threshold);
     }
 
-    results = results.filter((result) =>
-      matchesSearchFilters(result, absoluteDir, filters),
-    );
+    results = results.filter((result) => matchesSearchFilters(result, absoluteDir, filters));
     const candidatesConsidered = results.length;
     const deduplicated = deduplicateResults(results);
     const expanded = await expandNeighborResults(
@@ -243,28 +226,17 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       result,
       confidence: confidenceForResult(result, index, all, query),
     }));
-    const confidentResults = scoredResults.filter(
-      ({ confidence }) => confidence >= min_confidence,
-    );
+    const confidentResults = scoredResults.filter(({ confidence }) => confidence >= min_confidence);
     const abstained =
-      min_confidence > 0 &&
-      scoredResults.length > 0 &&
-      confidentResults.length === 0;
+      min_confidence > 0 && scoredResults.length > 0 && confidentResults.length === 0;
     const abstentionReason = abstained
       ? `No result reached the requested confidence floor of ${String(min_confidence)}`
       : undefined;
-    const pageResults = confidentResults.slice(
-      cursorOffset,
-      cursorOffset + limit,
-    );
-    const hasNextPage =
-      cursorOffset + pageResults.length < confidentResults.length;
+    const pageResults = confidentResults.slice(cursorOffset, cursorOffset + limit);
+    const hasNextPage = cursorOffset + pageResults.length < confidentResults.length;
     const truncated = hasNextPage || candidatesTruncated || expanded.truncated;
     const nextCursor = hasNextPage
-      ? createPaginationCursor(
-          paginationScope,
-          cursorOffset + pageResults.length,
-        )
+      ? createPaginationCursor(paginationScope, cursorOffset + pageResults.length)
       : undefined;
 
     const index = indexMetadata
@@ -342,9 +314,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
         duplicates_removed: deduplicated.removed + expanded.duplicatesRemoved,
         min_confidence,
         abstained,
-        ...(abstentionReason === undefined
-          ? {}
-          : { abstention_reason: abstentionReason }),
+        ...(abstentionReason === undefined ? {} : { abstention_reason: abstentionReason }),
         content_limit_bytes: max_content_bytes,
         content_truncated_count: formatted.contentTruncatedCount,
         neighbor_window,
@@ -374,9 +344,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     // Build text message with results
     const resultLines = formattedResults.map((r, i) => {
       const location = `${r.filePath}:${String(r.startLine)}-${String(r.endLine)}`;
-      const symbol = r.symbolName
-        ? ` (${r.symbolType ?? "symbol"}: ${r.symbolName})`
-        : "";
+      const symbol = r.symbolName ? ` (${r.symbolType ?? "symbol"}: ${r.symbolName})` : "";
       const preview = r.content.slice(0, 100).replace(/\n/g, " ");
 
       let callInfo = "";

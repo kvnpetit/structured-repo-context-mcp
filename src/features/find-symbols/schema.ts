@@ -2,52 +2,21 @@ import { z } from "zod";
 
 import type { Position } from "@core/ast/types";
 import type { InstructionSignals } from "@core/security";
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
-const navigationModes = [
-  "definitions",
-  "references",
-  "imports",
-  "exports",
-  "all",
-] as const;
+const navigationModes = ["definitions", "references", "imports", "exports", "all"] as const;
 
 export const findSymbolsSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Project directory to inspect"),
-  file_path: z
-    .string()
-    .optional()
-    .describe("Optional file path, relative to directory"),
+  directory: z.string().optional().default(".").describe("Project directory to inspect"),
+  file_path: z.string().optional().describe("Optional file path, relative to directory"),
   query: z
     .string()
     .optional()
     .default("")
     .describe("Symbol or module text to find; empty lists all definitions"),
-  mode: z
-    .enum(navigationModes)
-    .optional()
-    .default("definitions")
-    .describe("What to return"),
-  limit: z
-    .number()
-    .int()
-    .positive()
-    .max(100)
-    .optional()
-    .default(50)
-    .describe("Maximum matches"),
-  cursor: z
-    .string()
-    .max(1_024)
-    .optional()
-    .describe("Opaque cursor returned by a previous page"),
+  mode: z.enum(navigationModes).optional().default("definitions").describe("What to return"),
+  limit: z.number().int().positive().max(100).optional().default(50).describe("Maximum matches"),
+  cursor: z.string().max(1_024).optional().describe("Opaque cursor returned by a previous page"),
   max_files: z
     .number()
     .int()
@@ -125,6 +94,4 @@ const findSymbolsDataSchema = z
   })
   .strict();
 
-export const findSymbolsOutputSchema = createFeatureResultSchema(
-  findSymbolsDataSchema,
-);
+export const findSymbolsOutputSchema = createFeatureResultSchema(findSymbolsDataSchema);

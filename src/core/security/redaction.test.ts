@@ -25,9 +25,7 @@ describe("source redaction", () => {
   });
 
   test("still redacts unquoted secret assignments", () => {
-    const result = redactSourceText(
-      "token: actual-secret-value\npassword: SuperSecret123",
-    );
+    const result = redactSourceText("token: actual-secret-value\npassword: SuperSecret123");
 
     expect(result).toEqual({
       text: "token: [REDACTED]\npassword: [REDACTED]",

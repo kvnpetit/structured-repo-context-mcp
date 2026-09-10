@@ -55,30 +55,24 @@ describe("streaming lexical search with native LanceDB", () => {
     let visited = 0;
     const batchLengths: number[] = [];
     const fields = new Set<string>();
-    vi.spyOn(query, Symbol.asyncIterator).mockImplementation(
-      async function* () {
-        const stream = iterator();
-        for (;;) {
-          const next = await stream.next();
-          if (next.done) {
-            return;
-          }
-          batches += 1;
-          visited += next.value.numRows;
-          batchLengths.push(next.value.numRows);
-          next.value.schema.fields.forEach((field) => {
-            fields.add(field.name);
-          });
-          yield next.value;
+    vi.spyOn(query, Symbol.asyncIterator).mockImplementation(async function* () {
+      const stream = iterator();
+      for (;;) {
+        const next = await stream.next();
+        if (next.done) {
+          return;
         }
-      },
-    );
-    vi.spyOn(query, "toArray").mockRejectedValue(
-      new Error("Unbounded materialization"),
-    );
-    vi.spyOn(query, "toArrow").mockRejectedValue(
-      new Error("Unbounded materialization"),
-    );
+        batches += 1;
+        visited += next.value.numRows;
+        batchLengths.push(next.value.numRows);
+        next.value.schema.fields.forEach((field) => {
+          fields.add(field.name);
+        });
+        yield next.value;
+      }
+    });
+    vi.spyOn(query, "toArray").mockRejectedValue(new Error("Unbounded materialization"));
+    vi.spyOn(query, "toArrow").mockRejectedValue(new Error("Unbounded materialization"));
     vi.spyOn(table, "query").mockReturnValue(query);
 
     const results = await searchLexical(table, "needle", 3);
@@ -97,15 +91,9 @@ describe("streaming lexical search with native LanceDB", () => {
   });
 
   test("uses deterministic tie order regardless of insertion or fragment order", async () => {
-    const first = await database.createTable("first", [
-      row("c", "needle"),
-      row("a", "needle"),
-    ]);
+    const first = await database.createTable("first", [row("c", "needle"), row("a", "needle")]);
     await first.add([row("b", "needle"), row("d", "needle")]);
-    const second = await database.createTable("second", [
-      row("d", "needle"),
-      row("b", "needle"),
-    ]);
+    const second = await database.createTable("second", [row("d", "needle"), row("b", "needle")]);
     await second.add([row("a", "needle"), row("c", "needle")]);
     for (const table of [first, second]) {
       for (const limit of [1, 2, 4, 10]) {
@@ -137,16 +125,8 @@ describe("streaming lexical search with native LanceDB", () => {
   });
 
   test("the FTS failure path uses streaming lexical results", async () => {
-    const table = await database.createTable("fallback", [
-      row("b", "needle"),
-      row("a", "needle"),
-    ]);
-    const results = await searchFts(
-      table,
-      async () => Promise.resolve(),
-      "needle",
-      1,
-    );
+    const table = await database.createTable("fallback", [row("b", "needle"), row("a", "needle")]);
+    const results = await searchFts(table, async () => Promise.resolve(), "needle", 1);
     expect(results.map((result) => result.chunk.id)).toEqual(["a"]);
   });
 
@@ -167,10 +147,7 @@ describe("streaming lexical search with native LanceDB", () => {
     );
     const expected = rows
       .filter((entry) => entry.score > 0)
-      .sort(
-        (left, right) =>
-          right.score - left.score || left.data.id.localeCompare(right.data.id),
-      );
+      .sort((left, right) => right.score - left.score || left.data.id.localeCompare(right.data.id));
     for (const limit of [1, 7, 40, 300]) {
       const results = await searchLexical(table, "needle", limit);
       expect(results.map((result) => [result.chunk.id, result.score])).toEqual(

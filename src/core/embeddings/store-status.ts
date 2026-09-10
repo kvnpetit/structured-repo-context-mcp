@@ -40,9 +40,7 @@ export async function readMaintenanceStatus(
     status.totalBytes = nonNegativeInteger(stats.totalBytes);
     status.rows = nonNegativeInteger(stats.numRows);
     status.fragmentCount = nonNegativeInteger(stats.fragmentStats.numFragments);
-    status.smallFragmentCount = nonNegativeInteger(
-      stats.fragmentStats.numSmallFragments,
-    );
+    status.smallFragmentCount = nonNegativeInteger(stats.fragmentStats.numSmallFragments);
   } catch {
     // Keep normalized zero values and let the caller inspect warnings.
   }
@@ -59,8 +57,7 @@ export async function readMaintenanceStatus(
       usesV2ManifestPaths?: () => Promise<boolean>;
     };
     if (typeof manifestTable.usesV2ManifestPaths === "function") {
-      status.manifestPathsV2 =
-        await manifestTable.usesV2ManifestPaths.call(table);
+      status.manifestPathsV2 = await manifestTable.usesV2ManifestPaths.call(table);
     }
   } catch {
     // Older LanceDB tables may not expose this capability.
@@ -101,9 +98,7 @@ export async function readIndexStatus(
   return status;
 }
 
-export async function readIndexedFiles(
-  table: lancedb.Table | null,
-): Promise<string[]> {
+export async function readIndexedFiles(table: lancedb.Table | null): Promise<string[]> {
   if (!table) {
     return [];
   }

@@ -16,26 +16,17 @@ function quoteWindowsArg(value: string): string {
   return /[\s&|<>^]/.test(value) ? `"${value.replaceAll('"', '\\"')}"` : value;
 }
 
-async function run(
-  command: string,
-  args: string[],
-  cwd: string,
-): Promise<CommandResult> {
+async function run(command: string, args: string[], cwd: string): Promise<CommandResult> {
   return await new Promise((resolve, reject) => {
-    const windowsCommand =
-      process.platform === "win32" && command.toLowerCase().endsWith(".cmd");
-    const executable = windowsCommand
-      ? (process.env.ComSpec ?? "cmd.exe")
-      : command;
+    const windowsCommand = process.platform === "win32" && command.toLowerCase().endsWith(".cmd");
+    const executable = windowsCommand ? (process.env.ComSpec ?? "cmd.exe") : command;
     const executableArgs = windowsCommand
       ? [
           "/d",
           "/s",
           "/c",
           [command, ...args]
-            .map((value, index) =>
-              index === 0 ? value : quoteWindowsArg(value),
-            )
+            .map((value, index) => (index === 0 ? value : quoteWindowsArg(value)))
             .join(" "),
         ]
       : args;
@@ -58,11 +49,7 @@ async function run(
         resolve({ stdout, stderr });
         return;
       }
-      reject(
-        new Error(
-          `${command} exited with ${signal ?? String(code)}\n${stderr || stdout}`,
-        ),
-      );
+      reject(new Error(`${command} exited with ${signal ?? String(code)}\n${stderr || stdout}`));
     });
   });
 }
@@ -81,9 +68,10 @@ function packageFilename(value: unknown): string {
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-const packageJson = JSON.parse(
-  await readFile(path.join(projectRoot, "package.json"), "utf8"),
-) as { name?: string; version?: string };
+const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8")) as {
+  name?: string;
+  version?: string;
+};
 const packageName = packageJson.name ?? "src-mcp";
 const packageVersion = packageJson.version ?? "unknown";
 const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "src-mcp-package-"));
@@ -94,10 +82,7 @@ try {
     ["pack", "--json", "--pack-destination", tempDirectory],
     projectRoot,
   );
-  const tarball = path.join(
-    tempDirectory,
-    packageFilename(JSON.parse(packed.stdout)),
-  );
+  const tarball = path.join(tempDirectory, packageFilename(JSON.parse(packed.stdout)));
   const installDirectory = path.join(tempDirectory, "install");
   await mkdir(installDirectory, { recursive: true });
 
@@ -115,11 +100,7 @@ try {
     projectRoot,
   );
 
-  const installedPackage = path.join(
-    installDirectory,
-    "node_modules",
-    packageName,
-  );
+  const installedPackage = path.join(installDirectory, "node_modules", packageName);
   await run(
     process.execPath,
     [

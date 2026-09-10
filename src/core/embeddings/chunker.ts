@@ -23,11 +23,7 @@ import type { CodeChunk, EmbeddingConfig } from "./types";
 /**
  * Generate a unique ID for a chunk
  */
-function generateChunkId(
-  filePath: string,
-  content: string,
-  startLine: number,
-): string {
+function generateChunkId(filePath: string, content: string, startLine: number): string {
   const hash = crypto
     .createHash("md5")
     .update(`${filePath}:${String(startLine)}:${content}`)
@@ -52,7 +48,7 @@ export function detectLanguage(filePath: string): string {
  */
 function createLineLookup(content: string): (offset: number) => number {
   const starts = [0];
-  for (let index = content.indexOf("\n"); index >= 0;) {
+  for (let index = content.indexOf("\n"); index >= 0; ) {
     starts.push(index + 1);
     index = content.indexOf("\n", index + 1);
   }
@@ -128,11 +124,7 @@ function splitLargeContent(
       // Keep overlap lines
       const overlapLines: { text: string; line: number }[] = [];
       let overlapSize = 0;
-      for (
-        let i = currentChunk.length - 1;
-        i >= 0 && overlapSize < overlap;
-        i--
-      ) {
+      for (let i = currentChunk.length - 1; i >= 0 && overlapSize < overlap; i--) {
         const l = currentChunk[i];
         if (l !== undefined) {
           overlapLines.unshift(l);
@@ -164,7 +156,7 @@ function splitLargeContent(
 
 function linesIn(value: string): number {
   let lines = 1;
-  for (let index = value.indexOf("\n"); index >= 0;) {
+  for (let index = value.indexOf("\n"); index >= 0; ) {
     lines += 1;
     index = value.indexOf("\n", index + 1);
   }
@@ -253,9 +245,7 @@ export async function chunkFile(
   }
 
   // Sort symbols by start offset
-  const sortedSymbols = [...symbols].sort(
-    (a, b) => a.start.offset - b.start.offset,
-  );
+  const sortedSymbols = [...symbols].sort((a, b) => a.start.offset - b.start.offset);
 
   // Build regions: symbols + gaps between them
   const regions: ContentRegion[] = [];
@@ -264,9 +254,7 @@ export async function chunkFile(
   for (const symbol of sortedSymbols) {
     // Add gap before this symbol (if any significant content)
     if (symbol.start.offset > lastEndOffset) {
-      const gapContent = content
-        .slice(lastEndOffset, symbol.start.offset)
-        .trim();
+      const gapContent = content.slice(lastEndOffset, symbol.start.offset).trim();
       if (gapContent.length > 0) {
         regions.push({
           content: content.slice(lastEndOffset, symbol.start.offset),
@@ -335,12 +323,7 @@ export async function chunkFile(
       );
     } else {
       // Too large, split it
-      const parts = splitLargeContent(
-        regionContent,
-        maxSize,
-        overlap,
-        regionStartLine,
-      );
+      const parts = splitLargeContent(regionContent, maxSize, overlap, regionStartLine);
 
       for (const part of parts) {
         chunks.push(
@@ -383,13 +366,7 @@ async function fallbackChunk(
       chunkOverlap: overlap,
     });
     return result.chunks.map((chunk) =>
-      createChunk(
-        filePath,
-        language,
-        chunk.content,
-        chunk.startLine,
-        chunk.endLine,
-      ),
+      createChunk(filePath, language, chunk.content, chunk.startLine, chunk.endLine),
     );
   }
 
@@ -397,15 +374,7 @@ async function fallbackChunk(
   const parts = splitLargeContent(content, maxSize, overlap);
 
   for (const part of parts) {
-    chunks.push(
-      createChunk(
-        filePath,
-        language,
-        part.content,
-        part.startLine,
-        part.endLine,
-      ),
-    );
+    chunks.push(createChunk(filePath, language, part.content, part.startLine, part.endLine));
   }
 
   return chunks;

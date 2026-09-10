@@ -1,7 +1,4 @@
-import type {
-  CallGraph,
-  CallGraphNode,
-} from "@core/embeddings/callgraph-types";
+import type { CallGraph, CallGraphNode } from "@core/embeddings/callgraph-types";
 
 export function getCallContext(
   graph: CallGraph,

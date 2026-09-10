@@ -26,19 +26,14 @@ describe("local LSP navigation helpers", () => {
   test("parses fragmented frames and retains an incomplete remainder", () => {
     const body = Buffer.from('{"jsonrpc":"2.0","id":1,"result":null}', "utf8");
     const frame = Buffer.concat([
-      Buffer.from(
-        `Content-Length: ${String(body.byteLength)}\r\n\r\n`,
-        "ascii",
-      ),
+      Buffer.from(`Content-Length: ${String(body.byteLength)}\r\n\r\n`, "ascii"),
       body,
     ]);
     const first = parseLspFrames(frame.subarray(0, 9));
     expect(first.messages).toHaveLength(0);
     expect(first.remainder).toEqual(frame.subarray(0, 9));
 
-    const second = parseLspFrames(
-      Buffer.concat([first.remainder, frame.subarray(9)]),
-    );
+    const second = parseLspFrames(Buffer.concat([first.remainder, frame.subarray(9)]));
     expect(second.error).toBeUndefined();
     expect(second.messages.map((message) => message.toString("utf8"))).toEqual([
       body.toString("utf8"),
@@ -50,9 +45,7 @@ describe("local LSP navigation helpers", () => {
     const oversizedHeader = parseLspFrames(Buffer.alloc(16 * 1024 + 1, 0x61));
     expect(oversizedHeader.error).toMatch(/header exceeds/u);
 
-    const oversizedBody = parseLspFrames(
-      Buffer.from("Content-Length: 8388609\r\n\r\n", "ascii"),
-    );
+    const oversizedBody = parseLspFrames(Buffer.from("Content-Length: 8388609\r\n\r\n", "ascii"));
     expect(oversizedBody.error).toMatch(/message exceeds/u);
   });
 
@@ -74,10 +67,7 @@ describe("local LSP navigation helpers", () => {
 
     expect(lspLocationPath(pathToFileURL(file).toString(), root)).toBe(file);
     expect(
-      lspLocationPath(
-        pathToFileURL(path.join(os.tmpdir(), "outside.ts")).toString(),
-        root,
-      ),
+      lspLocationPath(pathToFileURL(path.join(os.tmpdir(), "outside.ts")).toString(), root),
     ).toBeUndefined();
   });
 

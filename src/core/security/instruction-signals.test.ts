@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  mergeInstructionSignals,
-  scanInstructionSignals,
-} from "@core/security";
+import { mergeInstructionSignals, scanInstructionSignals } from "@core/security";
 
 describe("instruction signal detection", () => {
   test("detects override, tool, and secret-exfiltration language without returning source text", () => {
@@ -21,9 +18,7 @@ describe("instruction signal detection", () => {
       ]),
     );
     expect(result.signals[0]).toMatchObject({ source: "README.md", line: 1 });
-    expect(JSON.stringify(result)).not.toContain(
-      "Ignore previous instructions",
-    );
+    expect(JSON.stringify(result)).not.toContain("Ignore previous instructions");
   });
 
   test("detects hidden bidi controls and reports byte offsets", () => {

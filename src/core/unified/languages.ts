@@ -53,8 +53,7 @@ export function detectLanguage(filePath: string): string {
   }
 
   extensionToLanguageCache ??= loadConfig().fallbackExtensions;
-  const mappedLanguage =
-    extensionToLanguageCache[extname(filePath).toLowerCase()];
+  const mappedLanguage = extensionToLanguageCache[extname(filePath).toLowerCase()];
   if (mappedLanguage) {
     return mappedLanguage;
   }
@@ -134,11 +133,11 @@ export function getSupportedLanguagesInfo(): {
     extensions: value.extensions,
   }));
   const fallbackExtensions: Record<string, string[]> = {};
-  for (const [extension, language] of Object.entries(
-    config.fallbackExtensions,
-  )) {
+  for (const [extension, language] of Object.entries(config.fallbackExtensions)) {
     if (!config.treesitter[language]) {
-      (fallbackExtensions[language] ??= []).push(extension);
+      const extensions = fallbackExtensions[language] ?? [];
+      extensions.push(extension);
+      fallbackExtensions[language] = extensions;
     }
   }
   for (const [language, extensions] of Object.entries(fallbackExtensions)) {

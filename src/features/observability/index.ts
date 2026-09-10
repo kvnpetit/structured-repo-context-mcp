@@ -68,9 +68,7 @@ const observabilityDataSchema = z
   })
   .strict();
 
-export const observabilityOutputSchema = createFeatureResultSchema(
-  observabilityDataSchema,
-);
+export const observabilityOutputSchema = createFeatureResultSchema(observabilityDataSchema);
 
 function nonNegativeInteger(value: number): number {
   return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
@@ -125,8 +123,8 @@ function prometheusExport(
     "# HELP src_mcp_tool_duration_ms_p95 Recent p95 tool duration.",
     "# TYPE src_mcp_tool_duration_ms_p95 gauge",
   ];
-  for (const [tool, metric] of Object.entries(metrics.tools).sort(
-    ([left], [right]) => left.localeCompare(right),
+  for (const [tool, metric] of Object.entries(metrics.tools).sort(([left], [right]) =>
+    left.localeCompare(right),
   )) {
     const labels = `tool="${escapePrometheusLabel(metricToolLabel(tool))}"`;
     lines.push(
@@ -159,9 +157,7 @@ export function execute(rawInput: ObservabilityInput): FeatureResult {
   const metrics = getMetricsSnapshot();
   const audit = getAuditStatus(secureDirectory.path);
   const prometheus =
-    input.format === "prometheus"
-      ? prometheusExport(metrics, runtime, audit)
-      : undefined;
+    input.format === "prometheus" ? prometheusExport(metrics, runtime, audit) : undefined;
   const data = {
     directory: secureDirectory.path,
     format: input.format,

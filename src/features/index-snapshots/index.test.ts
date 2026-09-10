@@ -24,22 +24,14 @@ describe("manage_index_snapshots", () => {
   });
 
   test("creates, lists, verifies, and restores a local snapshot", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-snapshot-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-snapshot-"));
     directories.push(directory);
     const indexDirectory = path.join(directory, ".src-index");
     fs.mkdirSync(path.join(indexDirectory, "code_chunks.lance"), {
       recursive: true,
     });
-    fs.writeFileSync(
-      path.join(indexDirectory, "metadata.json"),
-      '{"schemaVersion":1}',
-    );
-    fs.writeFileSync(
-      path.join(indexDirectory, "code_chunks.lance", "data.bin"),
-      "original-index",
-    );
+    fs.writeFileSync(path.join(indexDirectory, "metadata.json"), '{"schemaVersion":1}');
+    fs.writeFileSync(path.join(indexDirectory, "code_chunks.lance", "data.bin"), "original-index");
 
     const snapshot = await execute({ operation: "snapshot", directory });
     expect(snapshot.success).toBe(true);
@@ -57,10 +49,7 @@ describe("manage_index_snapshots", () => {
       return;
     }
 
-    fs.writeFileSync(
-      path.join(indexDirectory, "code_chunks.lance", "data.bin"),
-      "corrupted-index",
-    );
+    fs.writeFileSync(path.join(indexDirectory, "code_chunks.lance", "data.bin"), "corrupted-index");
     const restored = await execute({
       operation: "restore",
       directory,
@@ -69,45 +58,28 @@ describe("manage_index_snapshots", () => {
     });
     expect(restored.success).toBe(true);
     expect(
-      fs.readFileSync(
-        path.join(indexDirectory, "code_chunks.lance", "data.bin"),
-        "utf8",
-      ),
+      fs.readFileSync(path.join(indexDirectory, "code_chunks.lance", "data.bin"), "utf8"),
     ).toBe("original-index");
 
     const listed = await execute({ operation: "list", directory });
     expect(listed.success).toBe(true);
     if (listed.success) {
-      expect(
-        (listed.data as { snapshots: { valid: boolean }[] }).snapshots[0]
-          ?.valid,
-      ).toBe(true);
+      expect((listed.data as { snapshots: { valid: boolean }[] }).snapshots[0]?.valid).toBe(true);
     }
   });
 
   test("rejects corrupt snapshot content before restore", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-snapshot-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-snapshot-"));
     directories.push(directory);
     fs.mkdirSync(path.join(directory, ".src-index"), { recursive: true });
-    fs.writeFileSync(
-      path.join(directory, ".src-index", "metadata.json"),
-      "metadata",
-    );
+    fs.writeFileSync(path.join(directory, ".src-index", "metadata.json"), "metadata");
     const snapshot = await execute({ operation: "snapshot", directory });
     expect(snapshot.success).toBe(true);
     if (!snapshot.success) {
       return;
     }
     const id = (snapshot.data as { snapshot_id: string }).snapshot_id;
-    const payload = path.join(
-      directory,
-      ".src-index-snapshots",
-      id,
-      "payload",
-      "metadata.json",
-    );
+    const payload = path.join(directory, ".src-index-snapshots", id, "payload", "metadata.json");
     fs.writeFileSync(payload, "tampered");
     const result = await execute({
       operation: "restore",
@@ -117,11 +89,8 @@ describe("manage_index_snapshots", () => {
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain("verification failed");
-    expect(
-      fs.readFileSync(
-        path.join(directory, ".src-index", "metadata.json"),
-        "utf8",
-      ),
-    ).toBe("metadata");
+    expect(fs.readFileSync(path.join(directory, ".src-index", "metadata.json"), "utf8")).toBe(
+      "metadata",
+    );
   });
 });

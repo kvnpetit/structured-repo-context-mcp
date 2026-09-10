@@ -55,7 +55,10 @@ export type LspResult =
     };
 
 export type LspFailureReason =
-  "disabled" | "unsupported_language" | "server_unavailable" | "request_failed";
+  | "disabled"
+  | "unsupported_language"
+  | "server_unavailable"
+  | "request_failed";
 
 export type LspAttempt =
   | { ok: true; result: LspResult }

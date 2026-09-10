@@ -54,13 +54,8 @@ export function loadCallGraphCache(
   }
 
   try {
-    const cached = JSON.parse(
-      fs.readFileSync(cachePath, "utf-8"),
-    ) as SerializedCallGraph;
-    if (
-      Object.keys(cached.fileHashes).length !==
-      Object.keys(currentHashes).length
-    ) {
+    const cached = JSON.parse(fs.readFileSync(cachePath, "utf-8")) as SerializedCallGraph;
+    if (Object.keys(cached.fileHashes).length !== Object.keys(currentHashes).length) {
       logger.debug("Call graph cache invalid: file count changed");
       return null;
     }

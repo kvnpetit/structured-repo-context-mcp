@@ -16,9 +16,7 @@ afterEach(() => {
 });
 
 async function createIndex(): Promise<string> {
-  const directory = fs.mkdtempSync(
-    path.join(os.tmpdir(), "src-mcp-maintenance-"),
-  );
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-maintenance-"));
   directories.push(directory);
   const store = new VectorStore(directory, EMBEDDING_CONFIG);
   await store.connect();
@@ -107,9 +105,7 @@ describe("maintain_index", () => {
   });
 
   test("reports a missing index without creating one for inspection", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-maintenance-empty-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-maintenance-empty-"));
     directories.push(directory);
 
     const result = await execute({ directory, operation: "inspect" });

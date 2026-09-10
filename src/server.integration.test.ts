@@ -68,15 +68,14 @@ describe("MCP stdio integration", () => {
         expect(tool.inputSchema.type).toBe("object");
         expect(tool.outputSchema).toBeDefined();
         expect(tool.annotations?.readOnlyHint).toBeDefined();
-        expect(tool.annotations?.destructiveHint).toBe(
-          destructiveTools.has(tool.name),
-        );
+        expect(tool.annotations?.destructiveHint).toBe(destructiveTools.has(tool.name));
       }
 
       const resources = await client.listResources();
-      expect(
-        resources.resources.slice(0, 2).map((resource) => resource.uri),
-      ).toEqual(["src://server/info", "src://server/capabilities"]);
+      expect(resources.resources.slice(0, 2).map((resource) => resource.uri)).toEqual([
+        "src://server/info",
+        "src://server/capabilities",
+      ]);
       expect(resources.resources.length).toBeGreaterThanOrEqual(2);
       expect(
         resources.resources
@@ -144,13 +143,10 @@ describe("MCP stdio integration", () => {
       const contextStructured = context.structuredContent as {
         data?: unknown;
       };
-      const contextData = contextStructured.data as
-        Record<string, unknown> | undefined;
+      const contextData = contextStructured.data as Record<string, unknown> | undefined;
       expect(contextData?.source_is_untrusted).toBe(true);
       expect(typeof contextData?.project_kind).toBe("string");
-      expect(String(contextData?.profile_fingerprint)).toMatch(
-        /^[a-f0-9]{64}$/u,
-      );
+      expect(String(contextData?.profile_fingerprint)).toMatch(/^[a-f0-9]{64}$/u);
     } finally {
       await client.close();
     }

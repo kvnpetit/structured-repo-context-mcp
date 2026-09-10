@@ -10,10 +10,7 @@ import {
 } from "@core/embeddings/chunker";
 import type { EmbeddingClient } from "@core/embeddings/client";
 import { validateEmbeddingBatch } from "@core/embeddings/client";
-import {
-  enrichChunksFromFile,
-  type EnrichmentOptions,
-} from "@core/embeddings/enricher";
+import { enrichChunksFromFile, type EnrichmentOptions } from "@core/embeddings/enricher";
 import type { EmbeddedChunk, EmbeddingConfig } from "@core/embeddings/types";
 export { computeContentHash } from "@core/embeddings/hash-cache";
 import { isSensitiveFileName } from "@core/files";
@@ -34,24 +31,17 @@ export function shouldIndexPath(
   }
   const relativePath = path.relative(directory, filePath).replace(/\\/g, "/");
   const parentParts = relativePath.split("/").slice(0, -1);
-  if (
-    parentParts.some((part) => part.startsWith(".")) ||
-    ignoreFilter.ignores(relativePath)
-  ) {
+  if (parentParts.some((part) => part.startsWith(".")) || ignoreFilter.ignores(relativePath)) {
     return false;
   }
-  return (
-    !isSensitiveFileName(path.basename(filePath)) && shouldIndexFile(filePath)
-  );
+  return !isSensitiveFileName(path.basename(filePath)) && shouldIndexFile(filePath);
 }
 
 export async function collectIndexableFiles(
   directory: string,
   ignoreFilter: Ignore,
 ): Promise<string[]> {
-  const extensions = SUPPORTED_EXTENSIONS.map((extension) =>
-    extension.slice(1),
-  );
+  const extensions = SUPPORTED_EXTENSIONS.map((extension) => extension.slice(1));
   const patterns = [
     `**/*.{${extensions.join(",")}}`,
     ...SUPPORTED_FILENAMES.map((filename) => `**/${filename}`),
@@ -67,9 +57,7 @@ export async function collectIndexableFiles(
     onlyFiles: true,
     followSymbolicLinks: false,
   });
-  return files.filter((filePath) =>
-    shouldIndexPath(directory, ignoreFilter, filePath),
-  );
+  return files.filter((filePath) => shouldIndexPath(directory, ignoreFilter, filePath));
 }
 
 export async function embedFileContent(
@@ -83,11 +71,7 @@ export async function embedFileContent(
   if (chunks.length === 0) {
     return [];
   }
-  const enrichedChunks = await enrichChunksFromFile(
-    chunks,
-    content,
-    enrichmentOptions,
-  );
+  const enrichedChunks = await enrichChunksFromFile(chunks, content, enrichmentOptions);
   const texts = enrichedChunks.map((chunk) => chunk.enrichedContent);
   const embeddings = await embeddingClient.embedBatch(texts);
   validateEmbeddingBatch(embeddings, texts.length, config.embeddingDimensions);

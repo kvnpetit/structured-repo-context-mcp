@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -107,30 +99,16 @@ describe("searchCodeSchema", () => {
   });
 
   test("validates reranking mode values", () => {
-    expect(
-      searchCodeSchema.safeParse({ query: "test", rerank: "lexical" }).success,
-    ).toBe(true);
-    expect(
-      searchCodeSchema.safeParse({ query: "test", rerank: "none" }).success,
-    ).toBe(true);
-    expect(
-      searchCodeSchema.safeParse({ query: "test", rerank: "code" }).success,
-    ).toBe(true);
-    expect(
-      searchCodeSchema.safeParse({ query: "test", rerank: "llm" }).success,
-    ).toBe(false);
+    expect(searchCodeSchema.safeParse({ query: "test", rerank: "lexical" }).success).toBe(true);
+    expect(searchCodeSchema.safeParse({ query: "test", rerank: "none" }).success).toBe(true);
+    expect(searchCodeSchema.safeParse({ query: "test", rerank: "code" }).success).toBe(true);
+    expect(searchCodeSchema.safeParse({ query: "test", rerank: "llm" }).success).toBe(false);
   });
 
   test("validates the hybrid vector weight", () => {
-    expect(
-      searchCodeSchema.safeParse({ query: "test", vectorWeight: 0 }).success,
-    ).toBe(true);
-    expect(
-      searchCodeSchema.safeParse({ query: "test", vectorWeight: 1 }).success,
-    ).toBe(true);
-    expect(
-      searchCodeSchema.safeParse({ query: "test", vectorWeight: 1.1 }).success,
-    ).toBe(false);
+    expect(searchCodeSchema.safeParse({ query: "test", vectorWeight: 0 }).success).toBe(true);
+    expect(searchCodeSchema.safeParse({ query: "test", vectorWeight: 1 }).success).toBe(true);
+    expect(searchCodeSchema.safeParse({ query: "test", vectorWeight: 1.1 }).success).toBe(false);
   });
 });
 
@@ -152,9 +130,7 @@ describe("execute", () => {
 
     // Setup mocks
     mockHealthCheck = vi.fn().mockResolvedValue({ ok: true });
-    mockEmbed = vi
-      .fn()
-      .mockResolvedValue(new Array(768).fill(0).map(() => Math.random()));
+    mockEmbed = vi.fn().mockResolvedValue(new Array(768).fill(0).map(() => Math.random()));
     mockExists = vi.fn().mockReturnValue(true);
     mockConnect = vi.fn().mockResolvedValue(undefined);
     mockClose = vi.fn().mockResolvedValue(undefined);
@@ -279,9 +255,7 @@ describe("execute", () => {
         };
       };
       expect(data.results[0]?.content_truncated).toBe(true);
-      expect(Buffer.byteLength(data.results[0]?.content ?? "", "utf8")).toBe(
-        17,
-      );
+      expect(Buffer.byteLength(data.results[0]?.content ?? "", "utf8")).toBe(17);
       expect(data.retrieval).toEqual({
         content_limit_bytes: 17,
         content_truncated_count: 1,
@@ -564,12 +538,10 @@ describe("execute", () => {
     expect(data.results[0]?.filePath).toBe("src/service.ts");
     expect(data.filters.path_prefix).toBe("src");
     expect(data.filters.include_tests).toBe(false);
-    expect(mockSearchHybrid).toHaveBeenCalledWith(
-      expect.any(Array),
-      "service",
-      501,
-      { mode: "fts", vectorWeight: 0.5 },
-    );
+    expect(mockSearchHybrid).toHaveBeenCalledWith(expect.any(Array), "service", 501, {
+      mode: "fts",
+      vectorWeight: 0.5,
+    });
   });
 
   test("uses fts mode when specified", async () => {
@@ -582,12 +554,10 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockSearchHybrid).toHaveBeenCalledWith(
-      expect.any(Array),
-      "test query",
-      501,
-      { mode: "fts", vectorWeight: 0.5 },
-    );
+    expect(mockSearchHybrid).toHaveBeenCalledWith(expect.any(Array), "test query", 501, {
+      mode: "fts",
+      vectorWeight: 0.5,
+    });
   });
 
   test("uses vector mode when specified", async () => {
@@ -600,12 +570,10 @@ describe("execute", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockSearchHybrid).toHaveBeenCalledWith(
-      expect.any(Array),
-      "test query",
-      501,
-      { mode: "vector", vectorWeight: 0.5 },
-    );
+    expect(mockSearchHybrid).toHaveBeenCalledWith(expect.any(Array), "test query", 501, {
+      mode: "vector",
+      vectorWeight: 0.5,
+    });
   });
 
   test("includeCallContext adds callers and callees to results with symbol", async () => {
@@ -673,12 +641,7 @@ describe("execute", () => {
 
   test("includeCallContext formats more than 3 callers with ellipsis", async () => {
     mockGetCallContext.mockReturnValue({
-      callers: [
-        { name: "caller1" },
-        { name: "caller2" },
-        { name: "caller3" },
-        { name: "caller4" },
-      ],
+      callers: [{ name: "caller1" }, { name: "caller2" }, { name: "caller3" }, { name: "caller4" }],
       callees: [],
     });
 
@@ -719,8 +682,7 @@ describe("execute", () => {
       {
         chunk: {
           id: "chunk_parts",
-          content:
-            "// Loads the user profile\nfunction loadProfile() {\n  return profile;\n}",
+          content: "// Loads the user profile\nfunction loadProfile() {\n  return profile;\n}",
           filePath: path.join(tempDir, "profile.ts"),
           language: "typescript",
           startLine: 1,
@@ -753,12 +715,8 @@ describe("execute", () => {
       reranker: "lexical",
     });
     expect(data.results[0]?.confidence).toBeGreaterThan(0);
-    expect(data.results[0]?.parts.documentation).toContain(
-      "Loads the user profile",
-    );
-    expect(data.results[0]?.parts.signature).toContain(
-      "function loadProfile()",
-    );
+    expect(data.results[0]?.parts.documentation).toContain("Loads the user profile");
+    expect(data.results[0]?.parts.signature).toContain("function loadProfile()");
     expect(data.results[0]?.parts.body).toContain("return profile");
   });
 
@@ -839,23 +797,15 @@ describe("execute", () => {
         neighbor_distance?: number;
       }[];
     };
-    expect(mockGetAdjacentChunks).toHaveBeenCalledWith(
-      sourceFile,
-      "primary",
-      1,
-    );
+    expect(mockGetAdjacentChunks).toHaveBeenCalledWith(sourceFile, "primary", 1);
     expect(data.retrieval).toMatchObject({
       neighbor_window: 1,
       neighbors_added: 2,
       neighbor_candidates_considered: 3,
       neighbors_truncated: false,
     });
-    expect(
-      data.results.filter((item) => item.is_neighbor === true),
-    ).toHaveLength(2);
-    expect(
-      data.results.find((item) => item.is_neighbor === true),
-    ).toMatchObject({
+    expect(data.results.filter((item) => item.is_neighbor === true)).toHaveLength(2);
+    expect(data.results.find((item) => item.is_neighbor === true)).toMatchObject({
       filePath: "src.ts",
       neighbor_of: "primary",
       neighbor_distance: 1,

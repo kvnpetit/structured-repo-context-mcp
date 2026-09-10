@@ -10,10 +10,7 @@ function objectOptions(schema: z.ZodType): z.ZodObject[] {
   if (schema instanceof z.ZodObject) {
     return [schema];
   }
-  if (
-    schema instanceof z.ZodUnion ||
-    schema instanceof z.ZodDiscriminatedUnion
-  ) {
+  if (schema instanceof z.ZodUnion || schema instanceof z.ZodDiscriminatedUnion) {
     const options = schema.options.filter(
       (option): option is z.ZodObject => option instanceof z.ZodObject,
     );
@@ -45,9 +42,7 @@ function cliFields(schema: z.ZodType): Map<string, CliField> {
   for (const [key, field] of fields) {
     field.required =
       field.schemas.length === options.length &&
-      field.schemas.every(
-        (fieldSchema) => !fieldSchema.safeParse(undefined).success,
-      );
+      field.schemas.every((fieldSchema) => !fieldSchema.safeParse(undefined).success);
     fields.set(key, field);
   }
   return fields;
@@ -85,9 +80,7 @@ function defaultOf(schemas: readonly z.ZodType[]): unknown {
     return parsed.success ? parsed.data : undefined;
   });
   const first = defaults[0];
-  return defaults.length > 0 && defaults.every((value) => value === first)
-    ? first
-    : undefined;
+  return defaults.length > 0 && defaults.every((value) => value === first) ? first : undefined;
 }
 
 function enumOptions(schemas: readonly z.ZodType[]): string[] | undefined {
@@ -168,15 +161,10 @@ function coerceArray(value: string, schema: z.ZodArray): unknown[] {
     : value.length === 0
       ? []
       : value.split(",").map((entry) => entry.trim());
-  return values.map((entry) =>
-    coerceFieldValue(entry, [schema.element as z.ZodType]),
-  );
+  return values.map((entry) => coerceFieldValue(entry, [schema.element as z.ZodType]));
 }
 
-function candidateValues(
-  value: unknown,
-  schemas: readonly z.ZodType[],
-): unknown[] {
+function candidateValues(value: unknown, schemas: readonly z.ZodType[]): unknown[] {
   const candidates: unknown[] = [value];
   if (typeof value !== "string") {
     return candidates;
@@ -205,10 +193,7 @@ function candidateValues(
   return candidates;
 }
 
-function coerceFieldValue(
-  value: unknown,
-  schemas: readonly z.ZodType[],
-): unknown {
+function coerceFieldValue(value: unknown, schemas: readonly z.ZodType[]): unknown {
   for (const candidate of candidateValues(value, schemas)) {
     if (schemas.some((schema) => schema.safeParse(candidate).success)) {
       return candidate;

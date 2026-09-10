@@ -1,10 +1,6 @@
 import fs from "node:fs";
 
-import {
-  hashCachePath,
-  readHashCache,
-  writeHashCache,
-} from "@core/embeddings/hash-cache";
+import { hashCachePath, readHashCache, writeHashCache } from "@core/embeddings/hash-cache";
 import { computeSourceFingerprint } from "@core/embeddings/store";
 import { computeContentHash } from "@core/embeddings/watcher-indexing";
 import { logger } from "@utils";
@@ -28,14 +24,10 @@ export class WatcherHashCache {
       return;
     }
     if (!loaded.valid) {
-      logger.warn(
-        `Hash cache corrupted, resetting: ${loaded.error ?? "invalid entries"}`,
-      );
+      logger.warn(`Hash cache corrupted, resetting: ${loaded.error ?? "invalid entries"}`);
     }
     this.entries = loaded.cache;
-    logger.debug(
-      `Loaded ${String(Object.keys(this.entries).length)} cached hashes`,
-    );
+    logger.debug(`Loaded ${String(Object.keys(this.entries).length)} cached hashes`);
   }
 
   paths(): string[] {
@@ -62,8 +54,7 @@ export class WatcherHashCache {
         this.onPersist(computeSourceFingerprint(this.entries));
       });
     } catch (error) {
-      const normalized =
-        error instanceof Error ? error : new Error(String(error));
+      const normalized = error instanceof Error ? error : new Error(String(error));
       logger.debug(`Failed to save hash cache: ${normalized.message}`);
     }
   }

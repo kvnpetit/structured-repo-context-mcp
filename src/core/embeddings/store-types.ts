@@ -4,10 +4,7 @@ export type VectorStoreConfig = Pick<EmbeddingConfig, "embeddingDimensions"> &
   Partial<
     Pick<
       EmbeddingConfig,
-      | "embeddingModel"
-      | "embeddingProvider"
-      | "defaultChunkSize"
-      | "defaultChunkOverlap"
+      "embeddingModel" | "embeddingProvider" | "defaultChunkSize" | "defaultChunkOverlap"
     >
   >;
 

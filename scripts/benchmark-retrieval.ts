@@ -9,17 +9,13 @@ import type { SearchOutput } from "@features/search-code/types";
 import type { RankedEvaluation } from "@core/evaluation/ranked";
 
 function option(name: string): string | undefined {
-  return process.argv
-    .find((argument) => argument.startsWith(`--${name}=`))
-    ?.slice(name.length + 3);
+  return process.argv.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3);
 }
 
 function integer(name: string, fallback: number, maximum: number): number {
   const value = Number(option(name) ?? fallback);
   if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
-    throw new Error(
-      `--${name} must be an integer between 1 and ${String(maximum)}`,
-    );
+    throw new Error(`--${name} must be an integer between 1 and ${String(maximum)}`);
   }
   return value;
 }
@@ -30,12 +26,7 @@ function threshold(name: string): number | undefined {
     return undefined;
   }
   const value = Number(raw);
-  if (
-    raw.trim().length === 0 ||
-    !Number.isFinite(value) ||
-    value < 0 ||
-    value > 1
-  ) {
+  if (raw.trim().length === 0 || !Number.isFinite(value) || value < 0 || value > 1) {
     throw new Error(`--${name} must be between 0 and 1`);
   }
   return value;
@@ -43,26 +34,17 @@ function threshold(name: string): number | undefined {
 
 function percentile(values: readonly number[], ratio: number): number {
   const ordered = [...values].sort((left, right) => left - right);
-  return Number(
-    (ordered[Math.max(0, Math.ceil(ordered.length * ratio) - 1)] ?? 0).toFixed(
-      2,
-    ),
-  );
+  return Number((ordered[Math.max(0, Math.ceil(ordered.length * ratio) - 1)] ?? 0).toFixed(2));
 }
 
 function removeScratch(scratch: string): void {
-  const relative = path.relative(
-    path.resolve(os.tmpdir()),
-    path.resolve(scratch),
-  );
+  const relative = path.relative(path.resolve(os.tmpdir()), path.resolve(scratch));
   if (
     relative.startsWith("..") ||
     path.isAbsolute(relative) ||
     !path.basename(scratch).startsWith("src-retrieval-engine-")
   ) {
-    throw new Error(
-      "Refusing cleanup outside the benchmark temporary directory",
-    );
+    throw new Error("Refusing cleanup outside the benchmark temporary directory");
   }
   fs.rmSync(scratch, { recursive: true, force: true });
 }
@@ -88,38 +70,25 @@ function dataset(filePath: string): RetrievalQuery[] {
       entry.relevant.length === 0 ||
       entry.relevant.some((id: unknown) => typeof id !== "string")
     ) {
-      throw new Error(
-        "Every label requires a query and at least one relevant file ID",
-      );
+      throw new Error("Every label requires a query and at least one relevant file ID");
     }
     return { query: entry.query, relevant: entry.relevant as string[] };
   });
 }
 
 async function run(): Promise<void> {
-  const directory = path.resolve(
-    option("directory") ?? "benchmarks/golden-multilang",
-  );
-  const datasetPath = path.resolve(
-    option("dataset") ?? "benchmarks/retrieval-engine.json",
-  );
+  const directory = path.resolve(option("directory") ?? "benchmarks/golden-multilang");
+  const datasetPath = path.resolve(option("dataset") ?? "benchmarks/retrieval-engine.json");
   const iterations = integer("iterations", 5, 100);
   const warmup = integer("warmup", 1, 10);
   const maxFiles = integer("max-files", 500, 5000);
   const k = integer("k", 5, 100);
   const provider = option("provider") ?? "lexical";
   if (provider !== "lexical" && provider !== "ollama") {
-    throw new Error(
-      "--provider must be lexical or ollama (already installed locally)",
-    );
+    throw new Error("--provider must be lexical or ollama (already installed locally)");
   }
-  const modes = [
-    ...new Set((option("modes") ?? "fts,hybrid,vector").split(",")),
-  ];
-  if (
-    modes.length === 0 ||
-    modes.some((mode) => !["fts", "hybrid", "vector"].includes(mode))
-  ) {
+  const modes = [...new Set((option("modes") ?? "fts,hybrid,vector").split(","))];
+  if (modes.length === 0 || modes.some((mode) => !["fts", "hybrid", "vector"].includes(mode))) {
     throw new Error("--modes accepts fts,hybrid,vector");
   }
   const rerank = option("rerank") ?? "lexical";
@@ -137,12 +106,12 @@ async function run(): Promise<void> {
   process.env.EMBEDDING_PROVIDER = provider;
   process.env.LOG_LEVEL = "warn";
   const { collectFiles, createIgnoreFilter } = await import("@core/files");
-  const { readSecureTextFile, resolveSecureDirectory, isPathWithin } =
-    await import("@core/security");
+  const { readSecureTextFile, resolveSecureDirectory, isPathWithin } = await import(
+    "@core/security"
+  );
   const { evaluateRankedRetrieval } = await import("@core/evaluation/ranked");
   const { EMBEDDING_CONFIG } = await import("@config");
-  const { execute: indexCodebase, indexCodebaseSchema } =
-    await import("@features/index-codebase");
+  const { execute: indexCodebase, indexCodebaseSchema } = await import("@features/index-codebase");
   const { execute: searchCode } = await import("@features/search-code");
 
   const source = resolveSecureDirectory(directory);
@@ -150,16 +119,10 @@ async function run(): Promise<void> {
     throw new Error(source.error);
   }
   const queries = dataset(datasetPath);
-  const files = collectFiles(
-    source.path,
-    createIgnoreFilter(source.path),
-    source.path,
-  ).sort();
+  const files = collectFiles(source.path, createIgnoreFilter(source.path), source.path).sort();
   const selected = files.slice(0, maxFiles);
   const selectedIds = new Set(
-    selected.map((filePath) =>
-      path.relative(source.path, filePath).replaceAll(path.sep, "/"),
-    ),
+    selected.map((filePath) => path.relative(source.path, filePath).replaceAll(path.sep, "/")),
   );
   for (const query of queries) {
     for (const id of query.relevant) {
@@ -170,9 +133,7 @@ async function run(): Promise<void> {
       }
     }
   }
-  const scratch = fs.mkdtempSync(
-    path.join(os.tmpdir(), "src-retrieval-engine-"),
-  );
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "src-retrieval-engine-"));
   const originalRoots = process.env.SRC_ALLOWED_ROOTS;
   const initialRss = process.memoryUsage().rss;
   let peakRss = initialRss;
@@ -184,18 +145,13 @@ async function run(): Promise<void> {
     for (const filePath of selected) {
       const read = readSecureTextFile(filePath, source.path);
       if (!read.ok || read.content === undefined) {
-        throw new Error(
-          `Cannot safely copy corpus file ${path.relative(source.path, filePath)}`,
-        );
+        throw new Error(`Cannot safely copy corpus file ${path.relative(source.path, filePath)}`);
       }
       copiedBytes += Buffer.byteLength(read.content, "utf8");
       if (copiedBytes > 256 * 1024 * 1024) {
         throw new Error("Selected corpus exceeds the 256 MiB benchmark bound");
       }
-      const target = path.resolve(
-        scratch,
-        path.relative(source.path, filePath),
-      );
+      const target = path.resolve(scratch, path.relative(source.path, filePath));
       if (!isPathWithin(scratch, target)) {
         throw new Error("Corpus destination escaped its temporary root");
       }
@@ -204,9 +160,7 @@ async function run(): Promise<void> {
     }
     process.env.SRC_ALLOWED_ROOTS = scratch;
     const indexStart = performance.now();
-    const indexed = await indexCodebase(
-      indexCodebaseSchema.parse({ directory: scratch }),
-    );
+    const indexed = await indexCodebase(indexCodebaseSchema.parse({ directory: scratch }));
     const indexingMs = Number((performance.now() - indexStart).toFixed(2));
     if (!indexed.success) {
       throw new Error(indexed.error ?? "Indexing failed");
@@ -216,10 +170,7 @@ async function run(): Promise<void> {
       chunksCreated: number;
       errors: string[];
     };
-    if (
-      indexData.errors.length > 0 ||
-      indexData.filesIndexed !== selected.length
-    ) {
+    if (indexData.errors.length > 0 || indexData.filesIndexed !== selected.length) {
       throw new Error("Indexing did not cover the complete selected corpus");
     }
 
@@ -247,9 +198,7 @@ async function run(): Promise<void> {
           });
           const elapsed = performance.now() - start;
           if (!response.success) {
-            throw new Error(
-              `${mode} search failed: ${response.error ?? "unknown failure"}`,
-            );
+            throw new Error(`${mode} search failed: ${response.error ?? "unknown failure"}`);
           }
           if (iteration < 0) {
             continue;
@@ -284,9 +233,7 @@ async function run(): Promise<void> {
         queryReports.push({
           query: query.query,
           relevant: query.relevant,
-          returned: [
-            ...new Set(first.results.map((result) => result.filePath)),
-          ],
+          returned: [...new Set(first.results.map((result) => result.filePath))],
           returnedChunks: first.resultsCount,
           latencyMs: {
             p50: percentile(timings, 0.5),
@@ -301,15 +248,11 @@ async function run(): Promise<void> {
       for (const [metric, minimum] of Object.entries(thresholds)) {
         const actual = quality[metric as keyof typeof thresholds];
         if (minimum !== undefined && actual < minimum) {
-          failures.push(
-            `${mode}.${metric}=${String(actual)} is below ${String(minimum)}`,
-          );
+          failures.push(`${mode}.${metric}=${String(actual)} is below ${String(minimum)}`);
         }
       }
       if (queryReports.some((query) => !query.rankingStable)) {
-        failures.push(
-          `${mode} returned unstable rankings for an unchanged index`,
-        );
+        failures.push(`${mode} returned unstable rankings for an unchanged index`);
       }
       reports.push({
         mode,

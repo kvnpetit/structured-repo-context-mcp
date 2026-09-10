@@ -20,9 +20,7 @@ afterEach(() => {
 });
 
 function createProject(): string {
-  const directory = fs.mkdtempSync(
-    path.join(os.tmpdir(), "src-mcp-semantic-navigation-"),
-  );
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-semantic-navigation-"));
   temporaryDirectories.push(directory);
   fs.writeFileSync(
     path.join(directory, "module.ts"),
@@ -101,8 +99,7 @@ describe("semantic_navigation", () => {
     expect(definitionData.coverage).toBe("approximate");
     expect(definitionData.confidence).toBeGreaterThan(0);
     const definitionLocation = definitionData.locations.find(
-      (location) =>
-        location.file_path === "module.ts" && location.start.line === 1,
+      (location) => location.file_path === "module.ts" && location.start.line === 1,
     );
     expect(definitionLocation).toBeDefined();
     expect(definitionLocation?.snippet).toContain("function target");
@@ -125,8 +122,7 @@ describe("semantic_navigation", () => {
     };
     expect(
       referenceData.locations.some(
-        (location) =>
-          location.file_path === "module.ts" && location.start.line === 6,
+        (location) => location.file_path === "module.ts" && location.start.line === 6,
       ),
     ).toBe(true);
   });
@@ -155,10 +151,7 @@ describe("semantic_navigation", () => {
 
   test("reports approximate syntax diagnostics with the Tree-sitter backend", async () => {
     const directory = createProject();
-    fs.writeFileSync(
-      path.join(directory, "broken.ts"),
-      "export function broken( {\n",
-    );
+    fs.writeFileSync(path.join(directory, "broken.ts"), "export function broken( {\n");
     const result = await execute({
       directory,
       file_path: "broken.ts",
@@ -175,8 +168,7 @@ describe("semantic_navigation", () => {
         coverage: "approximate",
       });
       expect(
-        (result.data as { diagnostics: { severity?: string }[] }).diagnostics
-          .length,
+        (result.data as { diagnostics: { severity?: string }[] }).diagnostics.length,
       ).toBeGreaterThan(0);
     }
   });
@@ -221,9 +213,7 @@ describe("semantic_navigation", () => {
       backend_used: "treesitter",
       coverage: "approximate",
     });
-    expect(
-      (result.data as { warnings: string[] }).warnings.join(" "),
-    ).toContain("LSP unavailable");
+    expect((result.data as { warnings: string[] }).warnings.join(" ")).toContain("LSP unavailable");
   });
 
   test("returns an explicit error when LSP is required but disabled", async () => {

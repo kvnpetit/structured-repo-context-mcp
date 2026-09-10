@@ -30,9 +30,7 @@ describe("get_observability", () => {
   });
 
   test("returns structured local metrics without source or arguments", () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-observability-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-observability-"));
     directories.push(directory);
     metrics.recordTool("search_code", true, 12.5);
 
@@ -67,9 +65,7 @@ describe("get_observability", () => {
   });
 
   test("renders a bounded Prometheus export", () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-observability-prom-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-observability-prom-"));
     directories.push(directory);
     metrics.recordTool('tool"with\nlabel', false, 4);
 
@@ -78,9 +74,7 @@ describe("get_observability", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       const data = result.data as { prometheus?: string };
-      expect(data.prometheus).toContain(
-        "# TYPE src_mcp_tool_calls_total counter",
-      );
+      expect(data.prometheus).toContain("# TYPE src_mcp_tool_calls_total counter");
       expect(data.prometheus).toContain('tool="tool_with_label"');
       expect(result.message).toBe(data.prometheus);
     }

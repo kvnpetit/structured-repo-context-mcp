@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -67,9 +59,7 @@ beforeEach(() => {
 });
 
 // Chokidar emits its initial baseline asynchronously after listeners attach.
-function readyWatcher(
-  mockOn: Mock,
-): (event: string, handler: (...args: never[]) => void) => void {
+function readyWatcher(mockOn: Mock): (event: string, handler: (...args: never[]) => void) => void {
   return (event, handler) => {
     mockOn(event, handler);
     if (event === "ready") {
@@ -119,15 +109,15 @@ describe("IndexWatcher", () => {
     vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
-      this.embedBatch = vi
-        .fn()
-        .mockImplementation((texts: string[]): number[][] => {
-          return texts.map(() => new Array<number>(768).fill(0));
-        });
+      this.embedBatch = vi.fn().mockImplementation((texts: string[]): number[][] => {
+        return texts.map(() => new Array<number>(768).fill(0));
+      });
       return this;
     });
 
     // Setup VectorStore mock - use regular function so it can be used as constructor
+    // This mock is instantiated with `new` by IndexWatcher.
+    // biome-ignore lint/complexity/useArrowFunction: Vitest mock must remain constructable
     vi.mocked(VectorStore).mockImplementation(function () {
       const instance = {
         exists: vi.fn().mockReturnValue(true),
@@ -205,11 +195,7 @@ describe("IndexWatcher", () => {
 
     // Setup mockOn to capture and call the ready handler
     let readyHandler: (() => void) | undefined;
-    mockOn.mockImplementation(function (
-      this: { on: Mock },
-      event: string,
-      handler: () => void,
-    ) {
+    mockOn.mockImplementation(function (this: { on: Mock }, event: string, handler: () => void) {
       if (event === "ready") {
         readyHandler = handler;
       }
@@ -313,10 +299,7 @@ describe("IndexWatcher", () => {
 
     // Create cache file with data
     fs.mkdirSync(cacheDir, { recursive: true });
-    fs.writeFileSync(
-      cacheFile,
-      JSON.stringify({ "file1.ts": "hash1", "file2.ts": "hash2" }),
-    );
+    fs.writeFileSync(cacheFile, JSON.stringify({ "file1.ts": "hash1", "file2.ts": "hash2" }));
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -335,10 +318,7 @@ describe("IndexWatcher", () => {
 
     // Create cache file
     fs.mkdirSync(cacheDir, { recursive: true });
-    fs.writeFileSync(
-      cacheFile,
-      JSON.stringify({ "cached.ts": "existinghash" }),
-    );
+    fs.writeFileSync(cacheFile, JSON.stringify({ "cached.ts": "existinghash" }));
 
     const watcher = new IndexWatcher({
       directory: tempDir,
@@ -368,9 +348,7 @@ describe("IndexWatcher", () => {
 
   test("start throws when Ollama health check fails", async () => {
     vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
-      this.healthCheck = vi
-        .fn()
-        .mockResolvedValue({ ok: false, error: "Ollama down" });
+      this.healthCheck = vi.fn().mockResolvedValue({ ok: false, error: "Ollama down" });
       this.embed = vi.fn();
       this.embedBatch = vi.fn();
       return this;
@@ -405,6 +383,8 @@ describe("IndexWatcher", () => {
     const fg = await import("fast-glob");
     vi.mocked(fg.default).mockResolvedValue([]);
 
+    // This mock is instantiated with `new` by IndexWatcher.
+    // biome-ignore lint/complexity/useArrowFunction: Vitest mock must remain constructable
     vi.mocked(VectorStore).mockImplementation(function () {
       const instance = {
         exists: vi.fn().mockReturnValue(false),
@@ -429,7 +409,6 @@ describe("IndexWatcher", () => {
 
     // Full index should have been triggered
     const storeInstance = lastVectorStoreInstance;
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(storeInstance?.getIndexedFiles).toHaveBeenCalled();
   });
 
@@ -534,17 +513,15 @@ describe("IndexWatcher", () => {
           endLine: 1,
         },
       ]);
-    vi.spyOn(enricherModule, "enrichChunksFromFile").mockImplementation(
-      async (chunks) => {
-        await Promise.resolve();
-        return chunks.map((chunk) => ({
-          ...chunk,
-          enrichedContent: chunk.content,
-          containedSymbols: [],
-          wasEnriched: false,
-        }));
-      },
-    );
+    vi.spyOn(enricherModule, "enrichChunksFromFile").mockImplementation(async (chunks) => {
+      await Promise.resolve();
+      return chunks.map((chunk) => ({
+        ...chunk,
+        enrichedContent: chunk.content,
+        containedSymbols: [],
+        wasEnriched: false,
+      }));
+    });
 
     changeHandler?.(testFile);
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -554,7 +531,6 @@ describe("IndexWatcher", () => {
     expect(onError).toHaveBeenCalledTimes(1);
     expect(chunkFile).toHaveBeenCalledTimes(2);
     const storeInstance = lastVectorStoreInstance;
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(storeInstance?.replaceFileChunks).toHaveBeenCalledTimes(1);
   });
 
@@ -619,9 +595,7 @@ describe("IndexWatcher", () => {
 
   test("watcher ignored callback skips hidden files", async () => {
     let ignoredCallback: ((filePath: string) => boolean) | undefined;
-    (shouldIndexFile as Mock).mockImplementation((filePath: string) =>
-      filePath.endsWith(".env"),
-    );
+    (shouldIndexFile as Mock).mockImplementation((filePath: string) => filePath.endsWith(".env"));
 
     (watch as Mock).mockImplementation(
       (_paths: unknown, options?: { ignored?: (path: string) => boolean }) => {
@@ -651,9 +625,7 @@ describe("IndexWatcher", () => {
     expect(ignoredCallback?.(path.join(tempDir, ".env"))).toBe(false);
 
     // Normal files should not be ignored
-    expect(ignoredCallback?.(path.join(tempDir, "src", "index.ts"))).toBe(
-      false,
-    );
+    expect(ignoredCallback?.(path.join(tempDir, "src", "index.ts"))).toBe(false);
   });
 
   test("watcher handles non-Error in error event", async () => {
@@ -685,10 +657,8 @@ describe("IndexWatcher", () => {
     }
 
     expect(onError).toHaveBeenCalled();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const errorArg = onError.mock.calls[0]?.[0];
     expect(errorArg).toBeInstanceOf(Error);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(errorArg?.message).toBe("string error");
   });
 });
@@ -729,11 +699,9 @@ describe("IndexWatcher - debounced operations", () => {
     vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
-      this.embedBatch = vi
-        .fn()
-        .mockImplementation((texts: string[]): number[][] => {
-          return texts.map(() => new Array<number>(768).fill(0));
-        });
+      this.embedBatch = vi.fn().mockImplementation((texts: string[]): number[][] => {
+        return texts.map(() => new Array<number>(768).fill(0));
+      });
       return this;
     });
 
@@ -750,8 +718,7 @@ describe("IndexWatcher - debounced operations", () => {
     });
 
     (shouldIndexFile as Mock).mockImplementation(
-      (filePath: string) =>
-        filePath.endsWith(".ts") || filePath.endsWith(".js"),
+      (filePath: string) => filePath.endsWith(".ts") || filePath.endsWith(".js"),
     );
   });
 
@@ -946,14 +913,14 @@ describe("IndexWatcher - full index", () => {
     vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
-      this.embedBatch = vi
-        .fn()
-        .mockImplementation((texts: string[]): number[][] => {
-          return texts.map(() => new Array<number>(768).fill(0));
-        });
+      this.embedBatch = vi.fn().mockImplementation((texts: string[]): number[][] => {
+        return texts.map(() => new Array<number>(768).fill(0));
+      });
       return this;
     });
 
+    // This mock is instantiated with `new` by IndexWatcher.
+    // biome-ignore lint/complexity/useArrowFunction: Vitest mock must remain constructable
     vi.mocked(VectorStore).mockImplementation(function () {
       const instance = {
         exists: vi.fn().mockReturnValue(false),
@@ -1010,11 +977,7 @@ describe("IndexWatcher - full index", () => {
 
     // Replacement should have been called during fullIndex
     const storeInstance = lastVectorStoreInstance;
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(storeInstance?.replaceFileChunks).toHaveBeenCalledWith(
-      testFile,
-      expect.any(Array),
-    );
+    expect(storeInstance?.replaceFileChunks).toHaveBeenCalledWith(testFile, expect.any(Array));
     expect(enrichSpy).toHaveBeenCalledWith(
       expect.any(Array),
       "export const x = 1;",
@@ -1036,10 +999,7 @@ describe("IndexWatcher - full index", () => {
 
     // Pre-compute the hash of the file content
     const content = "const cached = true;";
-    const hash = crypto
-      .createHash("sha256")
-      .update(content, "utf8")
-      .digest("hex");
+    const hash = crypto.createHash("sha256").update(content, "utf8").digest("hex");
     fs.writeFileSync(
       path.join(cacheDir, ".src-index-hashes.json"),
       JSON.stringify({ [testFile]: hash }),
@@ -1110,9 +1070,7 @@ describe("IndexWatcher - shouldIndex", () => {
   };
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "watcher-shouldindex-test-"),
-    );
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "watcher-shouldindex-test-"));
     vi.clearAllMocks();
 
     mockOn = vi.fn().mockReturnThis();
@@ -1168,9 +1126,7 @@ describe("IndexWatcher - shouldIndex", () => {
     await watcher.start();
 
     // Hidden files should be ignored
-    expect(ignoredCallback?.(path.join(tempDir, ".hidden", "file.ts"))).toBe(
-      true,
-    );
+    expect(ignoredCallback?.(path.join(tempDir, ".hidden", "file.ts"))).toBe(true);
   });
 
   test("shouldIndex respects gitignore patterns", async () => {
@@ -1197,9 +1153,7 @@ describe("IndexWatcher - shouldIndex", () => {
     await watcher.start();
 
     // node_modules should be ignored per gitignore
-    expect(
-      ignoredCallback?.(path.join(tempDir, "node_modules", "pkg", "index.js")),
-    ).toBe(true);
+    expect(ignoredCallback?.(path.join(tempDir, "node_modules", "pkg", "index.js"))).toBe(true);
   });
 
   test("handles gitignore read error gracefully", () => {
@@ -1247,9 +1201,7 @@ describe("IndexWatcher - error handling", () => {
     vi.mocked(OllamaClient).mockImplementation(function (this: OllamaClient) {
       this.healthCheck = vi.fn().mockResolvedValue({ ok: true });
       this.embed = vi.fn().mockResolvedValue(new Array<number>(768).fill(0));
-      this.embedBatch = vi
-        .fn()
-        .mockRejectedValue(new Error("Embedding failed"));
+      this.embedBatch = vi.fn().mockRejectedValue(new Error("Embedding failed"));
       return this;
     });
 
@@ -1260,28 +1212,22 @@ describe("IndexWatcher - error handling", () => {
       this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn().mockResolvedValue(undefined);
-      this.replaceFileChunks = vi
-        .fn()
-        .mockRejectedValue(new Error("Replacement failed"));
-      this.deleteByFilePath = vi
-        .fn()
-        .mockRejectedValue(new Error("Delete failed"));
+      this.replaceFileChunks = vi.fn().mockRejectedValue(new Error("Replacement failed"));
+      this.deleteByFilePath = vi.fn().mockRejectedValue(new Error("Delete failed"));
       return this;
     });
 
     (shouldIndexFile as Mock).mockReturnValue(true);
 
-    vi.spyOn(enricherModule, "enrichChunksFromFile").mockImplementation(
-      async (chunks) => {
-        await Promise.resolve();
-        return chunks.map((c) => ({
-          ...c,
-          enrichedContent: c.content,
-          containedSymbols: [],
-          wasEnriched: false,
-        }));
-      },
-    );
+    vi.spyOn(enricherModule, "enrichChunksFromFile").mockImplementation(async (chunks) => {
+      await Promise.resolve();
+      return chunks.map((c) => ({
+        ...c,
+        enrichedContent: c.content,
+        containedSymbols: [],
+        wasEnriched: false,
+      }));
+    });
   });
 
   afterEach(() => {

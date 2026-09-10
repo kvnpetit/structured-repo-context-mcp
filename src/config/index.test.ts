@@ -1,11 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import {
-  config,
-  ENV,
-  getEmbeddingConfig,
-  getEnrichmentConfig,
-  getMaxResultBytes,
-} from "@config";
+import { config, ENV, getEmbeddingConfig, getEnrichmentConfig, getMaxResultBytes } from "@config";
 
 describe("Config", () => {
   test("config has required fields", () => {
@@ -64,17 +58,14 @@ describe("ENV", () => {
   });
 
   test("keeps Ollama embedding endpoints on loopback", () => {
+    expect(getEmbeddingConfig({ OLLAMA_BASE_URL: "http://127.0.0.1:11434/" }).ollamaBaseUrl).toBe(
+      "http://127.0.0.1:11434",
+    );
     expect(
-      getEmbeddingConfig({ OLLAMA_BASE_URL: "http://127.0.0.1:11434/" })
-        .ollamaBaseUrl,
-    ).toBe("http://127.0.0.1:11434");
-    expect(
-      getEmbeddingConfig({ OLLAMA_BASE_URL: "http://192.168.1.100:11434" })
-        .ollamaBaseUrl,
+      getEmbeddingConfig({ OLLAMA_BASE_URL: "http://192.168.1.100:11434" }).ollamaBaseUrl,
     ).toBe("http://localhost:11434");
-    expect(
-      getEmbeddingConfig({ OLLAMA_BASE_URL: "https://example.com" })
-        .ollamaBaseUrl,
-    ).toBe("http://localhost:11434");
+    expect(getEmbeddingConfig({ OLLAMA_BASE_URL: "https://example.com" }).ollamaBaseUrl).toBe(
+      "http://localhost:11434",
+    );
   });
 });

@@ -4,11 +4,7 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, test } from "vitest";
 
-import {
-  execute,
-  projectContextFeature,
-  projectContextSchema,
-} from "@features/project-context";
+import { execute, projectContextFeature, projectContextSchema } from "@features/project-context";
 
 const temporaryDirectories: string[] = [];
 
@@ -32,9 +28,7 @@ describe("get_project_context", () => {
   });
 
   test("detects project identity, frameworks, scripts, workspaces and tests", () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-context-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-context-"));
     temporaryDirectories.push(directory);
     fs.mkdirSync(path.join(directory, "src"));
     fs.mkdirSync(path.join(directory, "packages", "api"), { recursive: true });
@@ -56,10 +50,7 @@ describe("get_project_context", () => {
         },
       }),
     );
-    fs.writeFileSync(
-      path.join(directory, "pnpm-lock.yaml"),
-      "lockfileVersion: 9\n",
-    );
+    fs.writeFileSync(path.join(directory, "pnpm-lock.yaml"), "lockfileVersion: 9\n");
     fs.writeFileSync(
       path.join(directory, "src", "main.ts"),
       "export function main() { return 1; }\n",
@@ -68,10 +59,7 @@ describe("get_project_context", () => {
       path.join(directory, "tests", "main.test.ts"),
       "import { main } from '../src/main';\nmain();\n",
     );
-    fs.writeFileSync(
-      path.join(directory, "docs", "architecture.md"),
-      "# Architecture\n",
-    );
+    fs.writeFileSync(path.join(directory, "docs", "architecture.md"), "# Architecture\n");
     fs.writeFileSync(
       path.join(directory, "tsconfig.json"),
       '{"compilerOptions":{"paths":{"@/*":["src/*"]}}}',
@@ -120,9 +108,7 @@ describe("get_project_context", () => {
   });
 
   test("reports bounded truncation and never executes scripts", () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-context-limit-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-context-limit-"));
     temporaryDirectories.push(directory);
     for (const name of ["a.ts", "b.ts", "c.ts"]) {
       fs.writeFileSync(path.join(directory, name), "export const value = 1;\n");

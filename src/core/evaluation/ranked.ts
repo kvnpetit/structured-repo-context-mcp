@@ -56,9 +56,7 @@ export function evaluateRankedRetrieval(
     }
   }
   const mean = (value: number): number =>
-    evaluations.length === 0
-      ? 0
-      : Number((value / evaluations.length).toFixed(4));
+    evaluations.length === 0 ? 0 : Number((value / evaluations.length).toFixed(4));
   return {
     queries: evaluations.length,
     evaluatedAtK: k,

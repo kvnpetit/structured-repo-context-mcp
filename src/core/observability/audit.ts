@@ -60,10 +60,7 @@ function isRegularFile(filePath: string): boolean {
 
 function readEvents(filePath: string): AuditEvent[] {
   try {
-    if (
-      !isRegularFile(filePath) ||
-      fs.statSync(filePath).size > MAX_AUDIT_BYTES
-    ) {
+    if (!isRegularFile(filePath) || fs.statSync(filePath).size > MAX_AUDIT_BYTES) {
       return [];
     }
     const parsed: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -139,8 +136,6 @@ export function getAuditStatus(root: string): AuditStatus {
     enabled: auditEnabled(),
     file: `${AUDIT_DIRECTORY}/${AUDIT_FILE}`,
     events: events.length,
-    ...(events.at(-1)?.at === undefined
-      ? {}
-      : { last_event_at: events.at(-1)?.at }),
+    ...(events.at(-1)?.at === undefined ? {} : { last_event_at: events.at(-1)?.at }),
   };
 }

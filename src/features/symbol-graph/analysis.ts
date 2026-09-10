@@ -1,9 +1,4 @@
-import {
-  findMatchingNodeIds,
-  relationshipEdges,
-  sortedUnique,
-  walkPath,
-} from "./helpers";
+import { findMatchingNodeIds, relationshipEdges, sortedUnique, walkPath } from "./helpers";
 import type {
   BlastRadius,
   GraphEdge,
@@ -32,14 +27,7 @@ export function analyzeGraph(options: {
   rawNodesSkipped: number;
   rawEdgesSkipped: number;
 }): GraphAnalysis {
-  const {
-    nodes,
-    edges,
-    input,
-    filesTruncated,
-    rawNodesSkipped,
-    rawEdgesSkipped,
-  } = options;
+  const { nodes, edges, input, filesTruncated, rawNodesSkipped, rawEdgesSkipped } = options;
   const filteredEdges = relationshipEdges(edges, input.edge_kinds).sort(
     (left, right) =>
       left.from.localeCompare(right.from) ||
@@ -52,9 +40,7 @@ export function analyzeGraph(options: {
       (left.line ?? 0) - (right.line ?? 0) ||
       left.id.localeCompare(right.id),
   );
-  const focusNodes = new Set(
-    input.focus.flatMap((query) => findMatchingNodeIds(allNodes, query)),
-  );
+  const focusNodes = new Set(input.focus.flatMap((query) => findMatchingNodeIds(allNodes, query)));
   const selectedNodes = allNodes
     .slice()
     .sort(
@@ -179,9 +165,7 @@ export function analyzeGraph(options: {
   const testDiscovery: TestDiscovery[] = [];
   for (const target of focusIds) {
     const tests = sortedUnique(
-      (reverse.get(target) ?? [])
-        .filter((edge) => edge.kind === "tests")
-        .map((edge) => edge.from),
+      (reverse.get(target) ?? []).filter((edge) => edge.kind === "tests").map((edge) => edge.from),
     );
     testDiscovery.push({
       target,

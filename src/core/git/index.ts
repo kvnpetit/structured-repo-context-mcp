@@ -1,10 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import {
-  createSafeLocalToolEnvironment,
-  safeErrorMessage,
-} from "@core/security";
+import { createSafeLocalToolEnvironment, safeErrorMessage } from "@core/security";
 
 const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 15_000;

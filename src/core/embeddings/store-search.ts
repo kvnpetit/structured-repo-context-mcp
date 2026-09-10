@@ -16,20 +16,10 @@ const MAX_ADJACENT_FILE_ROWS = 5_000;
 const MAX_ADJACENT_RESULTS = 6;
 type SearchRow = Pick<
   LanceDBRow,
-  | "id"
-  | "content"
-  | "filePath"
-  | "language"
-  | "startLine"
-  | "endLine"
-  | "symbolName"
-  | "symbolType"
+  "id" | "content" | "filePath" | "language" | "startLine" | "endLine" | "symbolName" | "symbolType"
 >;
 
-function compareLexicalResults(
-  left: SearchResult,
-  right: SearchResult,
-): number {
+function compareLexicalResults(left: SearchResult, right: SearchResult): number {
   const byScore = right.score - left.score;
   if (byScore !== 0) {
     return byScore;
@@ -57,10 +47,7 @@ class LexicalTopK {
       while (index > 0) {
         const parentIndex = Math.floor((index - 1) / 2);
         const parent = this.results[parentIndex];
-        if (
-          parent === undefined ||
-          compareLexicalResults(candidate, parent) <= 0
-        ) {
+        if (parent === undefined || compareLexicalResults(candidate, parent) <= 0) {
           break;
         }
         this.results[index] = parent;
@@ -159,10 +146,7 @@ export async function searchVector(
   if (table === null) {
     return [];
   }
-  const rows = (await table
-    .vectorSearch(queryVector)
-    .limit(limit)
-    .toArray()) as LanceDBRow[];
+  const rows = (await table.vectorSearch(queryVector).limit(limit).toArray()) as LanceDBRow[];
   return rows.map((row) => toSearchResult(row, row._distance ?? 0));
 }
 
@@ -276,10 +260,7 @@ export async function searchHybrid(
     searchVector(table, queryVector, limit * 2),
     searchFts(table, ensureFtsIndex, queryText, limit * 2),
   ]);
-  return rrfFusion(vectorResults, ftsResults, rrfK, vectorWeight).slice(
-    0,
-    limit,
-  );
+  return rrfFusion(vectorResults, ftsResults, rrfK, vectorWeight).slice(0, limit);
 }
 
 export async function getAdjacentChunks(
@@ -294,9 +275,7 @@ export async function getAdjacentChunks(
   }
 
   const resolvedFilePath = path.resolve(filePath);
-  const normalizedSqlPath = resolvedFilePath
-    .replace(/\\/gu, "/")
-    .replace(/'/gu, "''");
+  const normalizedSqlPath = resolvedFilePath.replace(/\\/gu, "/").replace(/'/gu, "''");
   const projection = [
     "id",
     "content",
@@ -310,9 +289,7 @@ export async function getAdjacentChunks(
   let rows = (await table
     .query()
     .select(projection)
-    .where(
-      `lower(replace("filePath", chr(92), '/')) = lower('${normalizedSqlPath}')`,
-    )
+    .where(`lower(replace("filePath", chr(92), '/')) = lower('${normalizedSqlPath}')`)
     .limit(MAX_ADJACENT_FILE_ROWS + 1)
     .toArray()) as LanceDBRow[];
   if (rows.length === 0) {
@@ -324,9 +301,7 @@ export async function getAdjacentChunks(
   }
 
   const sameFileRows = rows
-    .filter(
-      (row) => normalizeFilePath(row.filePath) === normalizeFilePath(filePath),
-    )
+    .filter((row) => normalizeFilePath(row.filePath) === normalizeFilePath(filePath))
     .sort(
       (left, right) =>
         left.startLine - right.startLine ||

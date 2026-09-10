@@ -4,10 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 
-import {
-  execute,
-  assembleTaskContextSchema,
-} from "@features/assemble-task-context";
+import { execute, assembleTaskContextSchema } from "@features/assemble-task-context";
 import { executeSetProjectMemory } from "@features/project-memory";
 import { repositoryMapFeature } from "@features/repository-map";
 
@@ -62,9 +59,7 @@ describe("assemble_task_context", () => {
   });
 
   test("can assemble map-only context within the requested budget", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-context-map-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-context-map-"));
     try {
       fs.writeFileSync(
         path.join(directory, "entry.ts"),
@@ -105,9 +100,7 @@ describe("assemble_task_context", () => {
   });
 
   test("assembles project, memory, artifacts, Git, and map under a fair budget", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-context-rich-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-context-rich-"));
     try {
       fs.writeFileSync(
         path.join(directory, "package.json"),
@@ -162,10 +155,7 @@ describe("assemble_task_context", () => {
         token_budget: number;
         context: string;
         next_actions: string[];
-        layers: Record<
-          string,
-          { enabled: boolean; available: boolean; allocated_tokens: number }
-        >;
+        layers: Record<string, { enabled: boolean; available: boolean; allocated_tokens: number }>;
       };
       expect(data.estimated_tokens).toBeLessThanOrEqual(data.token_budget + 1);
       expect(data.context).toContain("## Project profile");
@@ -176,13 +166,7 @@ describe("assemble_task_context", () => {
       expect(data.context).toContain("## Current Git state");
       expect(data.context).toContain("auth.ts");
       expect(data.context).toContain("## Repository map");
-      for (const key of [
-        "project",
-        "memory",
-        "artifacts",
-        "git",
-        "repository_map",
-      ]) {
+      for (const key of ["project", "memory", "artifacts", "git", "repository_map"]) {
         expect(data.layers[key]).toMatchObject({
           enabled: true,
           available: true,
@@ -196,9 +180,7 @@ describe("assemble_task_context", () => {
   });
 
   test("redistributes unused layer budget and isolates rejected layers", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-context-budget-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-context-budget-"));
     try {
       for (let index = 0; index < 16; index += 1) {
         const functions = Array.from(
@@ -206,10 +188,7 @@ describe("assemble_task_context", () => {
           (_, symbol) =>
             `export function module${String(index)}AuthenticationBoundary${String(symbol)}(token: string) { return token.length + ${String(symbol)}; }`,
         ).join("\n");
-        fs.writeFileSync(
-          path.join(directory, `module-${String(index)}.ts`),
-          `${functions}\n`,
-        );
+        fs.writeFileSync(path.join(directory, `module-${String(index)}.ts`), `${functions}\n`);
       }
       const budgeted = await execute({
         directory,
@@ -249,9 +228,7 @@ describe("assemble_task_context", () => {
             },
           },
         });
-        expect(JSON.stringify(degraded.data)).not.toContain(
-          "untrusted internal detail",
-        );
+        expect(JSON.stringify(degraded.data)).not.toContain("untrusted internal detail");
       }
     } finally {
       vi.restoreAllMocks();

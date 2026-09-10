@@ -2,13 +2,7 @@ import { z } from "zod";
 
 import { createFeatureResultSchema } from "@features/utils";
 
-export const nodeKinds = [
-  "module",
-  "symbol",
-  "route",
-  "event",
-  "dependency",
-] as const;
+export const nodeKinds = ["module", "symbol", "route", "event", "dependency"] as const;
 export const edgeKinds = [
   "contains",
   "imports",
@@ -281,6 +275,4 @@ const symbolGraphDataSchema = z
   })
   .strict();
 
-export const symbolGraphOutputSchema = createFeatureResultSchema(
-  symbolGraphDataSchema,
-);
+export const symbolGraphOutputSchema = createFeatureResultSchema(symbolGraphDataSchema);

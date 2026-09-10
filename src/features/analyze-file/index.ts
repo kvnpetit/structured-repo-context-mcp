@@ -2,12 +2,7 @@ import { z } from "zod";
 
 import { getASTRoot } from "@core/parser";
 import { extractCodeInfo } from "@core/symbols";
-import {
-  canParse,
-  extractSymbols,
-  getParsingCapabilities,
-  parseFile,
-} from "@core/unified";
+import { canParse, extractSymbols, getParsingCapabilities, parseFile } from "@core/unified";
 import { redactStructuredValue } from "@core/security";
 
 import type { Feature, FeatureResult } from "@features/types";
@@ -27,18 +22,9 @@ export const analyzeFileSchema = z.object({
     .boolean()
     .default(false)
     .describe("Include full AST in response (default: false, can be verbose)"),
-  include_symbols: z
-    .boolean()
-    .default(true)
-    .describe("Include extracted symbols (default: true)"),
-  include_imports: z
-    .boolean()
-    .default(true)
-    .describe("Include import statements (default: true)"),
-  include_exports: z
-    .boolean()
-    .default(true)
-    .describe("Include export statements (default: true)"),
+  include_symbols: z.boolean().default(true).describe("Include extracted symbols (default: true)"),
+  include_imports: z.boolean().default(true).describe("Include import statements (default: true)"),
+  include_exports: z.boolean().default(true).describe("Include export statements (default: true)"),
   ast_max_depth: z
     .number()
     .int()
@@ -63,9 +49,7 @@ export const analyzeFileSchema = z.object({
     .boolean()
     .optional()
     .default(true)
-    .describe(
-      "Redact common secrets in structured source fields (default: true)",
-    ),
+    .describe("Redact common secrets in structured source fields (default: true)"),
 });
 
 export type AnalyzeFileInput = z.input<typeof analyzeFileSchema>;
@@ -73,14 +57,7 @@ export type AnalyzeFileInput = z.input<typeof analyzeFileSchema>;
 const fallbackSymbolSchema = z
   .object({
     name: z.string(),
-    type: z.enum([
-      "function",
-      "method",
-      "class",
-      "interface",
-      "module",
-      "variable",
-    ]),
+    type: z.enum(["function", "method", "class", "interface", "module", "variable"]),
     line: z.number().int().positive(),
     endLine: z.number().int().positive().optional(),
     signature: z.string().optional(),
@@ -104,9 +81,7 @@ const analyzeFileDataSchema = z
     parsing_method: z.enum(["tree-sitter", "langchain", "generic"]),
     capabilities: z.string().array(),
     metrics: codeMetricsSchema,
-    symbols: z
-      .union([symbolSchema.array(), fallbackSymbolSchema.array()])
-      .optional(),
+    symbols: z.union([symbolSchema.array(), fallbackSymbolSchema.array()]).optional(),
     imports: importSchema.array().optional(),
     exports: exportSchema.array().optional(),
     ast: astNodeSchema.optional(),
@@ -127,13 +102,9 @@ const analyzeFileDataSchema = z
   })
   .strict();
 
-export const analyzeFileOutputSchema = createFeatureResultSchema(
-  analyzeFileDataSchema,
-);
+export const analyzeFileOutputSchema = createFeatureResultSchema(analyzeFileDataSchema);
 
-export async function execute(
-  rawInput: AnalyzeFileInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: AnalyzeFileInput): Promise<FeatureResult> {
   // Parse with defaults applied
   const input = analyzeFileSchema.parse(rawInput);
   const {
@@ -187,9 +158,7 @@ export async function execute(
       source_is_untrusted: true,
       language: parseResult.language,
       parsing_method: parseResult.method,
-      ...(parseResult.grammar === undefined
-        ? {}
-        : { grammar: parseResult.grammar }),
+      ...(parseResult.grammar === undefined ? {} : { grammar: parseResult.grammar }),
       capabilities: capabilities.features,
       metrics: {
         lines: parseResult.lineCount,
@@ -201,11 +170,7 @@ export async function execute(
     };
 
     // Tree-sitter path - full analysis
-    if (
-      parseResult.method === "tree-sitter" &&
-      parseResult.tree &&
-      parseResult.languageInstance
-    ) {
+    if (parseResult.method === "tree-sitter" && parseResult.tree && parseResult.languageInstance) {
       const codeInfo = extractCodeInfo(
         parseResult.tree,
         parseResult.languageInstance,
@@ -262,9 +227,7 @@ export async function execute(
           index: chunk.index,
           startLine: chunk.startLine,
           endLine: chunk.endLine,
-          preview:
-            chunk.content.slice(0, 100) +
-            (chunk.content.length > 100 ? "..." : ""),
+          preview: chunk.content.slice(0, 100) + (chunk.content.length > 100 ? "..." : ""),
         }));
         response.chunk_count = parseResult.chunks.length;
       }
@@ -275,8 +238,7 @@ export async function execute(
 
     // Build summary message
     const metrics = response.metrics as Record<string, number>;
-    const methodNote =
-      parseResult.method !== "tree-sitter" ? ` [${parseResult.method}]` : "";
+    const methodNote = parseResult.method !== "tree-sitter" ? ` [${parseResult.method}]` : "";
     const summary = [
       `${parseResult.language} file${methodNote}`,
       `${String(metrics.lines)} lines`,

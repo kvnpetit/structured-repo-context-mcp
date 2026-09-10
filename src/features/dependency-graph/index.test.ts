@@ -8,9 +8,7 @@ describe("get_dependency_graph", () => {
   let directory: string;
 
   beforeEach(() => {
-    directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "dependency-graph-test-"),
-    );
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), "dependency-graph-test-"));
     fs.writeFileSync(
       path.join(directory, "a.ts"),
       'import { b } from "./b"; export const a = b;\n',
@@ -52,14 +50,10 @@ describe("get_dependency_graph", () => {
     expect(data.edges.filter((edge) => edge.resolved)).toHaveLength(3);
     expect(data.cycles.length).toBeGreaterThan(0);
     expect(data.hotspots.length).toBeGreaterThan(0);
-    expect(data.typeHierarchy.nodes.map((node) => node.name)).toContain(
-      "Child",
+    expect(data.typeHierarchy.nodes.map((node) => node.name)).toContain("Child");
+    expect(data.typeHierarchy.edges.some((edge) => edge.parent === "Base" && edge.resolved)).toBe(
+      true,
     );
-    expect(
-      data.typeHierarchy.edges.some(
-        (edge) => edge.parent === "Base" && edge.resolved,
-      ),
-    ).toBe(true);
   });
 
   test("bounds returned edges and reports truncation", async () => {
@@ -94,8 +88,7 @@ describe("get_dependency_graph", () => {
       },
     });
     expect(
-      (result.data as { typeHierarchy: { nodes: unknown[] } }).typeHierarchy
-        .nodes,
+      (result.data as { typeHierarchy: { nodes: unknown[] } }).typeHierarchy.nodes,
     ).toHaveLength(1);
   });
 });

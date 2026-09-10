@@ -18,9 +18,7 @@ export const indexMaintenanceSchema = z.object({
     .enum(maintenanceOperations)
     .optional()
     .default("inspect")
-    .describe(
-      "Inspect the local index, compact its fragments, or migrate local Lance manifests",
-    ),
+    .describe("Inspect the local index, compact its fragments, or migrate local Lance manifests"),
   cleanup_older_than_days: z
     .number()
     .int()
@@ -33,9 +31,7 @@ export const indexMaintenanceSchema = z.object({
     .boolean()
     .optional()
     .default(false)
-    .describe(
-      "For compaction, remove unverified fragments after a safe snapshot",
-    ),
+    .describe("For compaction, remove unverified fragments after a safe snapshot"),
 });
 
 export type IndexMaintenanceInput = z.input<typeof indexMaintenanceSchema>;
@@ -92,9 +88,7 @@ const indexMaintenanceDataSchema = z
   })
   .strict();
 
-export const indexMaintenanceOutputSchema = createFeatureResultSchema(
-  indexMaintenanceDataSchema,
-);
+export const indexMaintenanceOutputSchema = createFeatureResultSchema(indexMaintenanceDataSchema);
 
 type MaintenanceStatusOutput = z.infer<typeof maintenanceStatusSchema>;
 
@@ -114,31 +108,23 @@ function emptyStatus(): MaintenanceStatusOutput {
 function formatStatus(status: IndexMaintenanceStatus): MaintenanceStatusOutput {
   return {
     table_present: status.tablePresent,
-    ...(status.tableVersion === undefined
-      ? {}
-      : { table_version: status.tableVersion }),
+    ...(status.tableVersion === undefined ? {} : { table_version: status.tableVersion }),
     version_count: status.versionCount,
     total_bytes: status.totalBytes,
     rows: status.rows,
     fragment_count: status.fragmentCount,
     small_fragment_count: status.smallFragmentCount,
     indices: status.indices,
-    ...(status.manifestPathsV2 === undefined
-      ? {}
-      : { manifest_paths_v2: status.manifestPathsV2 }),
+    ...(status.manifestPathsV2 === undefined ? {} : { manifest_paths_v2: status.manifestPathsV2 }),
     ...(status.metadataSchemaVersion === undefined
       ? {}
       : { metadata_schema_version: status.metadataSchemaVersion }),
     metadata_compatible: status.metadataCompatible,
-    ...(status.metadataError === undefined
-      ? {}
-      : { metadata_error: status.metadataError }),
+    ...(status.metadataError === undefined ? {} : { metadata_error: status.metadataError }),
   };
 }
 
-function formatOptimization(
-  stats: IndexOptimizationStats,
-): z.infer<typeof optimizationSchema> {
+function formatOptimization(stats: IndexOptimizationStats): z.infer<typeof optimizationSchema> {
   return {
     compaction: {
       fragments_removed: stats.compaction.fragmentsRemoved,
@@ -153,9 +139,7 @@ function formatOptimization(
   };
 }
 
-export async function execute(
-  rawInput: IndexMaintenanceInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: IndexMaintenanceInput): Promise<FeatureResult> {
   const input = indexMaintenanceSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -203,8 +187,7 @@ export async function execute(
         return {
           success: false,
           error:
-            before.metadata_error ??
-            "Index metadata is incompatible; rebuild before compacting",
+            before.metadata_error ?? "Index metadata is incompatible; rebuild before compacting",
         };
       }
       const result = await store.optimizeIndex(
@@ -215,9 +198,7 @@ export async function execute(
     } else if (input.operation === "migrate") {
       migrated = await store.migrateIndexStorage();
       if (before.manifest_paths_v2 === undefined) {
-        warnings.push(
-          "The installed LanceDB runtime does not report manifest path status",
-        );
+        warnings.push("The installed LanceDB runtime does not report manifest path status");
       }
     }
 

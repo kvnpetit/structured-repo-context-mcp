@@ -49,10 +49,7 @@ function occurrences(text: string, term: string): number {
 }
 
 /** Deterministic, provider-independent baseline ranking for labelled corpora. */
-export function rankDocuments(
-  documents: readonly RetrievalDocument[],
-  query: string,
-): string[] {
+export function rankDocuments(documents: readonly RetrievalDocument[], query: string): string[] {
   const normalizedQuery = query.toLowerCase();
   const terms = queryTerms(query);
   return documents
@@ -66,10 +63,7 @@ export function rankDocuments(
       }
       return { id: document.id, score };
     })
-    .sort(
-      (left, right) =>
-        right.score - left.score || left.id.localeCompare(right.id),
-    )
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
     .map((document) => document.id);
 }
 
@@ -98,14 +92,9 @@ export function evaluateRetrieval(
   let ndcg = 0;
   let returnedBytes = 0;
   let estimatedTokens = 0;
-  const documentsById = new Map(
-    documents.map((document) => [document.id, document]),
-  );
+  const documentsById = new Map(documents.map((document) => [document.id, document]));
   for (const evaluation of queries) {
-    const ranked = rankDocuments(documents, evaluation.query).slice(
-      0,
-      evaluatedAtK,
-    );
+    const ranked = rankDocuments(documents, evaluation.query).slice(0, evaluatedAtK);
     const relevant = new Set(evaluation.relevant);
     const hits = ranked.filter((id) => relevant.has(id)).length;
     precision += hits / evaluatedAtK;

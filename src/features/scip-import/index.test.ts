@@ -101,8 +101,7 @@ describe("import_scip_index", () => {
         coverage: "precise",
       });
       expect(
-        (navigation.data as { locations: { start: { line: number } }[] })
-          .locations[0]?.start.line,
+        (navigation.data as { locations: { start: { line: number } }[] }).locations[0]?.start.line,
       ).toBe(1);
     }
 
@@ -116,9 +115,9 @@ describe("import_scip_index", () => {
     });
     expect(hover.success).toBe(true);
     if (hover.success) {
-      expect(
-        (hover.data as { hover?: { contents: string } }).hover?.contents,
-      ).toContain("incremented");
+      expect((hover.data as { hover?: { contents: string } }).hover?.contents).toContain(
+        "incremented",
+      );
     }
   });
 });

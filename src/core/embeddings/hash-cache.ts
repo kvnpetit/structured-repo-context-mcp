@@ -30,15 +30,12 @@ export function indexWriteLockPath(root: string): string {
   return path.join(root, INDEX_WRITE_LOCK_FILE);
 }
 
-function normalizedCachePath(
-  root: string,
-  filePath: string,
-): string | undefined {
+function normalizedCachePath(root: string, filePath: string): string | undefined {
   const candidate = path.resolve(root, filePath);
   const relative = path.relative(path.resolve(root), candidate);
   return relative.length > 0 &&
     relative !== "." &&
-    !relative.startsWith(".." + path.sep) &&
+    !relative.startsWith(`..${path.sep}`) &&
     relative !== ".." &&
     !path.isAbsolute(relative)
     ? candidate
@@ -62,9 +59,7 @@ function safeCacheEntry(
   hash: unknown,
 ): [string, string] | undefined {
   const normalized = normalizedCachePath(root, filePath);
-  return normalized === undefined || !isCacheValue(hash)
-    ? undefined
-    : [normalized, hash];
+  return normalized === undefined || !isCacheValue(hash) ? undefined : [normalized, hash];
 }
 
 /** Read and validate the bounded incremental-index cache. */
@@ -89,11 +84,7 @@ export function readHashCache(root: string): HashCacheReadResult {
       };
     }
     const parsed: unknown = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       return {
         cache: {},
         exists: true,
@@ -124,9 +115,7 @@ export function readHashCache(root: string): HashCacheReadResult {
       cache,
       exists: true,
       valid: invalidEntries === 0,
-      ...(invalidEntries === 0
-        ? {}
-        : { error: "Hash cache contains invalid entries" }),
+      ...(invalidEntries === 0 ? {} : { error: "Hash cache contains invalid entries" }),
     };
   } catch {
     return {

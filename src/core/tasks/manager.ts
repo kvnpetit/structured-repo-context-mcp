@@ -1,9 +1,4 @@
-import {
-  boundResult,
-  toCreateTaskResult,
-  toDetailedTask,
-  toPublicTask,
-} from "./results";
+import { boundResult, toCreateTaskResult, toDetailedTask, toPublicTask } from "./results";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -48,20 +43,13 @@ export interface TaskRunnerContext {
   reportProgress: FeatureExecutionContext["reportProgress"];
 }
 
-export type TaskRunner = (
-  context: TaskRunnerContext,
-) => Promise<Record<string, unknown>>;
+export type TaskRunner = (context: TaskRunnerContext) => Promise<Record<string, unknown>>;
 
 function isDisabled(value: string | undefined): boolean {
-  return (
-    value !== undefined && /^(?:0|false|off|disabled|no)$/iu.test(value.trim())
-  );
+  return value !== undefined && /^(?:0|false|off|disabled|no)$/iu.test(value.trim());
 }
 
-function parsePositiveInteger(
-  value: string | undefined,
-  fallback: number,
-): number {
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
@@ -72,9 +60,7 @@ function parseTtl(): number | null {
     return null;
   }
   const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed >= 0
-    ? parsed
-    : 24 * 60 * 60 * 1000;
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 24 * 60 * 60 * 1000;
 }
 
 function parseToolNames(): string[] {
@@ -91,8 +77,7 @@ function parseToolNames(): string[] {
 export function getTaskRuntimeConfig(): TaskRuntimeConfig {
   const configuredStoreDirectory = process.env.MCP_TASK_STORE_DIR?.trim();
   const storeDirectory =
-    configuredStoreDirectory === undefined ||
-    configuredStoreDirectory.length === 0
+    configuredStoreDirectory === undefined || configuredStoreDirectory.length === 0
       ? path.join(os.tmpdir(), "src-mcp-tasks")
       : path.resolve(configuredStoreDirectory);
   const maxResultBytes = parsePositiveInteger(
@@ -103,15 +88,9 @@ export function getTaskRuntimeConfig(): TaskRuntimeConfig {
     enabled: !isDisabled(process.env.MCP_TASKS),
     storeFilePath: path.join(storeDirectory, "tasks.json"),
     ttlMs: parseTtl(),
-    pollIntervalMs: parsePositiveInteger(
-      process.env.MCP_TASK_POLL_INTERVAL_MS,
-      1000,
-    ),
+    pollIntervalMs: parsePositiveInteger(process.env.MCP_TASK_POLL_INTERVAL_MS, 1000),
     maxResultBytes,
-    maxActiveTasks: parsePositiveInteger(
-      process.env.MCP_TASK_MAX_ACTIVE,
-      DEFAULT_MAX_ACTIVE_TASKS,
-    ),
+    maxActiveTasks: parsePositiveInteger(process.env.MCP_TASK_MAX_ACTIVE, DEFAULT_MAX_ACTIVE_TASKS),
     toolNames: parseToolNames(),
   };
 }
@@ -216,9 +195,7 @@ export class TaskManager {
     // the same durable state machine without accepting arbitrary task fields.
     if (task.status === "input_required") {
       const outstanding = new Set(Object.keys(task.inputRequests ?? {}));
-      const hasKnownResponse = Object.keys(inputResponses).some((key) =>
-        outstanding.has(key),
-      );
+      const hasKnownResponse = Object.keys(inputResponses).some((key) => outstanding.has(key));
       if (hasKnownResponse && this.store !== undefined) {
         this.store.markWorking(taskId);
       }
@@ -265,9 +242,7 @@ export class TaskManager {
     } catch {
       this.degradeStorage();
     }
-    const reason = this.storageUnavailable
-      ? "Task store is unavailable"
-      : this.reason;
+    const reason = this.storageUnavailable ? "Task store is unavailable" : this.reason;
     return {
       enabled: this.enabled,
       ...(reason === undefined ? {} : { reason }),
@@ -313,11 +288,7 @@ export class TaskManager {
     try {
       for (const [taskId, controller] of this.active) {
         const task = this.store?.get(taskId);
-        if (
-          task === undefined ||
-          task.status === "cancelled" ||
-          task.status === "failed"
-        ) {
+        if (task === undefined || task.status === "cancelled" || task.status === "failed") {
           controller.abort();
         }
       }
@@ -377,19 +348,13 @@ export class TaskManager {
           await Promise.resolve();
         },
       });
-      if (
-        !controller.signal.aborted &&
-        this.store.get(taskId)?.status !== "cancelled"
-      ) {
+      if (!controller.signal.aborted && this.store.get(taskId)?.status !== "cancelled") {
         const bounded = boundResult(result, this.maxResultBytes);
         this.store.complete(taskId, bounded);
       }
     } catch {
       try {
-        if (
-          !controller.signal.aborted &&
-          this.store.get(taskId)?.status !== "cancelled"
-        ) {
+        if (!controller.signal.aborted && this.store.get(taskId)?.status !== "cancelled") {
           this.store.fail(taskId, {
             code: -32603,
             message: "Task execution failed",

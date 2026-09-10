@@ -42,50 +42,41 @@ describe("task persistence across local processes", () => {
   });
 
   function storePath(): string {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tasks-concurrency-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-concurrency-"));
     directories.push(directory);
     return path.join(directory, "tasks.json");
   }
 
   function start(filePath: string, mode: string): Fixture {
-    const fixture = fileURLToPath(
-      new URL("./fixtures/process.ts", import.meta.url),
-    );
-    const child = spawn(
-      process.execPath,
-      ["--import", "tsx", fixture, filePath, mode],
-      {
-        stdio: ["pipe", "pipe", "pipe"],
-        windowsHide: true,
-      },
-    );
+    const fixture = fileURLToPath(new URL("./fixtures/process.ts", import.meta.url));
+    const child = spawn(process.execPath, ["--import", "tsx", fixture, filePath, mode], {
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
     children.push(child);
     const messages: Record<string, unknown>[] = [];
     let output = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
       output += chunk.toString();
-      let newline: number;
-      while ((newline = output.indexOf("\n")) >= 0) {
-        messages.push(
-          JSON.parse(output.slice(0, newline)) as Record<string, unknown>,
-        );
+      while (true) {
+        const newline = output.indexOf("\n");
+        if (newline < 0) {
+          break;
+        }
+        messages.push(JSON.parse(output.slice(0, newline)) as Record<string, unknown>);
         output = output.slice(newline + 1);
       }
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
     });
-    const done = new Promise<{ code: number | null; stderr: string }>(
-      (resolve, reject) => {
-        child.once("error", reject);
-        child.once("close", (code) => {
-          resolve({ code, stderr });
-        });
-      },
-    );
+    const done = new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => {
+        resolve({ code, stderr });
+      });
+    });
     return { child, messages, done };
   }
 
@@ -101,9 +92,7 @@ describe("task persistence across local processes", () => {
 
   test("keeps every result when two real processes create and finish concurrently", async () => {
     const filePath = storePath();
-    const expired = new DurableTaskStore({ filePath, ttlMs: 0 }).create(
-      "expired",
-    );
+    const expired = new DurableTaskStore({ filePath, ttlMs: 0 }).create("expired");
     const first = start(filePath, "batch");
     const second = start(filePath, "batch");
     const results = await Promise.all([first.done, second.done]);
@@ -111,16 +100,16 @@ describe("task persistence across local processes", () => {
       { code: 0, stderr: "" },
       { code: 0, stderr: "" },
     ]);
-    const ids = [
-      ...(first.messages[0]?.ids as string[]),
-      ...(second.messages[0]?.ids as string[]),
-    ];
+    const firstMessage = first.messages[0];
+    const secondMessage = second.messages[0];
+    if (firstMessage === undefined || secondMessage === undefined) {
+      throw new Error("The process fixtures did not return their task IDs");
+    }
+    const ids = [...(firstMessage.ids as string[]), ...(secondMessage.ids as string[])];
     const reloaded = new DurableTaskStore({ filePath });
     expect(new Set(ids).size).toBe(48);
     expect(
-      ids
-        .map((id) => reloaded.get(id))
-        .filter((task) => task?.status !== "completed"),
+      ids.map((id) => reloaded.get(id)).filter((task) => task?.status !== "completed"),
     ).toEqual([]);
     expect(reloaded.counts().completed).toBe(48);
     expect(reloaded.get(expired.taskId)).toBeUndefined();
@@ -160,9 +149,7 @@ describe("task persistence across local processes", () => {
       expect(restarted.get(task.taskId)?.result).toEqual({ beforeCrash: true });
       expect(fs.readdirSync(`${filePath}.locks`)).toEqual([]);
       expect(
-        fs
-          .readdirSync(path.dirname(filePath))
-          .filter((name) => name.endsWith(".tmp")),
+        fs.readdirSync(path.dirname(filePath)).filter((name) => name.endsWith(".tmp")),
       ).toEqual([]);
     }
   }, 20_000);
@@ -206,10 +193,7 @@ describe("task persistence across local processes", () => {
     const task = store.create("fixture");
     store.complete(task.taskId, { preserved: true });
     const oversized = new Map([
-      [
-        task.taskId,
-        { ...task, result: { text: "x".repeat(16 * 1024 * 1024) } },
-      ],
+      [task.taskId, { ...task, result: { text: "x".repeat(16 * 1024 * 1024) } }],
     ]);
     expect(() => {
       writeTaskState(filePath, oversized);

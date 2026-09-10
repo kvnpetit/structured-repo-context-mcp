@@ -60,9 +60,7 @@ describe("Resource Registration", () => {
 
     const call = (
       server as unknown as { registerResource: ReturnType<typeof vi.fn> }
-    ).registerResource.mock.calls.find(
-      (entry: unknown[]) => entry[0] === "server_info",
-    );
+    ).registerResource.mock.calls.find((entry: unknown[]) => entry[0] === "server_info");
     const handler = call?.[3] as
       | ((uri: { href: string }) => {
           contents: { uri: string; mimeType: string; text: string }[];
@@ -86,9 +84,7 @@ describe("Resource Registration", () => {
 
     const call = (
       server as unknown as { registerResource: ReturnType<typeof vi.fn> }
-    ).registerResource.mock.calls.find(
-      (entry: unknown[]) => entry[0] === "server_info",
-    );
+    ).registerResource.mock.calls.find((entry: unknown[]) => entry[0] === "server_info");
     const handler = call?.[3] as
       | ((uri: { href: string }) => {
           contents: { uri: string; mimeType: string; text: string }[];
@@ -99,10 +95,7 @@ describe("Resource Registration", () => {
     }
 
     const result = handler({ href: "src://server/info" });
-    const parsed = JSON.parse(result.contents[0]?.text ?? "{}") as Record<
-      string,
-      unknown
-    >;
+    const parsed = JSON.parse(result.contents[0]?.text ?? "{}") as Record<string, unknown>;
 
     expect(parsed).toHaveProperty("name");
     expect(parsed).toHaveProperty("fullName");
@@ -114,9 +107,7 @@ describe("Resource Registration", () => {
     registerResources(server);
     const call = (
       server as unknown as { registerResource: ReturnType<typeof vi.fn> }
-    ).registerResource.mock.calls.find(
-      (entry: unknown[]) => entry[0] === "server_capabilities",
-    );
+    ).registerResource.mock.calls.find((entry: unknown[]) => entry[0] === "server_capabilities");
     const handler = call?.[3] as
       | ((uri: { href: string }) => {
           contents: { text: string }[];
@@ -137,8 +128,6 @@ describe("Resource Registration", () => {
     expect(parsed.schema_version).toBe(1);
     expect(parsed.local_only).toBe(true);
     expect(parsed.tool_catalog_revision).toMatch(/^[a-f0-9]{64}$/u);
-    expect(parsed.tools?.some((tool) => tool.name === "search_code")).toBe(
-      true,
-    );
+    expect(parsed.tools?.some((tool) => tool.name === "search_code")).toBe(true);
   });
 });

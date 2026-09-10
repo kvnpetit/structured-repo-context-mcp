@@ -11,11 +11,7 @@
 
 import { z } from "zod";
 import * as path from "node:path";
-import type {
-  Feature,
-  FeatureExecutionContext,
-  FeatureResult,
-} from "@features/types";
+import type { Feature, FeatureExecutionContext, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
   chunkFile,
@@ -28,18 +24,10 @@ import {
   type EmbeddedChunk,
   type EnrichmentOptions,
 } from "@core/embeddings";
-import {
-  computeContentHash,
-  readHashCache,
-  writeHashCache,
-} from "@core/embeddings/hash-cache";
+import { computeContentHash, readHashCache, writeHashCache } from "@core/embeddings/hash-cache";
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { readPathAliasesCached } from "@core/utils";
-import {
-  readSecureTextFile,
-  resolveSecureDirectory,
-  safeErrorMessage,
-} from "@core/security";
+import { readSecureTextFile, resolveSecureDirectory, safeErrorMessage } from "@core/security";
 import { createFeatureResultSchema } from "@features/utils";
 import { buildDryRunMessage, buildResultMessage } from "./messages";
 
@@ -47,11 +35,7 @@ import { buildDryRunMessage, buildResultMessage } from "./messages";
 const DEFAULT_CONCURRENCY = 4;
 
 export const updateIndexSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Path to the indexed directory"),
+  directory: z.string().optional().default(".").describe("Path to the indexed directory"),
   dryRun: z
     .boolean()
     .optional()
@@ -104,9 +88,7 @@ const updateIndexDataSchema = z
   })
   .strict();
 
-export const updateIndexOutputSchema = createFeatureResultSchema(
-  updateIndexDataSchema,
-);
+export const updateIndexOutputSchema = createFeatureResultSchema(updateIndexDataSchema);
 
 /**
  * Load hash cache from disk
@@ -163,10 +145,7 @@ async function parallelMap<T, R>(
     }
   };
 
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => worker(),
-  );
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => worker());
   await Promise.all(workers);
 
   return results.filter((r): r is R => r !== undefined);
@@ -179,8 +158,7 @@ export async function execute(
   input: UpdateIndexInput,
   context?: FeatureExecutionContext,
 ): Promise<FeatureResult> {
-  const { directory, dryRun, force, concurrency } =
-    updateIndexSchema.parse(input);
+  const { directory, dryRun, force, concurrency } = updateIndexSchema.parse(input);
 
   if (context?.signal?.aborted) {
     return { success: false, error: "Operation cancelled" };
@@ -191,9 +169,7 @@ export async function execute(
     return {
       success: false,
       error:
-        secureDirectory.error === "Path not found"
-          ? "Directory not found"
-          : secureDirectory.error,
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
@@ -259,9 +235,7 @@ export async function execute(
     // Collect current files
     const ig = createIgnoreFilter(absoluteDir);
     const currentFiles = new Set(
-      collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) =>
-        left.localeCompare(right),
-      ),
+      collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) => left.localeCompare(right)),
     );
     const newHashCache: HashCache = {};
     for (const [cachedFile, hash] of Object.entries(hashCache)) {
@@ -280,12 +254,8 @@ export async function execute(
       throwIfAborted(context?.signal);
       const readResult = readSecureTextFile(filePath, absoluteDir);
       if (!readResult.ok || readResult.content === undefined) {
-        const readError = readResult.ok
-          ? "File cannot be read"
-          : readResult.error;
-        result.errors.push(
-          `Cannot read ${path.relative(absoluteDir, filePath)}: ${readError}`,
-        );
+        const readError = readResult.ok ? "File cannot be read" : readResult.error;
+        result.errors.push(`Cannot read ${path.relative(absoluteDir, filePath)}: ${readError}`);
         continue;
       }
       const content = readResult.content;
@@ -352,9 +322,7 @@ export async function execute(
         throwIfAborted(context?.signal);
         const readResult = readSecureTextFile(filePath, absoluteDir);
         if (!readResult.ok || readResult.content === undefined) {
-          const readError = readResult.ok
-            ? "File cannot be read"
-            : readResult.error;
+          const readError = readResult.ok ? "File cannot be read" : readResult.error;
           return {
             filePath,
             hash: "",
@@ -370,20 +338,12 @@ export async function execute(
           return { filePath, hash, chunks: [] };
         }
 
-        const enrichedChunks = await enrichChunksFromFile(
-          chunks,
-          content,
-          enrichmentOptions,
-        );
+        const enrichedChunks = await enrichChunksFromFile(chunks, content, enrichmentOptions);
 
         const texts = enrichedChunks.map((c) => c.enrichedContent);
         const embeddings = await embeddingClient.embedBatch(texts);
         throwIfAborted(context?.signal);
-        validateEmbeddingBatch(
-          embeddings,
-          texts.length,
-          EMBEDDING_CONFIG.embeddingDimensions,
-        );
+        validateEmbeddingBatch(embeddings, texts.length, EMBEDDING_CONFIG.embeddingDimensions);
 
         const embedded: EmbeddedChunk[] = [];
         for (let i = 0; i < enrichedChunks.length; i++) {

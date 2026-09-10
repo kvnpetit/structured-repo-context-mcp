@@ -36,10 +36,7 @@ async function executeNavigation(
     return { success: false, error: secureDirectory.error };
   }
   const root = secureDirectory.path;
-  const secureFile = resolveSecureFile(
-    path.resolve(root, input.file_path),
-    root,
-  );
+  const secureFile = resolveSecureFile(path.resolve(root, input.file_path), root);
   if (!secureFile.ok) {
     return { success: false, error: secureFile.error };
   }
@@ -51,25 +48,17 @@ async function executeNavigation(
     };
   }
   const language = detectNavigationLanguage(secureFile.path);
-  const safeFilePath = path
-    .relative(root, secureFile.path)
-    .replace(/\\/gu, "/");
+  const safeFilePath = path.relative(root, secureFile.path).replace(/\\/gu, "/");
   const scopedInput = { ...input, directory: root, file_path: safeFilePath };
 
   if (scopedInput.backend === "scip") {
-    const scipFallback = executeScipFallback(
-      scopedInput,
-      root,
-      language,
-      readResult.content,
-    );
+    const scipFallback = executeScipFallback(scopedInput, root, language, readResult.content);
     if (scipFallback !== undefined) {
       return scipFallback;
     }
     return {
       success: false,
-      error:
-        "No imported local SCIP catalog is available; run import_scip_index first",
+      error: "No imported local SCIP catalog is available; run import_scip_index first",
     };
   }
 
@@ -88,20 +77,12 @@ async function executeNavigation(
     if (lspResult.ok) {
       if (lspResult.result.kind === "hover") {
         const rawHover = renderHoverValue(lspResult.result.hover?.contents);
-        const bounded = boundedText(
-          rawHover,
-          input.max_source_bytes,
-          input.redact_secrets,
-        );
+        const bounded = boundedText(rawHover, input.max_source_bytes, input.redact_secrets);
         const rawRange = lspResult.result.hover?.range;
         const hoverStart =
-          rawRange === undefined
-            ? undefined
-            : positionFromLsp(readResult.content, rawRange.start);
+          rawRange === undefined ? undefined : positionFromLsp(readResult.content, rawRange.start);
         const hoverEnd =
-          rawRange === undefined
-            ? undefined
-            : positionFromLsp(readResult.content, rawRange.end);
+          rawRange === undefined ? undefined : positionFromLsp(readResult.content, rawRange.end);
         const output: SemanticNavigationOutput = {
           operation: input.operation,
           requested_backend: scopedInput.backend,
@@ -196,9 +177,7 @@ async function executeNavigation(
         secrets_redacted: mapped.secretsRedacted,
         warnings:
           mapped.ignoredExternal > 0
-            ? [
-                "Locations outside the configured local project root were ignored.",
-              ]
+            ? ["Locations outside the configured local project root were ignored."]
             : [],
       };
       return {
@@ -213,12 +192,7 @@ async function executeNavigation(
         error: `Local LSP navigation failed: ${safeErrorMessage(lspResult.detail, "local language server unavailable")}`,
       };
     }
-    const scipFallback = executeScipFallback(
-      scopedInput,
-      root,
-      language,
-      readResult.content,
-    );
+    const scipFallback = executeScipFallback(scopedInput, root, language, readResult.content);
     if (scipFallback !== undefined) {
       if (scipFallback.success && scipFallback.data !== undefined) {
         const data = scipFallback.data as SemanticNavigationOutput;
@@ -228,12 +202,7 @@ async function executeNavigation(
       }
       return scipFallback;
     }
-    const fallback = await executeFallback(
-      scopedInput,
-      root,
-      language,
-      readResult.content,
-    );
+    const fallback = await executeFallback(scopedInput, root, language, readResult.content);
     if (fallback.success && fallback.data !== undefined) {
       const data = fallback.data as SemanticNavigationOutput;
       data.warnings.unshift(
@@ -246,17 +215,12 @@ async function executeNavigation(
 }
 
 function addInstructionSignals(result: FeatureResult): FeatureResult {
-  if (
-    !result.success ||
-    typeof result.data !== "object" ||
-    result.data === null
-  ) {
+  if (!result.success || typeof result.data !== "object" || result.data === null) {
     return result;
   }
   const data = result.data as Record<string, unknown>;
   const scans: ReturnType<typeof scanInstructionSignals>[] = [];
-  const sourceFile =
-    typeof data.file_path === "string" ? data.file_path : "source";
+  const sourceFile = typeof data.file_path === "string" ? data.file_path : "source";
   const hover = data.hover;
   if (typeof hover === "object" && hover !== null) {
     const contents = (hover as { contents?: unknown }).contents;
@@ -274,8 +238,7 @@ function addInstructionSignals(result: FeatureResult): FeatureResult {
         scans.push(
           scanInstructionSignals(snippet, {
             source:
-              typeof (location as { file_path?: unknown }).file_path ===
-              "string"
+              typeof (location as { file_path?: unknown }).file_path === "string"
                 ? (location as { file_path: string }).file_path
                 : sourceFile,
           }),
@@ -310,9 +273,7 @@ export async function execute(
   return addInstructionSignals(await executeNavigation(rawInput, context));
 }
 
-export const semanticNavigationFeature: Feature<
-  typeof semanticNavigationSchema
-> = {
+export const semanticNavigationFeature: Feature<typeof semanticNavigationSchema> = {
   name: "semantic_navigation",
   title: "Semantic navigation",
   description:

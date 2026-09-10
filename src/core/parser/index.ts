@@ -4,16 +4,10 @@
  * Provides code parsing functionality using web-tree-sitter
  * WASM files are loaded from local assets directory for minimal bundle size
  */
-import { existsSync } from "fs";
-import { join } from "path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
-import {
-  Language,
-  type Node,
-  Parser,
-  type Point,
-  type Tree,
-} from "web-tree-sitter";
+import { Language, type Node, Parser, type Point, type Tree } from "web-tree-sitter";
 
 import type { ASTNode, Position } from "@core/ast/types";
 import { getAssetsDir, registerCache } from "@core/utils";
@@ -82,9 +76,7 @@ export function isParserInitialized(): boolean {
 }
 
 /** Register dependent native caches that must be cleared before languages. */
-export function registerLanguageCacheInvalidator(
-  invalidator: () => void,
-): () => void {
+export function registerLanguageCacheInvalidator(invalidator: () => void): () => void {
   languageCacheInvalidators.add(invalidator);
   return () => languageCacheInvalidators.delete(invalidator);
 }
@@ -124,9 +116,7 @@ async function loadLanguage(config: LanguageConfig): Promise<Language> {
   const wasmPath = join(assetsDir, "wasm", config.wasm);
 
   if (!existsSync(wasmPath)) {
-    throw new Error(
-      `WASM file not found for language ${config.name}: ${wasmPath}`,
-    );
+    throw new Error(`WASM file not found for language ${config.name}: ${wasmPath}`);
   }
 
   const loadPromise = Language.load(wasmPath)
@@ -170,10 +160,7 @@ export interface ParseOptions {
 /**
  * Parse code content
  */
-export async function parseCode(
-  content: string,
-  options: ParseOptions = {},
-): Promise<ParseResult> {
+export async function parseCode(content: string, options: ParseOptions = {}): Promise<ParseResult> {
   const { language, filePath } = options;
 
   // Determine language config
@@ -231,10 +218,7 @@ function boundNodeText(
   text: string,
   maxTextBytes: number | undefined,
 ): { text: string; truncated: boolean } {
-  if (
-    maxTextBytes === undefined ||
-    Buffer.byteLength(text, "utf8") <= maxTextBytes
-  ) {
+  if (maxTextBytes === undefined || Buffer.byteLength(text, "utf8") <= maxTextBytes) {
     return { text, truncated: false };
   }
 
@@ -357,22 +341,13 @@ export function getASTRoot(
   maxTextBytes?: number,
   maxNodes = DEFAULT_MAX_AST_NODES,
 ): ASTNode {
-  return toASTNode(
-    parseResult.tree.rootNode,
-    maxDepth,
-    0,
-    maxTextBytes,
-    maxNodes,
-  );
+  return toASTNode(parseResult.tree.rootNode, maxDepth, 0, maxTextBytes, maxNodes);
 }
 
 /**
  * Count nodes in the tree
  */
-export function countNodes(
-  node: Node,
-  maxNodes = Number.POSITIVE_INFINITY,
-): number {
+export function countNodes(node: Node, maxNodes = Number.POSITIVE_INFINITY): number {
   const limit = Math.max(1, maxNodes);
   let count = 0;
   const pending: Node[] = [node];

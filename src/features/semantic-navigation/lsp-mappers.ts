@@ -1,18 +1,9 @@
 import * as path from "node:path";
 
-import {
-  lspLocationPath,
-  type LspDiagnostic,
-  type LspLocation,
-} from "@core/navigation/lsp";
+import { lspLocationPath, type LspDiagnostic, type LspLocation } from "@core/navigation/lsp";
 import { redactSourceText, readSecureTextFile } from "@core/security";
 
-import {
-  boundedText,
-  locationKey,
-  positionFromLsp,
-  stringIndexAtByteOffset,
-} from "./common";
+import { boundedText, locationKey, positionFromLsp, stringIndexAtByteOffset } from "./common";
 import type { NavigationDiagnostic, NavigationLocation } from "./types";
 
 export function mapLspLocations(
@@ -54,10 +45,7 @@ export function mapLspLocations(
       end,
     };
     if (includeSource) {
-      const startIndex = stringIndexAtByteOffset(
-        readResult.content,
-        start.offset,
-      );
+      const startIndex = stringIndexAtByteOffset(readResult.content, start.offset);
       const endIndex = stringIndexAtByteOffset(readResult.content, end.offset);
       const bounded = boundedText(
         readResult.content.slice(startIndex, endIndex),
@@ -107,13 +95,9 @@ export function mapLspDiagnostics(
         message: message.text,
         start,
         end,
-        ...(diagnostic.severity === undefined
-          ? {}
-          : { severity: String(diagnostic.severity) }),
+        ...(diagnostic.severity === undefined ? {} : { severity: String(diagnostic.severity) }),
         ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
-        ...(diagnostic.source === undefined
-          ? {}
-          : { source: diagnostic.source }),
+        ...(diagnostic.source === undefined ? {} : { source: diagnostic.source }),
       },
     ];
   });

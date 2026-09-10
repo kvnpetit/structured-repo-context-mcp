@@ -33,11 +33,7 @@ export function classifyQuery(query: string): QueryKind {
   if (hasIdentifier && terms.length <= 2) {
     return terms.length === 1 ? "identifier" : "mixed";
   }
-  return terms.length >= 2
-    ? "concept"
-    : hasIdentifier
-      ? "identifier"
-      : "concept";
+  return terms.length >= 2 ? "concept" : hasIdentifier ? "identifier" : "concept";
 }
 
 /** Apply a bounded provider-free second pass after vector/FTS retrieval. */
@@ -77,12 +73,8 @@ export function rerankResults(
 
       if (mode === "code") {
         const symbolName = result.chunk.symbolName?.toLowerCase() ?? "";
-        const signature = splitContentParts(
-          result.chunk.content,
-        ).signature?.toLowerCase();
-        const symbolMatches = terms.filter((term) =>
-          queryTerms(symbolName).includes(term),
-        ).length;
+        const signature = splitContentParts(result.chunk.content).signature?.toLowerCase();
+        const symbolMatches = terms.filter((term) => queryTerms(symbolName).includes(term)).length;
         if (symbolName === query.trim().toLowerCase()) {
           lexicalScore += 8;
         }
@@ -93,9 +85,7 @@ export function rerankResults(
       }
 
       const lexicalDenominator =
-        mode === "code"
-          ? Math.max(terms.length * 8, 1)
-          : Math.max(terms.length * 4.5, 1);
+        mode === "code" ? Math.max(terms.length * 8, 1) : Math.max(terms.length * 4.5, 1);
       const lexicalSignal = Math.min(1, lexicalScore / lexicalDenominator);
       const rankSignal = 1 / (index + 1);
       return {
@@ -148,9 +138,7 @@ export function confidenceForResult(
   if (lowerContent.includes(lowerQuery)) {
     confidence += 0.16;
   }
-  const matchedTerms = terms.filter((term) =>
-    lowerContent.includes(term),
-  ).length;
+  const matchedTerms = terms.filter((term) => lowerContent.includes(term)).length;
   confidence += terms.length === 0 ? 0 : (matchedTerms / terms.length) * 0.18;
   const nextScore = results[index + 1]?.score;
   if (nextScore !== undefined && result.score > nextScore) {
@@ -160,7 +148,7 @@ export function confidenceForResult(
     );
   }
   if (result.neighborDistance !== undefined) {
-    confidence *= Math.pow(0.82, result.neighborDistance);
+    confidence *= 0.82 ** result.neighborDistance;
   }
   return Number(Math.min(1, Math.max(0, confidence)).toFixed(4));
 }
@@ -174,7 +162,7 @@ function adjacentScore(
   if (mode === "vector" && rerank === "none") {
     return primaryScore + distance * 0.05;
   }
-  return primaryScore * Math.pow(0.82, distance);
+  return primaryScore * 0.82 ** distance;
 }
 
 export async function expandNeighborResults(
@@ -301,16 +289,12 @@ export function matchesSearchFilters(
   ) {
     return false;
   }
-  const relativePath = normalizeProjectPath(
-    path.relative(root, result.chunk.filePath),
-  );
+  const relativePath = normalizeProjectPath(path.relative(root, result.chunk.filePath));
   if (
     filters.path_prefix !== undefined &&
     !(
       relativePath === normalizeProjectPath(filters.path_prefix) ||
-      relativePath.startsWith(
-        `${normalizeProjectPath(filters.path_prefix).replace(/\/$/u, "")}/`,
-      )
+      relativePath.startsWith(`${normalizeProjectPath(filters.path_prefix).replace(/\/$/u, "")}/`)
     )
   ) {
     return false;

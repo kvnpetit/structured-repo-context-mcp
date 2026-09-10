@@ -9,8 +9,7 @@ export interface SecurePathOptions {
   allowMissing?: boolean;
 }
 
-export type SecurePathResult =
-  { ok: true; path: string } | { ok: false; error: string };
+export type SecurePathResult = { ok: true; path: string } | { ok: false; error: string };
 
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const HARD_MAX_FILE_BYTES = 128 * 1024 * 1024;
@@ -28,9 +27,7 @@ export function isPathWithin(root: string, target: string): boolean {
   );
   return (
     relative === "" ||
-    (relative !== ".." &&
-      !relative.startsWith(`..${path.sep}`) &&
-      !path.isAbsolute(relative))
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
   );
 }
 
@@ -145,11 +142,9 @@ export function resolveSecurePath(
   // Deployment roots are alternatives; a project root is an additional
   // restriction, never another way to bypass the deployment allow-list.
   const outsideDeployment =
-    hasConfiguredAllowedRoots() &&
-    !roots.some((root) => checkContainment(absolutePath, root));
+    hasConfiguredAllowedRoots() && !roots.some((root) => checkContainment(absolutePath, root));
   const outsideProject =
-    options.root !== undefined &&
-    !checkContainment(absolutePath, path.resolve(options.root));
+    options.root !== undefined && !checkContainment(absolutePath, path.resolve(options.root));
   if (outsideDeployment || outsideProject) {
     return { ok: false, error: "Path is outside the allowed workspace" };
   }
@@ -159,10 +154,7 @@ export function resolveSecurePath(
   return { ok: true, path: absolutePath };
 }
 
-export function resolveSecureFile(
-  inputPath: string,
-  root?: string,
-): SecurePathResult {
+export function resolveSecureFile(inputPath: string, root?: string): SecurePathResult {
   return resolveSecurePath(inputPath, { kind: "file", root });
 }
 
@@ -172,9 +164,7 @@ export function resolveSecureDirectory(inputPath: string): SecurePathResult {
 
 export function getMaxFileBytes(): number {
   const configured = Number(process.env.SRC_MAX_FILE_BYTES);
-  return Number.isSafeInteger(configured) &&
-    configured > 0 &&
-    configured <= HARD_MAX_FILE_BYTES
+  return Number.isSafeInteger(configured) && configured > 0 && configured <= HARD_MAX_FILE_BYTES
     ? configured
     : DEFAULT_MAX_FILE_BYTES;
 }
@@ -185,8 +175,7 @@ export function getMaxFileBytes(): number {
  */
 export function safeErrorMessage(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : String(error);
-  const containsAbsolutePath =
-    /(?:[A-Za-z]:[\\/]|(?:^|[\s("'`])\/[^\s"'`)]*)/u.test(message);
+  const containsAbsolutePath = /(?:[A-Za-z]:[\\/]|(?:^|[\s("'`])\/[^\s"'`)]*)/u.test(message);
   if (containsAbsolutePath) {
     return fallback;
   }
@@ -228,8 +217,7 @@ export function readSecureTextFile(
     // Do not return native filesystem messages: they often contain absolute
     // paths and sensitive usernames. Preserve non-Error test/provider codes
     // without exposing native Error.message text.
-    const message =
-      error instanceof Error ? "File cannot be read" : String(error);
+    const message = error instanceof Error ? "File cannot be read" : String(error);
     return { ok: false, error: message || "File cannot be read" };
   } finally {
     if (descriptor !== undefined) {

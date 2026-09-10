@@ -15,18 +15,12 @@ export const INDEX_SCHEMA_VERSION = 1;
 
 const indexWriteLocks = new Map<string, Promise<void>>();
 
-export function computeSourceFingerprint(
-  hashes: Record<string, string>,
-): string {
+export function computeSourceFingerprint(hashes: Record<string, string>): string {
   const canonical = Object.entries(hashes)
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([filePath, hash]) => `${filePath}\0${hash}`)
     .join("\n");
-  return crypto
-    .createHash("sha256")
-    .update(canonical, "utf8")
-    .digest("hex")
-    .slice(0, 16);
+  return crypto.createHash("sha256").update(canonical, "utf8").digest("hex").slice(0, 16);
 }
 
 export async function withIndexWriteLock<T>(
@@ -74,10 +68,7 @@ export function toLanceRecords(chunks: EmbeddedChunk[]): LanceDBRow[] {
   }));
 }
 
-export function validateAbsoluteFilePath(
-  filePath: string,
-  operation: string,
-): void {
+export function validateAbsoluteFilePath(filePath: string, operation: string): void {
   if (!path.isAbsolute(filePath)) {
     throw new Error(`${operation} requires an absolute path, got: ${filePath}`);
   }
@@ -89,9 +80,7 @@ export function normalizeFilePath(filePath: string): string {
 }
 
 export function hasIndexData(directory: string): boolean {
-  return fs.existsSync(
-    path.join(directory, INDEX_DIR_NAME, INDEX_TABLE_DIR_NAME),
-  );
+  return fs.existsSync(path.join(directory, INDEX_DIR_NAME, INDEX_TABLE_DIR_NAME));
 }
 
 export function chunkIdPredicate(chunkIds: string[]): string {
@@ -104,7 +93,5 @@ export function escapeRegExp(value: string): string {
 }
 
 export function nonNegativeInteger(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.max(0, Math.trunc(value))
-    : 0;
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }

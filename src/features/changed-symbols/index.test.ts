@@ -24,26 +24,17 @@ describe("get_changed_symbols", () => {
   });
 
   test("rejects unsafe output limits", () => {
-    expect(changedSymbolsSchema.safeParse({ max_files: 0 }).success).toBe(
-      false,
-    );
-    expect(changedSymbolsSchema.safeParse({ max_symbols: 5001 }).success).toBe(
-      false,
-    );
+    expect(changedSymbolsSchema.safeParse({ max_files: 0 }).success).toBe(false);
+    expect(changedSymbolsSchema.safeParse({ max_symbols: 5001 }).success).toBe(false);
   });
 
   test("maps tracked and untracked changes to current symbols", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-changed-symbols-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-changed-symbols-"));
     const originalAllowedRoots = process.env.SRC_ALLOWED_ROOTS;
     try {
       fs.mkdirSync(path.join(directory, "src"));
       const examplePath = path.join(directory, "src", "example.ts");
-      fs.writeFileSync(
-        examplePath,
-        "export function stable(): number { return 1; }\n",
-      );
+      fs.writeFileSync(examplePath, "export function stable(): number { return 1; }\n");
       git(directory, ["init", "-q"]);
       git(directory, ["config", "user.email", "src-mcp-tests@example.test"]);
       git(directory, ["config", "user.name", "SRC MCP Tests"]);

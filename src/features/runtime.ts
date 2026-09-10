@@ -1,9 +1,6 @@
 import { getMaxResultBytes } from "@config";
 import { metrics, recordAuditEvent } from "@core/observability";
-import {
-  scanInstructionSignals,
-  type InstructionSignals,
-} from "@core/security";
+import { scanInstructionSignals, type InstructionSignals } from "@core/security";
 import { instructionSignalsSchema } from "@features/utils";
 import type {
   Feature,
@@ -48,11 +45,10 @@ function resultMetadata(
         : record?.directory !== undefined
           ? "local-filesystem"
           : "local-analysis";
-  const embeddedSignals = instructionSignalsSchema.safeParse(
-    record?.instruction_signals,
-  );
-  let instructionSignals: InstructionSignals | undefined =
-    embeddedSignals.success ? embeddedSignals.data : undefined;
+  const embeddedSignals = instructionSignalsSchema.safeParse(record?.instruction_signals);
+  let instructionSignals: InstructionSignals | undefined = embeddedSignals.success
+    ? embeddedSignals.data
+    : undefined;
   if (instructionSignals === undefined) {
     try {
       const serialized = JSON.stringify(data);
@@ -84,22 +80,12 @@ function resultMetadata(
     ...(typeof record?.source_is_untrusted === "boolean"
       ? { source_is_untrusted: record.source_is_untrusted }
       : {}),
-    ...(sourceRevision === undefined
-      ? {}
-      : { source_revision: sourceRevision }),
+    ...(sourceRevision === undefined ? {} : { source_revision: sourceRevision }),
     index_freshness: indexFreshness ?? "unknown",
-    ...(typeof record?.truncated === "boolean"
-      ? { truncated: record.truncated }
-      : {}),
-    ...(typeof record?.confidence === "number"
-      ? { confidence: record.confidence }
-      : {}),
-    ...(coverage === "precise" || coverage === "approximate"
-      ? { coverage }
-      : {}),
-    ...(instructionSignals === undefined
-      ? {}
-      : { instruction_signals: instructionSignals }),
+    ...(typeof record?.truncated === "boolean" ? { truncated: record.truncated } : {}),
+    ...(typeof record?.confidence === "number" ? { confidence: record.confidence } : {}),
+    ...(coverage === "precise" || coverage === "approximate" ? { coverage } : {}),
+    ...(instructionSignals === undefined ? {} : { instruction_signals: instructionSignals }),
     ...override,
   };
 }
@@ -136,9 +122,7 @@ export async function executeFeature(
 }
 
 /** Build the stable, bounded result shared by MCP and CLI adapters. */
-export function formatFeatureResult(
-  result: FeatureResult,
-): FormattedFeatureResult {
+export function formatFeatureResult(result: FeatureResult): FormattedFeatureResult {
   const structuredContent = {
     schema_version: FEATURE_RESULT_SCHEMA_VERSION,
     success: result.success,
@@ -154,11 +138,7 @@ export function formatFeatureResult(
     text = result.error;
   } else {
     try {
-      text = JSON.stringify(
-        result.data ?? { success: result.success },
-        null,
-        2,
-      );
+      text = JSON.stringify(result.data ?? { success: result.success }, null, 2);
     } catch {
       text = "Tool result could not be serialized";
     }
@@ -170,9 +150,7 @@ export function formatFeatureResult(
     structuredContent,
   };
   try {
-    if (
-      Buffer.byteLength(JSON.stringify(response), "utf8") <= getMaxResultBytes()
-    ) {
+    if (Buffer.byteLength(JSON.stringify(response), "utf8") <= getMaxResultBytes()) {
       return response;
     }
   } catch {

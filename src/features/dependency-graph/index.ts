@@ -2,16 +2,8 @@ import * as path from "node:path";
 
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { parseCode } from "@core/parser";
-import {
-  extractCodeInfo,
-  extractTypeHierarchy,
-  type TypeHierarchyRelation,
-} from "@core/symbols";
-import {
-  readSecureTextFile,
-  resolveSecureDirectory,
-  resolveSecureFile,
-} from "@core/security";
+import { extractCodeInfo, extractTypeHierarchy, type TypeHierarchyRelation } from "@core/symbols";
+import { readSecureTextFile, resolveSecureDirectory, resolveSecureFile } from "@core/security";
 import { readPathAliasesCached } from "@core/utils";
 import type { Feature, FeatureResult } from "@features/types";
 import {
@@ -34,18 +26,7 @@ interface SimpleImport {
   names: string[];
 }
 
-const extensions = [
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".py",
-  ".go",
-  ".rs",
-  ".java",
-];
+const extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".java"];
 
 function relativePath(root: string, value: string): string {
   return path.relative(root, value).replace(/\\/g, "/");
@@ -78,11 +59,7 @@ function resolveImport(
   let base: string | undefined;
   for (const [alias, target] of Object.entries(aliases)) {
     if (source === alias || source.startsWith(`${alias}/`)) {
-      base = path.resolve(
-        root,
-        target,
-        source.slice(alias.length).replace(/^[/\\]/u, ""),
-      );
+      base = path.resolve(root, target, source.slice(alias.length).replace(/^[/\\]/u, ""));
       break;
     }
   }
@@ -148,9 +125,7 @@ function findCycles(nodes: string[], edges: GraphEdge[]): string[][] {
   return cycles.slice(0, 50);
 }
 
-export async function execute(
-  rawInput: DependencyGraphInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: DependencyGraphInput): Promise<FeatureResult> {
   const input = dependencyGraphSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -183,12 +158,8 @@ export async function execute(
     },
   };
   const absoluteToRelative = new Map<string, string>();
-  const importsByFile = new Map<
-    string,
-    { source: string; names: string[] }[]
-  >();
-  const typeRelations: { path: string; relations: TypeHierarchyRelation[] }[] =
-    [];
+  const importsByFile = new Map<string, { source: string; names: string[] }[]>();
+  const typeRelations: { path: string; relations: TypeHierarchyRelation[] }[] = [];
 
   for (const file of files) {
     const readResult = readSecureTextFile(file, root);
@@ -198,17 +169,12 @@ export async function execute(
     }
     try {
       const parsed = await parseCode(readResult.content, { filePath: file });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       const fileRelative = relativePath(root, file);
       absoluteToRelative.set(file, fileRelative);
       importsByFile.set(
         file,
-        info.imports.length > 0 &&
-          info.imports.some((item) => item.source.length > 0)
+        info.imports.length > 0 && info.imports.some((item) => item.source.length > 0)
           ? info.imports.map((item) => ({
               source: item.source,
               names: item.names.map((name) => name.alias ?? name.name),
@@ -239,12 +205,7 @@ export async function execute(
     for (const item of imports) {
       const target = resolveImport(item.source, file, root, aliases);
       const to = target ? absoluteToRelative.get(target) : undefined;
-      if (
-        !to &&
-        !input.include_external &&
-        item.source &&
-        !item.source.startsWith(".")
-      ) {
+      if (!to && !input.include_external && item.source && !item.source.startsWith(".")) {
         continue;
       }
       if (!to) {
@@ -281,10 +242,7 @@ export async function execute(
       };
       output.typeHierarchy.nodes.push(node);
       includedTypeIds.add(node.id);
-      const keys = [
-        relation.name,
-        relation.name.split(".").at(-1) ?? relation.name,
-      ];
+      const keys = [relation.name, relation.name.split(".").at(-1) ?? relation.name];
       for (const key of keys) {
         const entries = typeNameMap.get(key) ?? [];
         entries.push(node);
@@ -305,12 +263,9 @@ export async function execute(
           break;
         }
         const candidates =
-          typeNameMap.get(parent) ??
-          typeNameMap.get(parent.split(".").at(-1) ?? parent) ??
-          [];
+          typeNameMap.get(parent) ?? typeNameMap.get(parent.split(".").at(-1) ?? parent) ?? [];
         const target =
-          candidates.find((candidate) => candidate.path === group.path) ??
-          candidates[0];
+          candidates.find((candidate) => candidate.path === group.path) ?? candidates[0];
         if (!target) {
           output.typeHierarchy.unresolved.push(parent);
         }
@@ -329,9 +284,7 @@ export async function execute(
       break;
     }
   }
-  output.typeHierarchy.unresolved = [
-    ...new Set(output.typeHierarchy.unresolved),
-  ].slice(0, 200);
+  output.typeHierarchy.unresolved = [...new Set(output.typeHierarchy.unresolved)].slice(0, 200);
 
   const degrees = new Map<string, { inbound: number; outbound: number }>();
   for (const node of output.nodes) {

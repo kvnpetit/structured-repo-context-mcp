@@ -1395,8 +1395,8 @@ bun run conformance:local
 `contract:verify` fingerprints the reviewed feature schemas and annotations,
 MCP tools, CLI commands, prompts, resources, public exports, and default
 configuration. This makes clean-code refactors fail fast if they accidentally
-remove or alter a capability. ESLint also limits production modules to 500
-physical lines and functions to 350 logical lines.
+remove or alter a capability. Biome applies the repository formatter and lint
+rules consistently across source and tooling.
 
 The coverage gate requires at least 80% for lines, statements and functions,
 and 70% for branches. LSP and ast-grep/Semgrep/CodeQL adapters are optional

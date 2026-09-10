@@ -1,17 +1,11 @@
 import { defineCommand, type CommandDef } from "citty";
 
 import { normalizeCliArgs, zodToCittyArgs } from "@cli/parser";
-import {
-  executeFeature,
-  finalizeFeatureResult,
-  formatFeatureResult,
-} from "@features/runtime";
+import { executeFeature, finalizeFeatureResult, formatFeatureResult } from "@features/runtime";
 import type { Feature } from "@features/types";
 import { colors } from "@utils";
 
-function validationMessage(
-  issues: readonly { path: PropertyKey[]; message: string }[],
-): string {
+function validationMessage(issues: readonly { path: PropertyKey[]; message: string }[]): string {
   return issues
     .map((issue) => {
       const path = issue.path.length > 0 ? `--${issue.path.join(".")}: ` : "";
@@ -34,9 +28,7 @@ export function featureToCittyCommand(feature: Feature): CommandDef {
         const parsed = feature.schema.safeParse(input);
         if (!parsed.success) {
           console.error(
-            colors.formatError(
-              `Invalid arguments: ${validationMessage(parsed.error.issues)}`,
-            ),
+            colors.formatError(`Invalid arguments: ${validationMessage(parsed.error.issues)}`),
           );
           process.exitCode = 1;
           return;

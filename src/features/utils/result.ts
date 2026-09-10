@@ -15,12 +15,7 @@ export const featureResultMetaSchema = z
     generated_at: z.string(),
     local_only: z.literal(true),
     bounded: z.literal(true),
-    provenance: z.enum([
-      "local-analysis",
-      "local-filesystem",
-      "local-index",
-      "local-lsp",
-    ]),
+    provenance: z.enum(["local-analysis", "local-filesystem", "local-index", "local-lsp"]),
     source_is_untrusted: z.boolean().optional(),
     source_revision: z.string().optional(),
     index_freshness: z.enum(["fresh", "stale", "unknown"]).optional(),

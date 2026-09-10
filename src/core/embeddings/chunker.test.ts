@@ -584,10 +584,7 @@ and more lines
 
 describe("chunkFile line number calculation", () => {
   test("handles content with many newlines", async () => {
-    const content = Array.from(
-      { length: 20 },
-      (_, i) => `line ${String(i + 1)}`,
-    ).join("\n");
+    const content = Array.from({ length: 20 }, (_, i) => `line ${String(i + 1)}`).join("\n");
 
     const chunks = await chunkFile("/test/file.txt", content, {
       defaultChunkSize: 50,
@@ -805,27 +802,15 @@ describe("chunkFile indexOf edge cases", () => {
 
 describe("chunk line metadata", () => {
   test("reports exact source lines when fallback chunks overlap", async () => {
-    const sourceLines = [
-      "first line",
-      "second line",
-      "third line",
-      "fourth line",
-      "fifth line",
-    ];
-    const chunks = await chunkFile(
-      "/test/notes.unknown",
-      sourceLines.join("\n"),
-      {
-        defaultChunkSize: 24,
-        defaultChunkOverlap: 10,
-      },
-    );
+    const sourceLines = ["first line", "second line", "third line", "fourth line", "fifth line"];
+    const chunks = await chunkFile("/test/notes.unknown", sourceLines.join("\n"), {
+      defaultChunkSize: 24,
+      defaultChunkOverlap: 10,
+    });
 
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) {
-      expect(chunk.content).toBe(
-        sourceLines.slice(chunk.startLine - 1, chunk.endLine).join("\n"),
-      );
+      expect(chunk.content).toBe(sourceLines.slice(chunk.startLine - 1, chunk.endLine).join("\n"));
     }
     expect(
       chunks.some((chunk, index) => {

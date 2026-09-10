@@ -23,12 +23,9 @@ export interface FeatureToolConfig {
   annotations: Required<FeatureAnnotations>;
 }
 
-function isObjectUnion(
-  schema: z.ZodType,
-): schema is z.ZodUnion | z.ZodDiscriminatedUnion {
+function isObjectUnion(schema: z.ZodType): schema is z.ZodUnion | z.ZodDiscriminatedUnion {
   return (
-    (schema instanceof z.ZodUnion ||
-      schema instanceof z.ZodDiscriminatedUnion) &&
+    (schema instanceof z.ZodUnion || schema instanceof z.ZodDiscriminatedUnion) &&
     schema.options.every((option) => option instanceof z.ZodObject)
   );
 }
@@ -37,13 +34,8 @@ function flattenObjectUnion(schema: z.ZodType): z.ZodType | undefined {
   if (!isObjectUnion(schema)) {
     return undefined;
   }
-  const options = (schema as unknown as { options: readonly z.ZodObject[] })
-    .options;
-  const keys = [
-    ...new Set(
-      options.flatMap((option) => Object.keys(option.shape as object)),
-    ),
-  ];
+  const options = (schema as unknown as { options: readonly z.ZodObject[] }).options;
+  const keys = [...new Set(options.flatMap((option) => Object.keys(option.shape as object)))];
   const shape: Record<string, z.ZodType> = {};
   for (const key of keys) {
     const fields = options.flatMap((option) => {
@@ -55,9 +47,7 @@ function flattenObjectUnion(schema: z.ZodType): z.ZodType | undefined {
       continue;
     }
     const combined =
-      fields.length === 1
-        ? firstField
-        : z.union(fields as [z.ZodType, z.ZodType, ...z.ZodType[]]);
+      fields.length === 1 ? firstField : z.union(fields as [z.ZodType, z.ZodType, ...z.ZodType[]]);
     const requiredInEveryOption =
       fields.length === options.length &&
       fields.every((field) => !field.safeParse(undefined).success);
@@ -92,13 +82,10 @@ export function isMutatingFeatureName(name: string): boolean {
   return MUTATING_FEATURE_NAMES.has(name);
 }
 
-export function resolveFeatureAnnotations(
-  feature: Feature,
-): Required<FeatureAnnotations> {
+export function resolveFeatureAnnotations(feature: Feature): Required<FeatureAnnotations> {
   return {
     title: feature.annotations?.title ?? feature.title ?? feature.name,
-    readOnlyHint:
-      feature.annotations?.readOnlyHint ?? !isMutatingFeatureName(feature.name),
+    readOnlyHint: feature.annotations?.readOnlyHint ?? !isMutatingFeatureName(feature.name),
     destructiveHint: feature.annotations?.destructiveHint ?? false,
     idempotentHint: feature.annotations?.idempotentHint ?? true,
     openWorldHint: feature.annotations?.openWorldHint ?? false,

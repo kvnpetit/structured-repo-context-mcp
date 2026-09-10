@@ -35,17 +35,11 @@ function contenders(directory: string, deadline: number): Contender[] {
       continue;
     }
     try {
-      const raw = retryTaskIo(
-        () => fs.readFileSync(filePath, "utf8"),
-        deadline,
-      );
+      const raw = retryTaskIo(() => fs.readFileSync(filePath, "utf8"), deadline);
       const ticket = Number(raw);
       result.push({
         name,
-        ticket:
-          raw.length > 0 && Number.isSafeInteger(ticket) && ticket > 0
-            ? ticket
-            : 0,
+        ticket: raw.length > 0 && Number.isSafeInteger(ticket) && ticket > 0 ? ticket : 0,
       });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -70,11 +64,7 @@ export function withTaskStoreLock<T>(filePath: string, run: () => T): T {
   const candidate = path.join(directory, name);
   fs.writeFileSync(candidate, "0", { flag: "wx" });
   try {
-    const ticket =
-      Math.max(
-        0,
-        ...contenders(directory, deadline).map((entry) => entry.ticket),
-      ) + 1;
+    const ticket = Math.max(0, ...contenders(directory, deadline).map((entry) => entry.ticket)) + 1;
     fs.writeFileSync(candidate, String(ticket));
     for (;;) {
       const blocked = contenders(directory, deadline).some(

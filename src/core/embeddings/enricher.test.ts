@@ -120,8 +120,7 @@ afterEach(() => {
 describe("enrichChunk", () => {
   const sampleChunk: CodeChunk = {
     id: "chunk_123",
-    content:
-      "export async function execute(input) { return { success: true }; }",
+    content: "export async function execute(input) { return { success: true }; }",
     filePath: "/src/features/search-code/index.ts",
     language: "typescript",
     startLine: 5,
@@ -157,9 +156,7 @@ export const searchCodeFeature = {
   test("includes file path in enriched content", async () => {
     const result = await enrichChunk(sampleChunk, sampleContent);
 
-    expect(result.enrichedContent).toContain(
-      "File: /src/features/search-code/index.ts",
-    );
+    expect(result.enrichedContent).toContain("File: /src/features/search-code/index.ts");
   });
 
   test("includes language in enriched content", async () => {
@@ -318,10 +315,7 @@ describe("enrichChunks", () => {
       // file-b.ts is missing
     ]);
 
-    const results = await enrichChunks(
-      chunksFromMultipleFiles,
-      partialContents,
-    );
+    const results = await enrichChunks(chunksFromMultipleFiles, partialContents);
 
     expect(results).toHaveLength(3);
     // file-a chunks should be enriched
@@ -472,9 +466,7 @@ describe("enrichChunk edge cases", () => {
 
 describe("enrichChunk parser failure handling", () => {
   test("returns basic enrichment when parser fails", async () => {
-    (parserModule.parseCode as Mock).mockRejectedValue(
-      new Error("Parser error"),
-    );
+    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parser error"));
 
     const chunk: CodeChunk = {
       id: "chunk_fail",
@@ -497,9 +489,7 @@ describe("enrichChunk parser failure handling", () => {
   });
 
   test("enrichChunksFromFile returns basic enrichment when parser fails", async () => {
-    (parserModule.parseCode as Mock).mockRejectedValue(
-      new Error("Parse failure"),
-    );
+    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parse failure"));
 
     const chunks: CodeChunk[] = [
       {
@@ -534,10 +524,7 @@ describe("enrichChunks edge cases", () => {
       },
     ];
 
-    const results = await enrichChunks(
-      chunks,
-      new Map([["/src/file.ts", "orphan"]]),
-    );
+    const results = await enrichChunks(chunks, new Map([["/src/file.ts", "orphan"]]));
 
     expect(results).toHaveLength(1);
     expect(results[0]?.id).toBe("orphan_chunk");
@@ -578,9 +565,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, so it overlaps with chunk at 10-12
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("detects symbol that starts inside chunk but ends after", async () => {
@@ -596,9 +581,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, so it overlaps with chunk at 3-8
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("detects symbol fully contained in chunk", async () => {
@@ -614,9 +597,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, fully inside chunk at 3-18
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("does not detect symbol completely outside chunk", async () => {

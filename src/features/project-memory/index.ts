@@ -29,11 +29,7 @@ import {
   type RevisionState,
   type SetProjectMemoryInput,
 } from "./schema";
-import {
-  canonicalGitRevision,
-  currentGitRevision,
-  revisionState,
-} from "./revision";
+import { canonicalGitRevision, currentGitRevision, revisionState } from "./revision";
 
 export {
   getProjectMemoryOutputSchema,
@@ -46,10 +42,7 @@ export {
 
 type MemoryRecordView = MemoryRecord & { revision_state: RevisionState };
 
-function recordsInScope(
-  records: readonly MemoryRecord[],
-  scope: string,
-): number {
+function recordsInScope(records: readonly MemoryRecord[], scope: string): number {
   return records.filter((record) => record.scope === scope).length;
 }
 
@@ -63,9 +56,7 @@ function emptyStore(): MemoryStore {
 
 function loadStore(
   root: string,
-):
-  | { ok: true; exists: boolean; store: MemoryStore }
-  | { ok: false; error: string } {
+): { ok: true; exists: boolean; store: MemoryStore } | { ok: false; error: string } {
   const result = readLocalState(root, MEMORY_FILE);
   if (!result.ok) {
     return result;
@@ -84,10 +75,7 @@ function loadStore(
 }
 
 function storeRevision(store: MemoryStore): string {
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(store), "utf8")
-    .digest("hex");
+  return crypto.createHash("sha256").update(JSON.stringify(store), "utf8").digest("hex");
 }
 
 function termsFor(value: string): string[] {
@@ -174,9 +162,7 @@ function redactRecord(
 }
 
 function normalizeTags(tags: readonly string[]): string[] {
-  return [
-    ...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean)),
-  ].slice(0, 16);
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].slice(0, 16);
 }
 
 function normalizeLinks(links: readonly MemoryLink[]): MemoryLink[] {
@@ -289,9 +275,7 @@ export async function executeGetProjectMemory(
     source_is_untrusted: true as const,
     secrets_redacted: secretsRedacted,
     store_revision: storeRevision(loaded.store),
-    ...(currentRevision === undefined
-      ? {}
-      : { current_revision: currentRevision }),
+    ...(currentRevision === undefined ? {} : { current_revision: currentRevision }),
     revision_summary: revisionSummary,
     records,
     errors: [],
@@ -316,8 +300,7 @@ export async function executeSetProjectMemory(
     input.operation !== "upsert"
       ? undefined
       : input.source_revision !== undefined
-        ? ((await canonicalGitRevision(root, input.source_revision)) ??
-          input.source_revision)
+        ? ((await canonicalGitRevision(root, input.source_revision)) ?? input.source_revision)
         : input.capture_source_revision
           ? await currentGitRevision(root)
           : undefined;
@@ -335,9 +318,7 @@ export async function executeSetProjectMemory(
 
     if (input.expected_updated_at !== undefined) {
       if (existing?.updated_at !== input.expected_updated_at) {
-        return conflictResult(
-          "Project memory changed since the supplied expected_updated_at",
-        );
+        return conflictResult("Project memory changed since the supplied expected_updated_at");
       }
     }
 
@@ -391,20 +372,14 @@ export async function executeSetProjectMemory(
         error: `Project memory reached its ${String(MAX_MEMORY_RECORDS)}-record limit`,
       };
     }
-    const title = input.redact_secrets
-      ? redactSourceText(input.title).text
-      : input.title;
-    const body = input.redact_secrets
-      ? redactSourceText(input.body).text
-      : input.body;
+    const title = input.redact_secrets ? redactSourceText(input.title).text : input.title;
+    const body = input.redact_secrets ? redactSourceText(input.body).text : input.body;
     const tags = normalizeTags(input.tags).map((tag) =>
       input.redact_secrets ? redactSourceText(tag).text : tag,
     );
     const links = normalizeLinks(input.links).map((link) => ({
       ...link,
-      target: input.redact_secrets
-        ? redactSourceText(link.target).text
-        : link.target,
+      target: input.redact_secrets ? redactSourceText(link.target).text : link.target,
     }));
     const record: MemoryRecord = {
       id: input.id,
@@ -416,12 +391,8 @@ export async function executeSetProjectMemory(
       links,
       created_at: existing?.created_at ?? now,
       updated_at: now,
-      ...(resolvedRevision === undefined
-        ? {}
-        : { source_revision: resolvedRevision }),
-      ...(input.expires_at === undefined
-        ? {}
-        : { expires_at: input.expires_at }),
+      ...(resolvedRevision === undefined ? {} : { source_revision: resolvedRevision }),
+      ...(input.expires_at === undefined ? {} : { expires_at: input.expires_at }),
       confidence: input.confidence,
     };
     if (index >= 0) {

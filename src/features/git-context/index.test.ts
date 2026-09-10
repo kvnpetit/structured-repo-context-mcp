@@ -60,20 +60,14 @@ describe("get_git_context", () => {
       path.join(directory, "service.ts"),
       "export function service(): number {\n  return 1;\n}\n",
     );
-    fs.writeFileSync(
-      path.join(directory, ".github", "CODEOWNERS"),
-      "*.ts @local-owner\n",
-    );
+    fs.writeFileSync(path.join(directory, ".github", "CODEOWNERS"), "*.ts @local-owner\n");
     git(directory, ["add", "."]);
     git(directory, ["commit", "-qm", "initial service"]);
     fs.writeFileSync(
       path.join(directory, "service.ts"),
       "export function service(): number {\n  return 2;\n}\n",
     );
-    fs.writeFileSync(
-      path.join(directory, "new.ts"),
-      "export function added() {}\n",
-    );
+    fs.writeFileSync(path.join(directory, "new.ts"), "export function added() {}\n");
 
     const result = await execute({
       directory,
@@ -101,10 +95,7 @@ describe("get_git_context", () => {
     };
     expect(data.git_available).toBe(true);
     expect(data.head).toMatch(/^[a-f0-9]{40}$/u);
-    expect(data.files.map((file) => file.path)).toEqual([
-      "new.ts",
-      "service.ts",
-    ]);
+    expect(data.files.map((file) => file.path)).toEqual(["new.ts", "service.ts"]);
     expect(data.diff.text).toContain("service.ts");
     expect(data.diff.truncated).toBe(false);
     expect(data.history[0]?.subject).toBe("initial service");
@@ -148,10 +139,7 @@ describe("get_git_context", () => {
       path.join(directory, "service.ts"),
       "export function service(): number {\n  return 2;\n}\n\nexport function helper() { return true; }\n",
     );
-    fs.writeFileSync(
-      path.join(directory, "README.md"),
-      "Local revision comparison fixture\n",
-    );
+    fs.writeFileSync(path.join(directory, "README.md"), "Local revision comparison fixture\n");
     git(directory, ["add", "."]);
     git(directory, ["commit", "-qm", "change service and docs"]);
     const latest = gitOutput(directory, ["rev-parse", "HEAD"]);
@@ -207,9 +195,7 @@ describe("get_git_context", () => {
   }, 30_000);
 
   test("rejects partial or range-based revision comparisons", () => {
-    expect(gitContextSchema.safeParse({ compare_from: "HEAD~1" }).success).toBe(
-      false,
-    );
+    expect(gitContextSchema.safeParse({ compare_from: "HEAD~1" }).success).toBe(false);
     expect(
       gitContextSchema.safeParse({
         compare_from: "HEAD~1..HEAD",

@@ -11,10 +11,7 @@ import {
 } from "@core/security";
 import { truncateUtf8WithStatus } from "@core/utils/utf8";
 import type { Feature, FeatureResult } from "@features/types";
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_CONTENT_BYTES = 4_000;
@@ -35,9 +32,7 @@ export const projectArtifactsSchema = z.object({
     .trim()
     .optional()
     .default("")
-    .describe(
-      "Optional words to search in artifact paths, titles, and content",
-    ),
+    .describe("Optional words to search in artifact paths, titles, and content"),
   limit: z
     .number()
     .int()
@@ -151,9 +146,7 @@ const projectArtifactsDataSchema = z
   })
   .strict();
 
-export const projectArtifactsOutputSchema = createFeatureResultSchema(
-  projectArtifactsDataSchema,
-);
+export const projectArtifactsOutputSchema = createFeatureResultSchema(projectArtifactsDataSchema);
 
 function relativePath(root: string, filePath: string): string {
   return path.relative(root, filePath).replace(/\\/gu, "/");
@@ -210,9 +203,7 @@ function extractTitle(content: string, filePath: string): string | undefined {
 
 function extractLinks(content: string): string[] {
   const links = new Set<string>();
-  for (const match of content.matchAll(
-    /\[[^\]]+\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu,
-  )) {
+  for (const match of content.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+[^)]*)?\)/gu)) {
     const link = match[1]?.trim();
     if (link) {
       links.add(link);
@@ -222,13 +213,8 @@ function extractLinks(content: string): string[] {
 }
 
 function queryTerms(query: string): string[] {
-  const terms = Array.from(
-    query.toLowerCase().matchAll(/[a-z0-9_$-]+/gu),
-    (match) => match[0],
-  );
-  return terms
-    .filter((term, index, all) => all.indexOf(term) === index)
-    .slice(0, 20);
+  const terms = Array.from(query.toLowerCase().matchAll(/[a-z0-9_$-]+/gu), (match) => match[0]);
+  return terms.filter((term, index, all) => all.indexOf(term) === index).slice(0, 20);
 }
 
 function relevance(
@@ -278,9 +264,7 @@ export function execute(rawInput: ProjectArtifactsInput): FeatureResult {
       continue;
     }
     const relativeFile = relativePath(root, file);
-    instructionScans.push(
-      scanInstructionSignals(readResult.content, { source: relativeFile }),
-    );
+    instructionScans.push(scanInstructionSignals(readResult.content, { source: relativeFile }));
     const title = extractTitle(readResult.content, relativeFile);
     const score = relevance(relativeFile, title, readResult.content, terms);
     if (terms.length > 0 && score === 0) {
@@ -300,10 +284,7 @@ export function execute(rawInput: ProjectArtifactsInput): FeatureResult {
         ? redactSourceText(readResult.content)
         : { text: readResult.content, redacted: false };
       secretsRedacted ||= source.redacted;
-      const bounded = truncateUtf8WithStatus(
-        source.text,
-        input.max_content_bytes,
-      );
+      const bounded = truncateUtf8WithStatus(source.text, input.max_content_bytes);
       artifact.content = bounded.text;
       artifact.content_truncated = bounded.truncated;
     }
@@ -312,11 +293,9 @@ export function execute(rawInput: ProjectArtifactsInput): FeatureResult {
 
   artifacts.sort(
     (left, right) =>
-      right.relevance - left.relevance ||
-      left.file_path.localeCompare(right.file_path),
+      right.relevance - left.relevance || left.file_path.localeCompare(right.file_path),
   );
-  const truncated =
-    files.length > boundedFiles.length || artifacts.length > input.limit;
+  const truncated = files.length > boundedFiles.length || artifacts.length > input.limit;
   const output: ProjectArtifactsOutput = {
     directory: root,
     query: input.query,

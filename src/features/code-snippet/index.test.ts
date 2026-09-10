@@ -9,10 +9,7 @@ describe("get_code_snippet", () => {
 
   beforeEach(() => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "code-snippet-test-"));
-    fs.writeFileSync(
-      path.join(directory, "unicode.ts"),
-      "const café = 42;\nreturn café;\n",
-    );
+    fs.writeFileSync(path.join(directory, "unicode.ts"), "const café = 42;\nreturn café;\n");
   });
 
   afterEach(() => {
@@ -114,10 +111,7 @@ describe("get_code_snippet", () => {
   });
 
   test("can redact inline secrets while preserving original offsets", async () => {
-    fs.writeFileSync(
-      path.join(directory, "secret.ts"),
-      'const apiKey = "super-secret-value";\n',
-    );
+    fs.writeFileSync(path.join(directory, "secret.ts"), 'const apiKey = "super-secret-value";\n');
     const result = await execute({
       directory,
       file_path: "secret.ts",
@@ -126,11 +120,9 @@ describe("get_code_snippet", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(
-      (result.data as { content: string; source_redacted: boolean }).content,
-    ).not.toContain("super-secret-value");
-    expect((result.data as { source_redacted: boolean }).source_redacted).toBe(
-      true,
+    expect((result.data as { content: string; source_redacted: boolean }).content).not.toContain(
+      "super-secret-value",
     );
+    expect((result.data as { source_redacted: boolean }).source_redacted).toBe(true);
   });
 });

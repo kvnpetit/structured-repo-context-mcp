@@ -1,17 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { ServerContext } from "@modelcontextprotocol/server";
 import type { Feature, FeatureExecutionContext } from "@features/types";
-import {
-  executeFeature,
-  finalizeFeatureResult,
-  formatFeatureResult,
-} from "@features/runtime";
+import { executeFeature, finalizeFeatureResult, formatFeatureResult } from "@features/runtime";
 import { createFeatureToolConfig, usesFlatMcpInput } from "@tools/contracts";
 
-export function registerFeatureAsTool(
-  server: McpServer,
-  feature: Feature,
-): void {
+export function registerFeatureAsTool(server: McpServer, feature: Feature): void {
   server.registerTool(
     feature.name,
     createFeatureToolConfig(feature),
@@ -41,11 +34,7 @@ export function registerFeatureAsTool(
             });
           },
         };
-        const featureResult = await executeFeature(
-          feature,
-          featureInput,
-          featureContext,
-        );
+        const featureResult = await executeFeature(feature, featureInput, featureContext);
         return finalizeFeatureResult(feature, featureResult);
       } catch {
         return formatFeatureResult({

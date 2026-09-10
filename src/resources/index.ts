@@ -18,13 +18,7 @@ import {
 } from "@core/security";
 import { getToolConfiguration } from "@tools";
 
-export const PROJECT_VIEWS = [
-  "context",
-  "map",
-  "status",
-  "catalog",
-  "memory",
-] as const;
+export const PROJECT_VIEWS = ["context", "map", "status", "catalog", "memory"] as const;
 type ProjectView = (typeof PROJECT_VIEWS)[number];
 
 export const RESOURCE_SURFACE = {
@@ -46,8 +40,7 @@ export const RESOURCE_SURFACE = {
     name: "project_views",
     uri: "src://project/{project}/{view}",
     mimeType: "application/json",
-    description:
-      "Bounded local project context, map, status, catalog, and memory views",
+    description: "Bounded local project context, map, status, catalog, and memory views",
   },
   views: PROJECT_VIEWS,
 } as const;
@@ -95,10 +88,7 @@ function isProjectView(value: string | undefined): value is ProjectView {
   return value !== undefined && PROJECT_VIEWS.includes(value as ProjectView);
 }
 
-function projectResourceUri(
-  project: ResourceProject,
-  view: ProjectView,
-): string {
+function projectResourceUri(project: ResourceProject, view: ProjectView): string {
   return `src://project/${project.id}/${view}`;
 }
 
@@ -186,10 +176,7 @@ function toolCatalogRevision(enabledTools: readonly string[]): string {
       has_output_schema: feature.outputSchema !== undefined,
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(descriptors), "utf8")
-    .digest("hex");
+  return crypto.createHash("sha256").update(JSON.stringify(descriptors), "utf8").digest("hex");
 }
 
 export function registerResources(server: McpServer): void {
@@ -236,13 +223,9 @@ export function registerResources(server: McpServer): void {
                 version: config.version,
                 profile: toolConfiguration.profile,
                 allowListConfigured: toolConfiguration.allowListConfigured,
-                tool_catalog_revision: toolCatalogRevision(
-                  toolConfiguration.enabledTools,
-                ),
+                tool_catalog_revision: toolCatalogRevision(toolConfiguration.enabledTools),
                 tools: features
-                  .filter((feature) =>
-                    toolConfiguration.enabledTools.includes(feature.name),
-                  )
+                  .filter((feature) => toolConfiguration.enabledTools.includes(feature.name))
                   .map((feature) => ({
                     name: feature.name,
                     title: feature.title ?? feature.name,
@@ -280,10 +263,8 @@ export function registerResources(server: McpServer): void {
       description: RESOURCE_SURFACE.template.description,
     },
     async (uri, variables) => {
-      const projectVariable =
-        typeof variables.project === "string" ? variables.project : undefined;
-      const viewVariable =
-        typeof variables.view === "string" ? variables.view : undefined;
+      const projectVariable = typeof variables.project === "string" ? variables.project : undefined;
+      const viewVariable = typeof variables.view === "string" ? variables.view : undefined;
       if (projectVariable === undefined || !isProjectView(viewVariable)) {
         throw new Error("Unknown local project resource");
       }

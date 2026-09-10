@@ -1,23 +1,14 @@
-import type {
-  CreateTaskResult,
-  DetailedTask,
-  PublicTask,
-  StoredTask,
-} from "./types";
+import type { CreateTaskResult, DetailedTask, PublicTask, StoredTask } from "./types";
 
 export function toPublicTask(task: StoredTask): PublicTask {
   return {
     taskId: task.taskId,
     status: task.status,
-    ...(task.statusMessage === undefined
-      ? {}
-      : { statusMessage: task.statusMessage }),
+    ...(task.statusMessage === undefined ? {} : { statusMessage: task.statusMessage }),
     createdAt: task.createdAt,
     lastUpdatedAt: task.lastUpdatedAt,
     ttlMs: task.ttlMs,
-    ...(task.pollIntervalMs === undefined
-      ? {}
-      : { pollIntervalMs: task.pollIntervalMs }),
+    ...(task.pollIntervalMs === undefined ? {} : { pollIntervalMs: task.pollIntervalMs }),
   };
 }
 

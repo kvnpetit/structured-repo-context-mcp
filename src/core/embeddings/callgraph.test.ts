@@ -338,9 +338,7 @@ function c() {
 
       // Second call with different content: cache hash mismatch → rebuild
       const content2 = `function hello() { return 2; } function world() {}`;
-      const graph2 = await buildCallGraph([
-        { path: filePath, content: content2 },
-      ]);
+      const graph2 = await buildCallGraph([{ path: filePath, content: content2 }]);
 
       expect(graph2.nodes.size).toBeGreaterThan(0);
     });
@@ -359,9 +357,7 @@ function c() {
       clearCallGraphCache();
 
       // Build with only 1 file: file count changed → cache invalid → rebuild
-      const graph = await buildCallGraph([
-        { path: file1, content: `function a() {}` },
-      ]);
+      const graph = await buildCallGraph([{ path: file1, content: `function a() {}` }]);
 
       expect(graph.files).toHaveLength(1);
     });
@@ -374,10 +370,7 @@ function c() {
       // Write corrupted cache
       const cacheDir = path.join(tempDir, ".src-index");
       fs.mkdirSync(cacheDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(cacheDir, "call-graph.json"),
-        "{ invalid json }",
-      );
+      fs.writeFileSync(path.join(cacheDir, "call-graph.json"), "{ invalid json }");
 
       clearCallGraphCache();
 
@@ -417,14 +410,9 @@ function c() {
         languageInstance: {},
       } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
 
-      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(
-        emptySymbolsResult,
-      );
+      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(emptySymbolsResult);
 
-      const data = await analyzeFileForCallGraph(
-        "/test/file.rs",
-        "fn hello() { world(); }",
-      );
+      const data = await analyzeFileForCallGraph("/test/file.rs", "fn hello() { world(); }");
 
       expect(data).not.toBeNull();
       expect(data?.calls.size).toBe(0);
@@ -438,14 +426,9 @@ function c() {
         languageInstance: {},
       } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
 
-      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(
-        emptySymbolsResult,
-      );
+      vi.spyOn(symbolsModule, "extractSymbols").mockReturnValueOnce(emptySymbolsResult);
 
-      const data = await analyzeFileForCallGraph(
-        "/test/ts_query_error.ts",
-        "function test() {}",
-      );
+      const data = await analyzeFileForCallGraph("/test/ts_query_error.ts", "function test() {}");
 
       // Query fails with invalid languageInstance — caught, returns empty calls
       expect(data).not.toBeNull();
@@ -453,14 +436,9 @@ function c() {
     });
 
     test("returns null when parseCode throws (lines 362-365)", async () => {
-      vi.spyOn(parserModule, "parseCode").mockRejectedValueOnce(
-        new Error("WASM load error"),
-      );
+      vi.spyOn(parserModule, "parseCode").mockRejectedValueOnce(new Error("WASM load error"));
 
-      const data = await analyzeFileForCallGraph(
-        "/test/parse_error.ts",
-        "const x = 1;",
-      );
+      const data = await analyzeFileForCallGraph("/test/parse_error.ts", "const x = 1;");
 
       expect(data).toBeNull();
     });

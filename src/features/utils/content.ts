@@ -22,11 +22,7 @@ export type ContentResult =
  * @param content - Optional content string
  * @returns ContentResult with either the content or an error message
  */
-export function readContent(
-  filePath?: string,
-  content?: string,
-  root?: string,
-): ContentResult {
+export function readContent(filePath?: string, content?: string, root?: string): ContentResult {
   // If content is provided directly, use it
   if (content !== undefined) {
     const size = Buffer.byteLength(content, "utf8");

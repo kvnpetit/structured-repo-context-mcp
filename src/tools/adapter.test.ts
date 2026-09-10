@@ -55,16 +55,13 @@ describe("Tool Adapter", () => {
   test("registers feature with correct description", () => {
     const { server, captured } = makeServer();
     registerFeatureAsTool(server, mockFeature);
-    expect((captured.config as { description: string }).description).toBe(
-      "A test tool",
-    );
+    expect((captured.config as { description: string }).description).toBe("A test tool");
   });
 
   test("passes a complete Zod schema to the modern MCP SDK", () => {
     const { server, captured } = makeServer();
     registerFeatureAsTool(server, mockFeature);
-    const inputSchema = (captured.config as { inputSchema: z.ZodType })
-      .inputSchema;
+    const inputSchema = (captured.config as { inputSchema: z.ZodType }).inputSchema;
     expect(inputSchema).toBeDefined();
     expect(inputSchema).toBe(testSchema);
   });
@@ -216,8 +213,7 @@ describe("Tool Adapter", () => {
     const { server, captured } = makeServer();
     registerFeatureAsTool(server, simpleFeature);
 
-    const inputSchema = (captured.config as { inputSchema: z.ZodType })
-      .inputSchema;
+    const inputSchema = (captured.config as { inputSchema: z.ZodType }).inputSchema;
     expect(inputSchema).toBeDefined();
     expect(inputSchema.safeParse({ input: "value" }).success).toBe(true);
   });
@@ -240,28 +236,17 @@ describe("Tool Adapter", () => {
     };
     const { server, captured } = makeServer();
     registerFeatureAsTool(server, feature);
-    const inputSchema = (captured.config as { inputSchema: z.ZodType })
-      .inputSchema;
+    const inputSchema = (captured.config as { inputSchema: z.ZodType }).inputSchema;
 
     expect(inputSchema).toBeInstanceOf(z.ZodObject);
-    expect(
-      inputSchema.safeParse({ operation: "upsert", id: "a", value: "x" })
-        .success,
-    ).toBe(true);
-    expect(
-      inputSchema.safeParse({ operation: "upsert", id: "a" }).success,
-    ).toBe(false);
-    expect(
-      inputSchema.safeParse({ operation: "delete", id: "a" }).success,
-    ).toBe(true);
+    expect(inputSchema.safeParse({ operation: "upsert", id: "a", value: "x" }).success).toBe(true);
+    expect(inputSchema.safeParse({ operation: "upsert", id: "a" }).success).toBe(false);
+    expect(inputSchema.safeParse({ operation: "delete", id: "a" }).success).toBe(true);
     if (captured.handler === undefined) {
       throw new Error("Handler should be defined");
     }
     await captured.handler({ operation: "delete", id: "a" });
-    expect(execute).toHaveBeenCalledWith(
-      { operation: "delete", id: "a" },
-      expect.any(Object),
-    );
+    expect(execute).toHaveBeenCalledWith({ operation: "delete", id: "a" }, expect.any(Object));
   });
 
   test("flattens plain object unions for direct MCP arguments", async () => {
@@ -278,17 +263,11 @@ describe("Tool Adapter", () => {
     };
     const { server, captured } = makeServer();
     registerFeatureAsTool(server, feature);
-    const inputSchema = (captured.config as { inputSchema: z.ZodType })
-      .inputSchema;
+    const inputSchema = (captured.config as { inputSchema: z.ZodType }).inputSchema;
 
     expect(inputSchema).toBeInstanceOf(z.ZodObject);
-    expect(
-      inputSchema.safeParse({ backend: "local", pattern: "call($X)" }).success,
-    ).toBe(true);
-    expect(
-      inputSchema.safeParse({ backend: "local", query_file: "query.ql" })
-        .success,
-    ).toBe(false);
+    expect(inputSchema.safeParse({ backend: "local", pattern: "call($X)" }).success).toBe(true);
+    expect(inputSchema.safeParse({ backend: "local", query_file: "query.ql" }).success).toBe(false);
     if (captured.handler === undefined) {
       throw new Error("Handler should be defined");
     }
@@ -365,9 +344,7 @@ describe("Tool Adapter", () => {
   });
 
   test("rejects a feature result that violates its declared output schema", async () => {
-    const constrainedSchema = createFeatureResultSchema(
-      z.object({ value: z.string() }).strict(),
-    );
+    const constrainedSchema = createFeatureResultSchema(z.object({ value: z.string() }).strict());
     const invalidFeature: Feature<typeof testSchema> = {
       ...mockFeature,
       outputSchema: constrainedSchema,
@@ -385,8 +362,6 @@ describe("Tool Adapter", () => {
     };
 
     expect(result.isError).toBe(true);
-    expect(result.structuredContent.error).toBe(
-      "Tool returned an invalid structured output",
-    );
+    expect(result.structuredContent.error).toBe("Tool returned an invalid structured output");
   });
 });

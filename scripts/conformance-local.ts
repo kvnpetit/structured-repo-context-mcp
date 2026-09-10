@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from "@modelcontextprotocol/client";
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 import { startHttpServer } from "../src/http.ts";
@@ -76,28 +73,15 @@ async function runCase(testCase: ClientCase): Promise<void> {
       expectedTools,
       `${testCase.name}: tool order/surface changed`,
     );
-    assert.equal(
-      new Set(tools.tools.map((tool) => tool.name)).size,
-      tools.tools.length,
-    );
+    assert.equal(new Set(tools.tools.map((tool) => tool.name)).size, tools.tools.length);
     for (const tool of tools.tools) {
       assert.equal(tool.inputSchema.type, "object");
-      assert.ok(
-        tool.outputSchema,
-        `${testCase.name}: ${tool.name} has no output schema`,
-      );
-      assert.ok(
-        tool.annotations,
-        `${testCase.name}: ${tool.name} has no annotations`,
-      );
+      assert.ok(tool.outputSchema, `${testCase.name}: ${tool.name} has no output schema`);
+      assert.ok(tool.annotations, `${testCase.name}: ${tool.name} has no annotations`);
     }
 
     const resources = await client.listResources();
-    assert.ok(
-      resources.resources.some(
-        (resource) => resource.uri === "src://server/info",
-      ),
-    );
+    assert.ok(resources.resources.some((resource) => resource.uri === "src://server/info"));
     const templates = await client.listResourceTemplates();
     assert.ok(
       templates.resourceTemplates.some(
@@ -122,10 +106,7 @@ async function runCase(testCase: ClientCase): Promise<void> {
       arguments: {},
     });
     assert.notEqual(info.isError, true);
-    assert.equal(
-      (info.structuredContent as { success?: boolean } | undefined)?.success,
-      true,
-    );
+    assert.equal((info.structuredContent as { success?: boolean } | undefined)?.success, true);
     const observability = await client.callTool({
       name: "get_observability",
       arguments: { directory: projectRoot, format: "prometheus" },
@@ -178,14 +159,12 @@ try {
     {
       name: "http-legacy",
       expectedEra: "legacy",
-      createTransport: () =>
-        new StreamableHTTPClientTransport(new URL(running.url)),
+      createTransport: () => new StreamableHTTPClientTransport(new URL(running.url)),
     },
     {
       name: "http-modern",
       expectedEra: "modern",
-      createTransport: () =>
-        new StreamableHTTPClientTransport(new URL(running.url)),
+      createTransport: () => new StreamableHTTPClientTransport(new URL(running.url)),
     },
   ];
 

@@ -1,15 +1,7 @@
 import * as path from "node:path";
 
-import {
-  isSafeGitRelativePath,
-  normalizeGitPath,
-  runLocalGit,
-} from "@core/git";
-import {
-  redactSourceText,
-  readSecureTextFile,
-  resolveSecureFile,
-} from "@core/security";
+import { isSafeGitRelativePath, normalizeGitPath, runLocalGit } from "@core/git";
+import { redactSourceText, readSecureTextFile, resolveSecureFile } from "@core/security";
 
 import { MAX_FILES } from "./schema";
 import type {
@@ -93,17 +85,12 @@ export function parseHotspots(
   maxCommits: number,
   maxFiles: number,
 ): HotspotAnalysis {
-  const aggregated = new Map<
-    string,
-    Omit<HotspotEntry, "churn"> & { churn: number }
-  >();
+  const aggregated = new Map<string, Omit<HotspotEntry, "churn"> & { churn: number }>();
   let commitsSeen = 0;
   let currentCommit: { commit: string; date: string } | undefined;
 
   for (const line of value.split("\n")) {
-    const header = /^(?<commit>[a-f0-9]{7,40})\0(?<date>[^\0]*)\0$/iu.exec(
-      line,
-    );
+    const header = /^(?<commit>[a-f0-9]{7,40})\0(?<date>[^\0]*)\0$/iu.exec(line);
     if (header?.groups?.commit !== undefined) {
       commitsSeen += 1;
       currentCommit =
@@ -192,7 +179,7 @@ export function parseRevisionChanges(
 ): { files: RevisionChange[]; filesChanged: number; truncated: boolean } {
   const tokens = value.split("\0").filter(Boolean);
   const allFiles: RevisionChange[] = [];
-  for (let index = 0; index < tokens.length;) {
+  for (let index = 0; index < tokens.length; ) {
     const statusCode = tokens[index];
     index += 1;
     if (statusCode === undefined || tokens[index] === undefined) {
@@ -227,9 +214,7 @@ export function parseRevisionChanges(
     }
   }
   allFiles.sort(
-    (left, right) =>
-      left.path.localeCompare(right.path) ||
-      left.status.localeCompare(right.status),
+    (left, right) => left.path.localeCompare(right.path) || left.status.localeCompare(right.status),
   );
   return {
     files: allFiles.slice(0, maxFiles),
@@ -238,10 +223,7 @@ export function parseRevisionChanges(
   };
 }
 
-export async function resolveLocalRevision(
-  root: string,
-  revision: string,
-): Promise<string> {
+export async function resolveLocalRevision(root: string, revision: string): Promise<string> {
   const result = await runLocalGit(root, [
     "rev-parse",
     "--verify",
@@ -260,10 +242,7 @@ export function parseBlame(value: string, maxLines: number): BlameEntry[] {
   let current: Partial<BlameEntry> | undefined;
   for (const line of value.split("\n")) {
     const header = /^(?<commit>[a-f0-9]{7,40}) \d+ (?<line>\d+)/iu.exec(line);
-    if (
-      header?.groups?.commit !== undefined &&
-      header.groups.line !== undefined
-    ) {
+    if (header?.groups?.commit !== undefined && header.groups.line !== undefined) {
       if (current?.commit !== undefined && current.line !== undefined) {
         entries.push({
           line: current.line,
@@ -293,11 +272,7 @@ export function parseBlame(value: string, maxLines: number): BlameEntry[] {
       current.summary = line.slice("summary ".length);
     }
   }
-  if (
-    current?.commit !== undefined &&
-    current.line !== undefined &&
-    entries.length < maxLines
-  ) {
+  if (current?.commit !== undefined && current.line !== undefined && entries.length < maxLines) {
     entries.push({
       line: current.line,
       commit: current.commit,
@@ -345,9 +320,6 @@ export function readCodeowners(root: string): {
   return { lines: [] };
 }
 
-export function redactText(
-  value: string,
-  enabled: boolean,
-): { text: string; redacted: boolean } {
+export function redactText(value: string, enabled: boolean): { text: string; redacted: boolean } {
   return enabled ? redactSourceText(value) : { text: value, redacted: false };
 }

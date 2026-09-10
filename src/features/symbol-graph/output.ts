@@ -38,9 +38,7 @@ export function createGraphOutput(options: {
       "Dynamic dispatch, reflection, generated code, macros, runtime dependency injection, and external consumers can be missed.",
       "Routes, events, and dependency-injection nodes are static signals with evidence, not runtime traces.",
       ...(options.filesTruncated
-        ? [
-            "The file budget was reached; increase max_files for broader coverage.",
-          ]
+        ? ["The file budget was reached; increase max_files for broader coverage."]
         : []),
     ],
   };

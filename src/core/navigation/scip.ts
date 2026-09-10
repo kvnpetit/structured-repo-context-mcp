@@ -2,11 +2,7 @@ import * as crypto from "node:crypto";
 
 import { z } from "zod";
 
-import {
-  LOCAL_STATE_VERSION,
-  readLocalState,
-  writeLocalState,
-} from "@core/local-state";
+import { LOCAL_STATE_VERSION, readLocalState, writeLocalState } from "@core/local-state";
 
 const MAX_DOCUMENTS = 5_000;
 const MAX_OCCURRENCES = 200_000;
@@ -84,15 +80,11 @@ function record(value: unknown): Record<string, unknown> | undefined {
 }
 
 function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
-    ? value
-    : undefined;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
 function booleanValue(value: unknown): boolean | undefined {
@@ -165,9 +157,7 @@ function parseDocumentation(value: unknown): string | undefined {
     return value.slice(0, 20_000);
   }
   if (Array.isArray(value)) {
-    const lines = value.filter(
-      (item): item is string => typeof item === "string",
-    );
+    const lines = value.filter((item): item is string => typeof item === "string");
     return lines.join("\n").slice(0, 20_000) || undefined;
   }
   return undefined;
@@ -184,21 +174,15 @@ function parseRelationship(value: unknown): ScipRelationship | undefined {
   }
   return {
     symbol,
-    ...(booleanValue(object.is_implementation ?? object.isImplementation) ===
-    undefined
+    ...(booleanValue(object.is_implementation ?? object.isImplementation) === undefined
       ? {}
       : {
-          is_implementation: booleanValue(
-            object.is_implementation ?? object.isImplementation,
-          ),
+          is_implementation: booleanValue(object.is_implementation ?? object.isImplementation),
         }),
-    ...(booleanValue(object.is_type_definition ?? object.isTypeDefinition) ===
-    undefined
+    ...(booleanValue(object.is_type_definition ?? object.isTypeDefinition) === undefined
       ? {}
       : {
-          is_type_definition: booleanValue(
-            object.is_type_definition ?? object.isTypeDefinition,
-          ),
+          is_type_definition: booleanValue(object.is_type_definition ?? object.isTypeDefinition),
         }),
   };
 }
@@ -248,9 +232,7 @@ function parseDocument(value: unknown): ScipDocument | undefined {
   if (object === undefined) {
     return undefined;
   }
-  const relativePathValue = stringValue(
-    object.relative_path ?? object.relativePath,
-  );
+  const relativePathValue = stringValue(object.relative_path ?? object.relativePath);
   if (relativePathValue === undefined) {
     return undefined;
   }
@@ -276,10 +258,7 @@ function parseDocument(value: unknown): ScipDocument | undefined {
 }
 
 /** Convert a SCIP JSON export into a bounded local catalog. */
-export function parseScipPayload(
-  payload: unknown,
-  sourceRevision: string,
-): ScipCatalog {
+export function parseScipPayload(payload: unknown, sourceRevision: string): ScipCatalog {
   const object = record(payload);
   const documentsValue = object?.documents;
   const documents = Array.isArray(documentsValue)
@@ -290,8 +269,7 @@ export function parseScipPayload(
     : [];
   let occurrencesCount = 0;
   let symbolsCount = 0;
-  let truncated =
-    !Array.isArray(documentsValue) || documents.length < documentsValue.length;
+  let truncated = !Array.isArray(documentsValue) || documents.length < documentsValue.length;
   let occurrenceBudget = MAX_OCCURRENCES;
   let symbolBudget = MAX_SYMBOLS;
   const boundedDocuments = documents.map((document) => {
@@ -363,11 +341,7 @@ function shortSymbolName(symbol: string): string {
   return parts.at(-1) ?? symbol;
 }
 
-function rangeContains(
-  range: ScipRange,
-  line: number,
-  column: number,
-): boolean {
+function rangeContains(range: ScipRange, line: number, column: number): boolean {
   if (line < range.start_line || line > range.end_line) {
     return false;
   }
@@ -387,16 +361,13 @@ export function lookupScip(
   line: number,
   column: number,
   query: string | undefined,
-  operation:
-    "definition" | "references" | "implementation" | "type_hierarchy" | "hover",
+  operation: "definition" | "references" | "implementation" | "type_hierarchy" | "hover",
 ): ScipLookupResult {
   const normalizedFile = normalizedPath(filePath);
   const document = catalog.documents.find(
     (item) => normalizedPath(item.relative_path) === normalizedFile,
   );
-  const occurrence = document?.occurrences.find((item) =>
-    rangeContains(item.range, line, column),
-  );
+  const occurrence = document?.occurrences.find((item) => rangeContains(item.range, line, column));
   const symbolName = occurrence?.symbol ?? query;
   if (symbolName === undefined) {
     return { locations: [] };
@@ -405,16 +376,13 @@ export function lookupScip(
     .flatMap((item) => item.symbols)
     .find(
       (item) =>
-        item.symbol === symbolName ||
-        shortSymbolName(item.symbol) === shortSymbolName(symbolName),
+        item.symbol === symbolName || shortSymbolName(item.symbol) === shortSymbolName(symbolName),
     );
   if (operation === "hover") {
     return {
       ...(symbolInfo === undefined ? {} : { symbol: symbolInfo }),
       locations: [],
-      ...(symbolInfo?.documentation === undefined
-        ? {}
-        : { hover: symbolInfo.documentation }),
+      ...(symbolInfo?.documentation === undefined ? {} : { hover: symbolInfo.documentation }),
     };
   }
   const relatedSymbols = new Set<string>([symbolName]);
@@ -423,15 +391,13 @@ export function lookupScip(
       for (const relationship of symbol.relationships ?? []) {
         if (
           relationship.symbol === symbolName &&
-          (relationship.is_implementation === true ||
-            relationship.is_type_definition === true)
+          (relationship.is_implementation === true || relationship.is_type_definition === true)
         ) {
           relatedSymbols.add(symbol.symbol);
         }
         if (
           symbol.symbol === symbolName &&
-          (relationship.is_implementation === true ||
-            relationship.is_type_definition === true)
+          (relationship.is_implementation === true || relationship.is_type_definition === true)
         ) {
           relatedSymbols.add(relationship.symbol);
         }
@@ -442,9 +408,7 @@ export function lookupScip(
     item.occurrences
       .filter((itemOccurrence) => relatedSymbols.has(itemOccurrence.symbol))
       .filter((itemOccurrence) =>
-        operation === "definition"
-          ? (itemOccurrence.roles & SCIP_DEFINITION_ROLE) !== 0
-          : true,
+        operation === "definition" ? (itemOccurrence.roles & SCIP_DEFINITION_ROLE) !== 0 : true,
       )
       .map((itemOccurrence) => ({
         file_path: normalizedPath(item.relative_path),

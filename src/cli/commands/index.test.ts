@@ -12,20 +12,14 @@ describe("CLI Commands Index", () => {
   });
 
   test("contains every registered feature exactly once", () => {
-    const expected = [
-      "serve",
-      "version",
-      ...features.map((feature) => feature.name),
-    ].sort();
+    const expected = ["serve", "version", ...features.map((feature) => feature.name)].sort();
 
     expect(Object.keys(subCommands).sort()).toEqual(expected);
   });
 
   test("all subCommands have meta property", () => {
     for (const [name, command] of Object.entries(subCommands)) {
-      expect(command, `Command ${name} should have meta`).toHaveProperty(
-        "meta",
-      );
+      expect(command, `Command ${name} should have meta`).toHaveProperty("meta");
     }
   });
 });

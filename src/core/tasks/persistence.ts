@@ -33,8 +33,7 @@ function validStoredTask(value: unknown): value is StoredTask {
       (typeof value.pollIntervalMs === "number" &&
         Number.isSafeInteger(value.pollIntervalMs) &&
         value.pollIntervalMs > 0)) &&
-    (value.statusMessage === undefined ||
-      typeof value.statusMessage === "string") &&
+    (value.statusMessage === undefined || typeof value.statusMessage === "string") &&
     (value.inputRequests === undefined || isRecord(value.inputRequests)) &&
     (value.result === undefined || isRecord(value.result)) &&
     (error === undefined ||
@@ -43,9 +42,7 @@ function validStoredTask(value: unknown): value is StoredTask {
         Number.isSafeInteger(error.code) &&
         typeof error.message === "string")) &&
     (value.ttlMs === null ||
-      (typeof value.ttlMs === "number" &&
-        Number.isSafeInteger(value.ttlMs) &&
-        value.ttlMs >= 0)) &&
+      (typeof value.ttlMs === "number" && Number.isSafeInteger(value.ttlMs) && value.ttlMs >= 0)) &&
     (owner === undefined ||
       (isRecord(owner) &&
         typeof owner.pid === "number" &&
@@ -78,11 +75,7 @@ export function readTaskState(filePath: string): Map<string, StoredTask> {
   }
   const tasks = new Map<string, StoredTask>();
   for (const [taskId, task] of entries) {
-    if (
-      taskId.length === 0 ||
-      !validStoredTask(task) ||
-      task.taskId !== taskId
-    ) {
+    if (taskId.length === 0 || !validStoredTask(task) || task.taskId !== taskId) {
       throw new Error("Task store contains a corrupt task record");
     }
     tasks.set(taskId, task);
@@ -107,10 +100,7 @@ function removeAbandonedWrites(filePath: string): void {
 }
 
 /** Called only while holding the store lock. Never copy over a valid snapshot. */
-export function writeTaskState(
-  filePath: string,
-  tasks: Map<string, StoredTask>,
-): void {
+export function writeTaskState(filePath: string, tasks: Map<string, StoredTask>): void {
   if (tasks.size > MAX_STORED_TASKS) {
     throw new Error("Task store exceeds the task limit");
   }

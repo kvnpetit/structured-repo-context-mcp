@@ -7,11 +7,7 @@ import { parseCode } from "@core/parser";
 import { extractCodeInfo } from "@core/symbols";
 import { readSecureTextFile, resolveSecureDirectory } from "@core/security";
 import type { Feature, FeatureResult } from "@features/types";
-import {
-  createFeatureResultSchema,
-  positionSchema,
-  symbolTypeSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, positionSchema, symbolTypeSchema } from "@features/utils";
 
 export const findDeadCodeSchema = z.object({
   directory: z.string().optional().default(".").describe("Project directory"),
@@ -100,8 +96,7 @@ const deadCodeDataSchema = z
   })
   .strict();
 
-export const findDeadCodeOutputSchema =
-  createFeatureResultSchema(deadCodeDataSchema);
+export const findDeadCodeOutputSchema = createFeatureResultSchema(deadCodeDataSchema);
 
 const analyzableTypes = new Set<Symbol["type"]>([
   "function",
@@ -140,10 +135,7 @@ function countIdentifierOccurrences(contents: string[], name: string): number {
 }
 
 function isExported(symbol: Symbol, exportedNames: Set<string>): boolean {
-  return (
-    symbol.modifiers?.includes("export") === true ||
-    exportedNames.has(symbol.name)
-  );
+  return symbol.modifiers?.includes("export") === true || exportedNames.has(symbol.name);
 }
 
 function candidateConfidence(
@@ -161,9 +153,7 @@ function candidateConfidence(
   return Math.max(0, Math.min(1, confidence));
 }
 
-export async function execute(
-  rawInput: FindDeadCodeInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: FindDeadCodeInput): Promise<FeatureResult> {
   const input = findDeadCodeSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -203,17 +193,11 @@ export async function execute(
     }
     try {
       const parsed = await parseCode(readResult.content, { filePath: file });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       parsedFiles.push({
         path: file,
         content: readResult.content,
-        symbols: info.symbols.symbols.filter((symbol) =>
-          analyzableTypes.has(symbol.type),
-        ),
+        symbols: info.symbols.symbols.filter((symbol) => analyzableTypes.has(symbol.type)),
         exportedNames: new Set(info.exports.map((item) => item.name)),
       });
       output.files_analyzed++;
@@ -223,10 +207,7 @@ export async function execute(
   }
 
   const contents = parsedFiles.map((file) => file.content);
-  const symbolsByName = new Map<
-    string,
-    { symbol: Symbol; file: ParsedFile }[]
-  >();
+  const symbolsByName = new Map<string, { symbol: Symbol; file: ParsedFile }[]>();
   for (const file of parsedFiles) {
     for (const symbol of file.symbols) {
       const entries = symbolsByName.get(symbol.name) ?? [];
@@ -263,11 +244,7 @@ export async function execute(
         reference_count: referenceCount,
         definition_count: definitionCount,
         exported,
-        confidence: candidateConfidence(
-          symbol,
-          definitionCount,
-          referenceCount,
-        ),
+        confidence: candidateConfidence(symbol, definitionCount, referenceCount),
         reason: "no_references",
       });
     }

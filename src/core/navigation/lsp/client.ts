@@ -5,12 +5,7 @@ import { pathToFileURL } from "node:url";
 import { createSafeLocalToolEnvironment } from "@core/security";
 import { resolveLspCommand } from "./launcher";
 
-import {
-  isRecord,
-  jsonRpcMessage,
-  MAX_LSP_BUFFER_BYTES,
-  parseLspFrames,
-} from "./protocol";
+import { isRecord, jsonRpcMessage, MAX_LSP_BUFFER_BYTES, parseLspFrames } from "./protocol";
 
 export class JsonRpcClient {
   private readonly child: ChildProcessWithoutNullStreams;
@@ -54,11 +49,7 @@ export class JsonRpcClient {
     child.stdout.on("data", (chunk: Buffer | string) => {
       const incoming = Buffer.from(chunk);
       if (this.buffer.byteLength + incoming.byteLength > MAX_LSP_BUFFER_BYTES) {
-        this.fail(
-          new Error(
-            "Language server receive buffer exceeds the local size limit",
-          ),
-        );
+        this.fail(new Error("Language server receive buffer exceeds the local size limit"));
         return;
       }
       this.buffer = Buffer.concat([this.buffer, incoming]);
@@ -213,18 +204,12 @@ export class JsonRpcClient {
         timer,
       });
       try {
-        this.child.stdin.write(
-          jsonRpcMessage({ jsonrpc: "2.0", id, method, params }),
-        );
+        this.child.stdin.write(jsonRpcMessage({ jsonrpc: "2.0", id, method, params }));
       } catch (error) {
         clearTimeout(timer);
         this.pending.delete(id);
         signal?.removeEventListener("abort", abort);
-        reject(
-          error instanceof Error
-            ? error
-            : new Error("Language server write failed"),
-        );
+        reject(error instanceof Error ? error : new Error("Language server write failed"));
       }
     });
   }

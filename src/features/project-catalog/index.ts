@@ -8,11 +8,7 @@ import {
   createPaginationScope,
   decodePaginationCursor,
 } from "@core/pagination";
-import {
-  redactSourceText,
-  readSecureTextFile,
-  resolveSecureDirectory,
-} from "@core/security";
+import { redactSourceText, readSecureTextFile, resolveSecureDirectory } from "@core/security";
 import {
   LOCAL_STATE_VERSION,
   localStateRelativePath,
@@ -36,18 +32,10 @@ const catalogScopeSchema = z
   .string()
   .trim()
   .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/iu)
-  .describe(
-    "Local catalog namespace; it never crosses the selected project root",
-  );
+  .describe("Local catalog namespace; it never crosses the selected project root");
 const MAX_CATALOG_ARTIFACTS = 1_000;
 const MAX_CONTENT_BYTES = 20_000;
-const CATALOG_LINK_KINDS = [
-  "references",
-  "implements",
-  "supersedes",
-  "blocks",
-  "related",
-] as const;
+const CATALOG_LINK_KINDS = ["references", "implements", "supersedes", "blocks", "related"] as const;
 
 const catalogLinkSchema = z
   .object({
@@ -105,9 +93,7 @@ export const refreshProjectCatalogSchema = z.object({
     .describe("Maximum documentation files to inspect"),
 });
 
-export type RefreshProjectCatalogInput = z.input<
-  typeof refreshProjectCatalogSchema
->;
+export type RefreshProjectCatalogInput = z.input<typeof refreshProjectCatalogSchema>;
 
 export const getProjectCatalogSchema = z.object({
   directory: z.string().optional().default(".").describe("Project directory"),
@@ -138,13 +124,7 @@ export const getProjectCatalogSchema = z.object({
   limit: z.number().int().positive().max(200).optional().default(50),
   cursor: z.string().max(1_024).optional(),
   include_content: z.boolean().optional().default(false),
-  max_content_bytes: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_CONTENT_BYTES)
-    .optional()
-    .default(4_000),
+  max_content_bytes: z.number().int().positive().max(MAX_CONTENT_BYTES).optional().default(4_000),
   redact_secrets: z.boolean().optional().default(true),
 });
 
@@ -196,26 +176,20 @@ const getProjectCatalogDataSchema = z
   })
   .strict();
 
-export const getProjectCatalogOutputSchema = createFeatureResultSchema(
-  getProjectCatalogDataSchema,
-);
+export const getProjectCatalogOutputSchema = createFeatureResultSchema(getProjectCatalogDataSchema);
 
 type CatalogLink = z.infer<typeof catalogLinkSchema>;
 type CatalogArtifact = z.infer<typeof catalogArtifactSchema>;
 type CatalogStore = z.infer<typeof catalogStoreSchema>;
 
 function catalogFileName(scope: string): string {
-  return scope === DEFAULT_CATALOG_SCOPE
-    ? CATALOG_FILE
-    : `artifacts-catalog-${scope}.json`;
+  return scope === DEFAULT_CATALOG_SCOPE ? CATALOG_FILE : `artifacts-catalog-${scope}.json`;
 }
 
 function loadCatalog(
   root: string,
   scope: string,
-):
-  | { ok: true; exists: boolean; store: CatalogStore }
-  | { ok: false; error: string } {
+): { ok: true; exists: boolean; store: CatalogStore } | { ok: false; error: string } {
   const result = readLocalState(root, catalogFileName(scope));
   if (!result.ok) {
     return result;
@@ -228,10 +202,7 @@ function loadCatalog(
         version: LOCAL_STATE_VERSION,
         scope,
         generated_at: new Date(0).toISOString(),
-        source_revision: crypto
-          .createHash("sha256")
-          .update("empty")
-          .digest("hex"),
+        source_revision: crypto.createHash("sha256").update("empty").digest("hex"),
         truncated: false,
         artifacts: [],
       },
@@ -262,10 +233,7 @@ function sourceRevision(artifacts: readonly CatalogArtifact[]): string {
 }
 
 function typedLink(value: string): CatalogLink {
-  const match =
-    /^(references|implements|supersedes|blocks|related):(.+)$/iu.exec(
-      value.trim(),
-    );
+  const match = /^(references|implements|supersedes|blocks|related):(.+)$/iu.exec(value.trim());
   if (match?.[1] !== undefined && match[2] !== undefined) {
     return {
       kind: match[1].toLowerCase() as (typeof CATALOG_LINK_KINDS)[number],
@@ -326,8 +294,7 @@ export async function executeRefreshProjectCatalog(
       scope: input.scope,
       generated_at: generatedAt,
       source_revision: sourceRevision(artifacts),
-      truncated:
-        data.truncated || data.artifacts.length >= MAX_CATALOG_ARTIFACTS,
+      truncated: data.truncated || data.artifacts.length >= MAX_CATALOG_ARTIFACTS,
       artifacts,
     };
     writeLocalState(root, catalogFile, store);
@@ -352,9 +319,7 @@ export async function executeRefreshProjectCatalog(
   });
 }
 
-export function executeGetProjectCatalog(
-  rawInput: GetProjectCatalogInput,
-): FeatureResult {
+export function executeGetProjectCatalog(rawInput: GetProjectCatalogInput): FeatureResult {
   const input = getProjectCatalogSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -380,9 +345,7 @@ export function executeGetProjectCatalog(
     return { success: false, error: cursor.error };
   }
   const candidates = loaded.store.artifacts
-    .filter(
-      (artifact) => input.kind === undefined || artifact.kind === input.kind,
-    )
+    .filter((artifact) => input.kind === undefined || artifact.kind === input.kind)
     .map((artifact) => ({
       artifact,
       score: artifactScore(artifact, terms, input.query, input.search_mode),
@@ -390,12 +353,10 @@ export function executeGetProjectCatalog(
     .filter(({ score }) => terms.length === 0 || score > 0)
     .sort(
       (left, right) =>
-        right.score - left.score ||
-        left.artifact.file_path.localeCompare(right.artifact.file_path),
+        right.score - left.score || left.artifact.file_path.localeCompare(right.artifact.file_path),
     );
   const page = candidates.slice(cursor.offset, cursor.offset + input.limit);
-  const truncated =
-    loaded.store.truncated || cursor.offset + page.length < candidates.length;
+  const truncated = loaded.store.truncated || cursor.offset + page.length < candidates.length;
   const nextCursor =
     cursor.offset + page.length < candidates.length
       ? createPaginationCursor(scope, cursor.offset + page.length)
@@ -416,10 +377,7 @@ export function executeGetProjectCatalog(
       ? redactSourceText(read.content)
       : { text: read.content, redacted: false };
     secretsRedacted ||= source.redacted;
-    const bounded = truncateUtf8WithStatus(
-      source.text,
-      input.max_content_bytes,
-    );
+    const bounded = truncateUtf8WithStatus(source.text, input.max_content_bytes);
     return {
       ...artifact,
       content: bounded.text,
@@ -450,9 +408,7 @@ export function executeGetProjectCatalog(
   };
 }
 
-export const refreshProjectCatalogFeature: Feature<
-  typeof refreshProjectCatalogSchema
-> = {
+export const refreshProjectCatalogFeature: Feature<typeof refreshProjectCatalogSchema> = {
   name: "refresh_project_catalog",
   title: "Refresh project artifact catalog",
   description:
@@ -468,19 +424,18 @@ export const refreshProjectCatalogFeature: Feature<
   execute: executeRefreshProjectCatalog,
 };
 
-export const getProjectCatalogFeature: Feature<typeof getProjectCatalogSchema> =
-  {
-    name: "get_project_catalog",
-    title: "Get project artifact catalog",
-    description:
-      "Read the bounded, project-isolated local artifact catalog created by refresh_project_catalog, optionally including redacted live document excerpts.",
-    schema: getProjectCatalogSchema,
-    outputSchema: getProjectCatalogOutputSchema,
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-    execute: executeGetProjectCatalog,
-  };
+export const getProjectCatalogFeature: Feature<typeof getProjectCatalogSchema> = {
+  name: "get_project_catalog",
+  title: "Get project artifact catalog",
+  description:
+    "Read the bounded, project-isolated local artifact catalog created by refresh_project_catalog, optionally including redacted live document excerpts.",
+  schema: getProjectCatalogSchema,
+  outputSchema: getProjectCatalogOutputSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  execute: executeGetProjectCatalog,
+};

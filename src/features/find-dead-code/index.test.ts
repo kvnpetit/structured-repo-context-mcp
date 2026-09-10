@@ -35,10 +35,7 @@ describe("find_dead_code", () => {
         "function unused() { return 2; }",
       ].join("\n"),
     );
-    fs.writeFileSync(
-      path.join(directory, "source.test.ts"),
-      "function testOnly() { return 1; }",
-    );
+    fs.writeFileSync(path.join(directory, "source.test.ts"), "function testOnly() { return 1; }");
 
     const result = await execute({ directory });
 
@@ -48,18 +45,10 @@ describe("find_dead_code", () => {
       files_analyzed: number;
     };
     expect(data.files_analyzed).toBe(1);
-    expect(data.candidates.map((candidate) => candidate.name)).toContain(
-      "unused",
-    );
-    expect(data.candidates.map((candidate) => candidate.name)).not.toContain(
-      "used",
-    );
-    expect(data.candidates.map((candidate) => candidate.name)).not.toContain(
-      "publicApi",
-    );
-    expect(data.candidates.map((candidate) => candidate.name)).not.toContain(
-      "testOnly",
-    );
+    expect(data.candidates.map((candidate) => candidate.name)).toContain("unused");
+    expect(data.candidates.map((candidate) => candidate.name)).not.toContain("used");
+    expect(data.candidates.map((candidate) => candidate.name)).not.toContain("publicApi");
+    expect(data.candidates.map((candidate) => candidate.name)).not.toContain("testOnly");
   });
 
   test("bounds candidate output and marks truncation", async () => {
@@ -73,8 +62,6 @@ describe("find_dead_code", () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toMatchObject({ truncated: true });
-    expect((result.data as { candidates: unknown[] }).candidates).toHaveLength(
-      1,
-    );
+    expect((result.data as { candidates: unknown[] }).candidates).toHaveLength(1);
   });
 });

@@ -10,8 +10,7 @@ export interface FeatureResultMetadata {
   generated_at: string;
   local_only: true;
   bounded: true;
-  provenance:
-    "local-analysis" | "local-filesystem" | "local-index" | "local-lsp";
+  provenance: "local-analysis" | "local-filesystem" | "local-index" | "local-lsp";
   source_is_untrusted?: boolean;
   source_revision?: string;
   index_freshness?: "fresh" | "stale" | "unknown";
@@ -41,11 +40,7 @@ export interface FeatureExecutionContext {
   /** Abort signal propagated from the MCP request/transport. */
   signal?: AbortSignal;
   /** Report bounded progress when the client supplied a progress token. */
-  reportProgress?: (
-    progress: number,
-    total?: number,
-    message?: string,
-  ) => Promise<void>;
+  reportProgress?: (progress: number, total?: number, message?: string) => Promise<void>;
 }
 
 export interface Feature<TInput extends z.ZodType = z.ZodType> {

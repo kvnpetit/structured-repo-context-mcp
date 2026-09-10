@@ -1,11 +1,5 @@
 import { redactSourceText } from "@core/security";
-import {
-  containingSymbol,
-  moduleId,
-  positionAt,
-  signalId,
-  symbolId,
-} from "./helpers";
+import { containingSymbol, moduleId, positionAt, signalId, symbolId } from "./helpers";
 import type { EdgeKind, GraphNode } from "./schema";
 import { findSignals } from "./signals";
 import type { ParsedFile } from "./types";
@@ -76,35 +70,19 @@ export function addSignalNodes(
       addNode({
         id,
         kind: signal.kind,
-        name:
-          signal.operation === undefined
-            ? signal.name
-            : `${signal.operation} ${signal.name}`,
+        name: signal.operation === undefined ? signal.name : `${signal.operation} ${signal.name}`,
         path: file.relativePath,
         language: file.language,
         line: positionAt(file.content, signal.index).line,
         evidence: safeEvidence.text,
       });
-      const owner = containingSymbol(
-        file,
-        positionAt(file.content, signal.index).offset,
-      );
-      const from = owner
-        ? symbolId(file.relativePath, owner)
-        : moduleId(file.relativePath);
+      const owner = containingSymbol(file, positionAt(file.content, signal.index).offset);
+      const from = owner ? symbolId(file.relativePath, owner) : moduleId(file.relativePath);
       const kind: EdgeKind =
-        signal.kind === "route"
-          ? "routes"
-          : signal.kind === "event"
-            ? "emits"
-            : "injects";
+        signal.kind === "route" ? "routes" : signal.kind === "event" ? "emits" : "injects";
       addEdge(from, id, kind, 0.64, file, signal.index, signal.evidence);
       counts[
-        signal.kind === "route"
-          ? "routes"
-          : signal.kind === "event"
-            ? "events"
-            : "dependencies"
+        signal.kind === "route" ? "routes" : signal.kind === "event" ? "events" : "dependencies"
       ]++;
     }
   }

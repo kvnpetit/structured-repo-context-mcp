@@ -9,17 +9,8 @@ import {
   parseTypeHierarchyItems,
 } from "./protocol";
 import { candidateFor, normalizeLanguage } from "./servers";
-import {
-  acquireLspSession,
-  syncLspDocument,
-  type LspSessionLease,
-} from "./sessions";
-import type {
-  LspAttempt,
-  LspLocation,
-  LspOperation,
-  LspRequestOptions,
-} from "./types";
+import { acquireLspSession, syncLspDocument, type LspSessionLease } from "./sessions";
+import type { LspAttempt, LspLocation, LspOperation, LspRequestOptions } from "./types";
 
 const REQUEST_METHODS: Partial<Record<LspOperation, string>> = {
   definition: "textDocument/definition",
@@ -29,29 +20,20 @@ const REQUEST_METHODS: Partial<Record<LspOperation, string>> = {
   diagnostics: "textDocument/diagnostic",
 };
 
-function positionCharacter(
-  content: string,
-  line: number,
-  column: number,
-): number {
+function positionCharacter(content: string, line: number, column: number): number {
   const lines = content.split("\n");
   const text = (lines[line] ?? "").replace(/\r$/u, "");
   const codePoints = Array.from(text);
   return Array.from(codePoints.slice(0, Math.max(0, column))).join("").length;
 }
 
-function operationParams(
-  options: LspRequestOptions,
-  uri: string,
-): Record<string, unknown> {
+function operationParams(options: LspRequestOptions, uri: string): Record<string, unknown> {
   const line = Math.max(0, options.line - 1);
   const character = positionCharacter(options.content, line, options.column);
   return {
     textDocument: { uri },
     position: { line, character },
-    ...(options.operation === "references"
-      ? { context: { includeDeclaration: true } }
-      : {}),
+    ...(options.operation === "references" ? { context: { includeDeclaration: true } } : {}),
   };
 }
 
@@ -66,24 +48,12 @@ async function requestTypeHierarchy(
     options.timeoutMs,
     options.signal,
   );
-  const items = Array.isArray(prepared)
-    ? prepared.filter(isRecord).slice(0, 20)
-    : [];
+  const items = Array.isArray(prepared) ? prepared.filter(isRecord).slice(0, 20) : [];
   const locations = parseTypeHierarchyItems(items);
   for (const item of items) {
     const [supertypes, subtypes] = await Promise.all([
-      client.request(
-        "typeHierarchy/supertypes",
-        { item },
-        options.timeoutMs,
-        options.signal,
-      ),
-      client.request(
-        "typeHierarchy/subtypes",
-        { item },
-        options.timeoutMs,
-        options.signal,
-      ),
+      client.request("typeHierarchy/supertypes", { item }, options.timeoutMs, options.signal),
+      client.request("typeHierarchy/subtypes", { item }, options.timeoutMs, options.signal),
     ]);
     locations.push(...parseTypeHierarchyItems(supertypes));
     locations.push(...parseTypeHierarchyItems(subtypes));
@@ -109,9 +79,7 @@ function asDetail(error: unknown): string {
   return "Local language server request failed";
 }
 
-export async function requestLsp(
-  options: LspRequestOptions,
-): Promise<LspAttempt> {
+export async function requestLsp(options: LspRequestOptions): Promise<LspAttempt> {
   if (process.env.SRC_LSP_ENABLED === "false") {
     return {
       ok: false,
@@ -134,11 +102,7 @@ export async function requestLsp(
     let lease: LspSessionLease | undefined;
     let discardSession = false;
     try {
-      lease = await acquireLspSession(
-        options.root,
-        descriptor,
-        options.timeoutMs,
-      );
+      lease = await acquireLspSession(options.root, descriptor, options.timeoutMs);
       const client = lease.client;
       const uri = pathToFileURL(options.filePath).toString();
       syncLspDocument(lease.session, client, options, uri);
@@ -233,9 +197,7 @@ export async function requestLsp(
 
   return {
     ok: false,
-    reason: lastError.includes("timed out")
-      ? "request_failed"
-      : "server_unavailable",
+    reason: lastError.includes("timed out") ? "request_failed" : "server_unavailable",
     detail: lastError,
   };
 }

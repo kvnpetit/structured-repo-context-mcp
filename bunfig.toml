@@ -1,0 +1,7 @@
+[install]
+exact = true
+globalStore = true
+linkWorkspacePackages = true
+linker = "isolated"
+minimumReleaseAge = 86400
+peer = true

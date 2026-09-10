@@ -35,9 +35,7 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     releases.splice(0).forEach((release) => {
       release();
     });
-    await Promise.all(
-      watchers.splice(0).map(async (watcher) => watcher.stop()),
-    );
+    await Promise.all(watchers.splice(0).map(async (watcher) => watcher.stop()));
     vi.restoreAllMocks();
     // root was created by this test and must remain directly inside os.tmpdir().
     if (path.dirname(root) !== path.resolve(os.tmpdir())) {
@@ -63,12 +61,7 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     await store.connect();
     try {
       const rows = await store.searchLexical("function", 100);
-      return new Map(
-        rows.map((row) => [
-          path.basename(row.chunk.filePath),
-          row.chunk.content,
-        ]),
-      );
+      return new Map(rows.map((row) => [path.basename(row.chunk.filePath), row.chunk.content]));
     } finally {
       store.close();
     }
@@ -80,12 +73,8 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
   } {
     const entered = deferred();
     const blocked = deferred();
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- The original is invoked with call(this, texts) below.
     const original = LexicalEmbeddingClient.prototype.embedBatch;
-    vi.spyOn(
-      LexicalEmbeddingClient.prototype,
-      "embedBatch",
-    ).mockImplementationOnce(async function (
+    vi.spyOn(LexicalEmbeddingClient.prototype, "embedBatch").mockImplementationOnce(async function (
       this: LexicalEmbeddingClient,
       texts: string[],
     ) {
@@ -115,12 +104,7 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     const restarted = watcher();
     await restarted.start();
     const rows = await indexed();
-    expect([...rows.keys()].sort()).toEqual([
-      "added.ts",
-      "changed.ts",
-      "moved.ts",
-      "unchanged.ts",
-    ]);
+    expect([...rows.keys()].sort()).toEqual(["added.ts", "changed.ts", "moved.ts", "unchanged.ts"]);
     expect(rows.get("changed.ts")).toContain("updated");
     expect(rows.get("added.ts")).toContain("newly added");
     const cache = readHashCache(root);
@@ -138,10 +122,7 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     const active = watcher();
     const starting = active.start();
     await gate.entered;
-    fs.writeFileSync(
-      file,
-      "function duringStartup() { return 'new snapshot'; }\n",
-    );
+    fs.writeFileSync(file, "function duringStartup() { return 'new snapshot'; }\n");
     write("addedDuringStartup", "captured during startup");
     // Allow the real chokidar awaitWriteFinish phase to observe both events.
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -149,19 +130,14 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     await starting;
     const rows = await indexed();
     expect(rows.get("duringStartup.ts")).toContain("new snapshot");
-    expect(rows.get("addedDuringStartup.ts")).toContain(
-      "captured during startup",
-    );
+    expect(rows.get("addedDuringStartup.ts")).toContain("captured during startup");
   });
 
   test("stop drains debounced edits and changes still buffered by chokidar", async () => {
     const file = write("edited", "before stop");
     const active = watcher(60_000);
     await active.start();
-    fs.writeFileSync(
-      file,
-      "function edited() { return 'debounced change'; }\n",
-    );
+    fs.writeFileSync(file, "function edited() { return 'debounced change'; }\n");
     await new Promise((resolve) => setTimeout(resolve, 800));
     write("lastMoment", "not yet emitted by chokidar");
     await active.stop();
@@ -176,10 +152,7 @@ describe("watcher lifecycle with native LanceDB and local embeddings", () => {
     const active = watcher();
     await active.start();
     const gate = blockNextEmbedding();
-    fs.writeFileSync(
-      file,
-      "function inFlight() { return 'update in flight'; }\n",
-    );
+    fs.writeFileSync(file, "function inFlight() { return 'update in flight'; }\n");
     await gate.entered;
     let stopped = false;
     const stopping = active.stop().then(() => {

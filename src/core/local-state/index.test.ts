@@ -33,17 +33,13 @@ describe("local project state", () => {
       exists: true,
       value: { version: 1, value: "ok" },
     });
-    expect(fs.readdirSync(path.join(directory, ".src-index"))).toEqual([
-      "state.json",
-    ]);
+    expect(fs.readdirSync(path.join(directory, ".src-index"))).toEqual(["state.json"]);
     expect(localStateRelativePath("state.json")).toBe(".src-index/state.json");
   });
 
   test("fails closed for a symlinked state directory", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-state-"));
-    const target = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-state-target-"),
-    );
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-state-target-"));
     directories.push(directory, target);
     fs.symlinkSync(target, path.join(directory, ".src-index"), "junction");
 
@@ -60,14 +56,10 @@ describe("local project state", () => {
     directories.push(directory);
 
     await withLocalStateLock(directory, "state.json", () => {
-      expect(
-        fs.existsSync(path.join(directory, ".src-index", "state.json.lock")),
-      ).toBe(true);
+      expect(fs.existsSync(path.join(directory, ".src-index", "state.json.lock"))).toBe(true);
       writeLocalState(directory, "state.json", { version: 1 });
     });
 
-    expect(
-      fs.existsSync(path.join(directory, ".src-index", "state.json.lock")),
-    ).toBe(false);
+    expect(fs.existsSync(path.join(directory, ".src-index", "state.json.lock"))).toBe(false);
   });
 });

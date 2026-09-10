@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
 export const searchCodeSchema = z.object({
   query: z.string().min(1).describe("Natural language search query"),
@@ -51,16 +48,12 @@ export const searchCodeSchema = z.object({
     .max(1)
     .optional()
     .default(0.5)
-    .describe(
-      "Hybrid RRF weight for semantic vector results (0 = keyword only, 1 = vector only)",
-    ),
+    .describe("Hybrid RRF weight for semantic vector results (0 = keyword only, 1 = vector only)"),
   includeCallContext: z
     .boolean()
     .optional()
     .default(true)
-    .describe(
-      "Include caller/callee information for each result (uses cached call graph)",
-    ),
+    .describe("Include caller/callee information for each result (uses cached call graph)"),
   rerank: z
     .enum(["none", "lexical", "code"])
     .optional()
@@ -68,12 +61,7 @@ export const searchCodeSchema = z.object({
     .describe(
       "Optional deterministic reranking: lexical or code-aware symbol/signature ranking without another model",
     ),
-  language: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe("Filter results to one detected language"),
+  language: z.string().trim().min(1).optional().describe("Filter results to one detected language"),
   path_prefix: z
     .string()
     .trim()
@@ -95,9 +83,7 @@ export const searchCodeSchema = z.object({
     .boolean()
     .optional()
     .default(true)
-    .describe(
-      "Redact common inline secrets in returned source (default: true)",
-    ),
+    .describe("Redact common inline secrets in returned source (default: true)"),
   max_content_bytes: z
     .number()
     .int()
@@ -105,9 +91,7 @@ export const searchCodeSchema = z.object({
     .max(100_000)
     .optional()
     .default(20_000)
-    .describe(
-      "Maximum UTF-8 bytes returned for each source result (default: 20000)",
-    ),
+    .describe("Maximum UTF-8 bytes returned for each source result (default: 20000)"),
   neighbor_window: z
     .number()
     .int()
@@ -203,5 +187,4 @@ const searchCodeDataSchema = z
   })
   .strict();
 
-export const searchCodeOutputSchema =
-  createFeatureResultSchema(searchCodeDataSchema);
+export const searchCodeOutputSchema = createFeatureResultSchema(searchCodeDataSchema);

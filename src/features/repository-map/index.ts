@@ -14,10 +14,7 @@ import {
 } from "@core/security";
 import { readPathAliasesCached } from "@core/utils";
 import type { Feature, FeatureResult } from "@features/types";
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
 const DEFAULT_MAX_TOKENS = 2_000;
 const DEFAULT_MAX_FILES = 500;
@@ -119,20 +116,14 @@ const repositoryMapDataSchema = z
   })
   .strict();
 
-export const repositoryMapOutputSchema = createFeatureResultSchema(
-  repositoryMapDataSchema,
-);
+export const repositoryMapOutputSchema = createFeatureResultSchema(repositoryMapDataSchema);
 
 function relativePath(root: string, value: string): string {
   return path.relative(root, value).replace(/\\/gu, "/");
 }
 
 function normalizePath(value: string): string {
-  return value
-    .replace(/\\/gu, "/")
-    .replace(/^\.\//u, "")
-    .replace(/\/$/u, "")
-    .toLowerCase();
+  return value.replace(/\\/gu, "/").replace(/^\.\//u, "").replace(/\/$/u, "").toLowerCase();
 }
 
 function focusScore(entry: FileEntry, focus: readonly string[]): number {
@@ -162,11 +153,7 @@ function resolveImport(
   let base: string | undefined;
   for (const [alias, target] of Object.entries(aliases)) {
     if (source === alias || source.startsWith(`${alias}/`)) {
-      base = path.resolve(
-        root,
-        target,
-        source.slice(alias.length).replace(/^[/\\]/u, ""),
-      );
+      base = path.resolve(root, target, source.slice(alias.length).replace(/^[/\\]/u, ""));
       break;
     }
   }
@@ -177,18 +164,7 @@ function resolveImport(
     return undefined;
   }
 
-  const extensions = [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".py",
-    ".go",
-    ".rs",
-    ".java",
-  ];
+  const extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".java"];
   const candidates = [
     base,
     ...extensions.map((extension) => `${base}${extension}`),
@@ -252,8 +228,7 @@ function rankFiles(
     const next = new Map<string, number>();
     for (const entry of entries) {
       const personalization =
-        ((focusScores.get(entry.absolutePath) ?? 0) + 1) /
-        Math.max(totalFocus + entries.length, 1);
+        ((focusScores.get(entry.absolutePath) ?? 0) + 1) / Math.max(totalFocus + entries.length, 1);
       let inbound = 0;
       for (const source of incoming.get(entry.absolutePath) ?? []) {
         const outgoingCount = graph.get(source)?.size ?? 0;
@@ -269,8 +244,7 @@ function rankFiles(
     let difference = 0;
     for (const entry of entries) {
       difference += Math.abs(
-        (next.get(entry.absolutePath) ?? 0) -
-          (scores.get(entry.absolutePath) ?? 0),
+        (next.get(entry.absolutePath) ?? 0) - (scores.get(entry.absolutePath) ?? 0),
       );
     }
     scores.clear();
@@ -297,8 +271,7 @@ function rankFiles(
 }
 
 function symbolLine(symbol: Symbol): string {
-  const signature =
-    symbol.signature === undefined ? "" : ` ${symbol.signature}`;
+  const signature = symbol.signature === undefined ? "" : ` ${symbol.signature}`;
   return `  - ${symbol.type} ${symbol.name}${signature} (line ${String(symbol.start.line)})`;
 }
 
@@ -319,15 +292,12 @@ function renderMap(
         .slice()
         .sort(
           (left, right) =>
-            left.start.line - right.start.line ||
-            left.name.localeCompare(right.name),
+            left.start.line - right.start.line || left.name.localeCompare(right.name),
         )
         .map(symbolLine),
     ];
     const candidate = `${fileLines.join("\n")}\n\n`;
-    if (
-      Buffer.byteLength(lines.join("\n") + candidate, "utf8") > maxCharacters
-    ) {
+    if (Buffer.byteLength(lines.join("\n") + candidate, "utf8") > maxCharacters) {
       truncated = true;
       break;
     }
@@ -347,9 +317,7 @@ function renderMap(
   };
 }
 
-export async function execute(
-  rawInput: RepositoryMapInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: RepositoryMapInput): Promise<FeatureResult> {
   const input = repositoryMapSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -372,11 +340,7 @@ export async function execute(
     }
     try {
       const parsed = await parseCode(readResult.content, { filePath: file });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       entries.push({
         absolutePath: file,
         relativePath: relative,

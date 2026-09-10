@@ -6,11 +6,7 @@ import { createFeatureResultSchema } from "@features/utils";
 
 export const analyzeImpactSchema = z.object({
   directory: z.string().optional().default(".").describe("Project root"),
-  changed_files: z
-    .array(z.string())
-    .min(1)
-    .max(50)
-    .describe("Changed project-relative files"),
+  changed_files: z.array(z.string()).min(1).max(50).describe("Changed project-relative files"),
   max_files: z
     .number()
     .int()
@@ -46,17 +42,13 @@ const analyzeImpactDataSchema = z
   })
   .strict();
 
-export const analyzeImpactOutputSchema = createFeatureResultSchema(
-  analyzeImpactDataSchema,
-);
+export const analyzeImpactOutputSchema = createFeatureResultSchema(analyzeImpactDataSchema);
 
 function normalize(value: string): string {
   return value.replace(/\\/g, "/").replace(/^\.\//u, "");
 }
 
-export async function execute(
-  rawInput: AnalyzeImpactInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: AnalyzeImpactInput): Promise<FeatureResult> {
   const input = analyzeImpactSchema.parse(rawInput);
   const graphResult = await dependencyGraphFeature.execute({
     directory: input.directory,

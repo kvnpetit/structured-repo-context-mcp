@@ -120,17 +120,11 @@ describe("parse_ast feature", () => {
       expect(shallowResult.success).toBe(true);
       expect(deepResult.success).toBe(true);
 
-      const shallowRoot = (
-        shallowResult.data as { root: { children?: unknown[] } }
-      ).root;
-      const deepRoot = (deepResult.data as { root: { children?: unknown[] } })
-        .root;
+      const shallowRoot = (shallowResult.data as { root: { children?: unknown[] } }).root;
+      const deepRoot = (deepResult.data as { root: { children?: unknown[] } }).root;
 
       // Shallow should have children but they shouldn't have deeply nested children
-      const hasDeepChildren = (
-        node: { children?: unknown[] },
-        depth: number,
-      ): boolean => {
+      const hasDeepChildren = (node: { children?: unknown[] }, depth: number): boolean => {
         if (depth > 2) {
           return true;
         }
@@ -154,9 +148,7 @@ describe("parse_ast feature", () => {
       });
 
       expect(result.success).toBe(true);
-      const root = (
-        result.data as { root: { text: string; text_truncated?: boolean } }
-      ).root;
+      const root = (result.data as { root: { text: string; text_truncated?: boolean } }).root;
       expect(root.text.length).toBeLessThanOrEqual(8);
       expect(root.text_truncated).toBe(true);
     });

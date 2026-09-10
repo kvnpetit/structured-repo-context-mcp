@@ -51,13 +51,7 @@ export const indexSnapshotsSchema = z.discriminatedUnion("operation", [
   z.object({
     ...commonInput,
     operation: z.literal("cleanup"),
-    max_snapshots: z
-      .number()
-      .int()
-      .nonnegative()
-      .max(100)
-      .optional()
-      .default(10),
+    max_snapshots: z.number().int().nonnegative().max(100).optional().default(10),
     max_total_bytes: z
       .number()
       .int()
@@ -102,9 +96,7 @@ const indexSnapshotsDataSchema = z
   })
   .strict();
 
-export const indexSnapshotsOutputSchema = createFeatureResultSchema(
-  indexSnapshotsDataSchema,
-);
+export const indexSnapshotsOutputSchema = createFeatureResultSchema(indexSnapshotsDataSchema);
 
 export type SnapshotFile = z.infer<typeof snapshotFileSchema>;
 export type SnapshotManifest = z.infer<typeof snapshotManifestSchema>;

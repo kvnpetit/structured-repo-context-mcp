@@ -40,10 +40,10 @@
     "contract:verify": "tsx scripts/verify-contract-surface.ts",
     "pack:verify": "tsx scripts/verify-package.ts",
     "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
-    "lint": "eslint src/ scripts/ --cache --cache-location .eslintcache",
-    "lint:fix": "eslint src/ scripts/ --fix --cache --cache-location .eslintcache",
-    "format": "prettier --write src/ scripts/",
-    "format:check": "prettier --check src/ scripts/ --cache",
+    "lint": "biome lint src scripts",
+    "lint:fix": "biome lint --write src scripts",
+    "format": "biome format --write src scripts",
+    "format:check": "biome format src scripts",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run contract:verify",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s"
   },
@@ -70,7 +70,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@biomejs/biome": "2.5.11",
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^25.9.5",
     "@vitest/coverage-v8": "^4.1.11",
@@ -78,14 +78,9 @@
     "conventional-changelog": "^8.1.3",
     "conventional-changelog-conventionalcommits": "^10.4.0",
     "cross-env": "^10.1.0",
-    "eslint": "^9.39.5",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.6",
-    "prettier": "^3.9.6",
     "tsdown": "^0.23.0",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11"
   },
   "engines": {

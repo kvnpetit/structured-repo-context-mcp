@@ -4,10 +4,7 @@ import { execute as getProjectContext } from "@features/project-context";
 import { execute as getProjectArtifacts } from "@features/project-artifacts";
 import { executeGetProjectMemory } from "@features/project-memory";
 import { execute as getGitContext } from "@features/git-context";
-import {
-  mergeInstructionSignals,
-  scanInstructionSignals,
-} from "@core/security";
+import { mergeInstructionSignals, scanInstructionSignals } from "@core/security";
 import type { Feature, FeatureResult } from "@features/types";
 import {
   featureError,
@@ -42,9 +39,7 @@ export {
   type AssembleTaskContextInput,
 } from "./schema";
 
-export async function execute(
-  rawInput: AssembleTaskContextInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: AssembleTaskContextInput): Promise<FeatureResult> {
   const input = assembleTaskContextSchema.parse(rawInput);
   const terms = focusTerms(input.task);
   const richByDefault = input.depth !== "minimal";
@@ -59,111 +54,102 @@ export async function execute(
   const deep = input.depth === "deep";
   const searchContentBytes = Math.max(
     800,
-    Math.min(
-      6_000,
-      Math.floor((input.max_tokens * 4 * 0.35) / input.search_limit),
-    ),
+    Math.min(6_000, Math.floor((input.max_tokens * 4 * 0.35) / input.search_limit)),
   );
 
-  const [
-    mapResult,
-    searchResult,
-    projectResult,
-    memoryResult,
-    artifactResult,
-    gitResult,
-  ] = await Promise.all([
-    safeLayerCall("Repository map", async () =>
-      repositoryMapFeature.execute({
-        directory: input.directory,
-        focus: terms,
-        max_tokens: input.max_tokens,
-        max_files: deep ? 1_000 : 500,
-        redact_secrets: true,
-      }),
-    ),
-    safeLayerCall("Semantic search", async () =>
-      enabled.search
-        ? searchCodeFeature.execute({
-            query: input.task,
-            directory: input.directory,
-            limit: input.search_limit,
-            min_confidence: 0,
-            mode: "hybrid",
-            vectorWeight: 0.5,
-            includeCallContext: false,
-            rerank: "code",
-            include_tests: true,
-            redact_secrets: true,
-            max_content_bytes: searchContentBytes,
-            neighbor_window: deep ? 2 : 1,
-          })
-        : { success: true, data: { results: [] } },
-    ),
-    safeLayerCall("Project profile", async () =>
-      enabled.project
-        ? Promise.resolve(
-            getProjectContext({
-              directory: input.directory,
-              max_files: deep ? 2_000 : 750,
-              max_manifests: deep ? 100 : 50,
-              include_scripts: true,
-              redact_secrets: true,
-            }),
-          )
-        : { success: true, data: undefined },
-    ),
-    safeLayerCall("Project memory", async () =>
-      enabled.memory
-        ? executeGetProjectMemory({
-            directory: input.directory,
-            scope: input.memory_scope,
-            query: input.task,
-            search_mode: "hybrid",
-            include_expired: false,
-            min_confidence: input.memory_min_confidence,
-            limit: deep ? 15 : 8,
-            redact_secrets: true,
-          })
-        : { success: true, data: undefined },
-    ),
-    safeLayerCall("Project artifacts", async () =>
-      enabled.artifacts
-        ? Promise.resolve(
-            getProjectArtifacts({
-              directory: input.directory,
+  const [mapResult, searchResult, projectResult, memoryResult, artifactResult, gitResult] =
+    await Promise.all([
+      safeLayerCall("Repository map", async () =>
+        repositoryMapFeature.execute({
+          directory: input.directory,
+          focus: terms,
+          max_tokens: input.max_tokens,
+          max_files: deep ? 1_000 : 500,
+          redact_secrets: true,
+        }),
+      ),
+      safeLayerCall("Semantic search", async () =>
+        enabled.search
+          ? searchCodeFeature.execute({
               query: input.task,
-              limit: deep ? 10 : 6,
-              max_files: deep ? 1_000 : 500,
-              include_content: deep,
-              max_content_bytes: deep ? 1_500 : 400,
+              directory: input.directory,
+              limit: input.search_limit,
+              min_confidence: 0,
+              mode: "hybrid",
+              vectorWeight: 0.5,
+              includeCallContext: false,
+              rerank: "code",
+              include_tests: true,
               redact_secrets: true,
-            }),
-          )
-        : { success: true, data: undefined },
-    ),
-    safeLayerCall("Git context", async () =>
-      enabled.git
-        ? getGitContext({
-            directory: input.directory,
-            files: [],
-            include_status: true,
-            include_diff: false,
-            include_history: false,
-            include_blame: false,
-            include_codeowners: false,
-            include_changed_symbols: true,
-            max_diff_bytes: 1_000,
-            max_history: 1,
-            include_hotspots: false,
-            max_hotspots: 1,
-            max_compare_files: 100,
-            max_blame_lines: 1,
-            redact_secrets: true,
-          })
-        : { success: true, data: undefined },
-    ),
-  ]);
+              max_content_bytes: searchContentBytes,
+              neighbor_window: deep ? 2 : 1,
+            })
+          : { success: true, data: { results: [] } },
+      ),
+      safeLayerCall("Project profile", async () =>
+        enabled.project
+          ? Promise.resolve(
+              getProjectContext({
+                directory: input.directory,
+                max_files: deep ? 2_000 : 750,
+                max_manifests: deep ? 100 : 50,
+                include_scripts: true,
+                redact_secrets: true,
+              }),
+            )
+          : { success: true, data: undefined },
+      ),
+      safeLayerCall("Project memory", async () =>
+        enabled.memory
+          ? executeGetProjectMemory({
+              directory: input.directory,
+              scope: input.memory_scope,
+              query: input.task,
+              search_mode: "hybrid",
+              include_expired: false,
+              min_confidence: input.memory_min_confidence,
+              limit: deep ? 15 : 8,
+              redact_secrets: true,
+            })
+          : { success: true, data: undefined },
+      ),
+      safeLayerCall("Project artifacts", async () =>
+        enabled.artifacts
+          ? Promise.resolve(
+              getProjectArtifacts({
+                directory: input.directory,
+                query: input.task,
+                limit: deep ? 10 : 6,
+                max_files: deep ? 1_000 : 500,
+                include_content: deep,
+                max_content_bytes: deep ? 1_500 : 400,
+                redact_secrets: true,
+              }),
+            )
+          : { success: true, data: undefined },
+      ),
+      safeLayerCall("Git context", async () =>
+        enabled.git
+          ? getGitContext({
+              directory: input.directory,
+              files: [],
+              include_status: true,
+              include_diff: false,
+              include_history: false,
+              include_blame: false,
+              include_codeowners: false,
+              include_changed_symbols: true,
+              max_diff_bytes: 1_000,
+              max_history: 1,
+              include_hotspots: false,
+              max_hotspots: 1,
+              max_compare_files: 100,
+              max_blame_lines: 1,
+              redact_secrets: true,
+            })
+          : { success: true, data: undefined },
+      ),
+    ]);
 
   const warnings: string[] = [];
   const instructionScans: ReturnType<typeof scanInstructionSignals>[] = [];
@@ -175,9 +161,7 @@ export async function execute(
       })
     : undefined;
   const repositoryMap = mapData?.map ?? "Repository map unavailable.";
-  const rawSearch = searchResult.success
-    ? (searchResult.data as SearchData)
-    : undefined;
+  const rawSearch = searchResult.success ? (searchResult.data as SearchData) : undefined;
   const search: TaskContextOutput["search"] = searchResult.success
     ? { available: enabled.search, results: rawSearch?.results ?? [] }
     : {
@@ -194,9 +178,7 @@ export async function execute(
   const artifactData = artifactResult.success
     ? (artifactResult.data as ArtifactData | undefined)
     : undefined;
-  const gitData = gitResult.success
-    ? (gitResult.data as GitData | undefined)
-    : undefined;
+  const gitData = gitResult.success ? (gitResult.data as GitData | undefined) : undefined;
 
   if (rawSearch?.instruction_signals) {
     instructionScans.push(rawSearch.instruction_signals);
@@ -253,9 +235,7 @@ export async function execute(
       available: memoryResult.success,
       items: memoryData?.records?.length ?? 0,
       sourceTruncated: memoryData?.truncated ?? false,
-      ...(memoryResult.success
-        ? {}
-        : { error: featureError(memoryResult, "Memory unavailable") }),
+      ...(memoryResult.success ? {} : { error: featureError(memoryResult, "Memory unavailable") }),
     },
     {
       key: "artifacts",
@@ -279,9 +259,7 @@ export async function execute(
       available: gitResult.success,
       items: gitData?.files?.length ?? 0,
       sourceTruncated: gitData?.truncated ?? false,
-      ...(gitResult.success
-        ? {}
-        : { error: featureError(gitResult, "Git context unavailable") }),
+      ...(gitResult.success ? {} : { error: featureError(gitResult, "Git context unavailable") }),
     },
     {
       key: "repository_map",
@@ -311,15 +289,11 @@ export async function execute(
   instructionScans.push(
     ...sections
       .filter((section) => section.enabled)
-      .map((section) =>
-        scanInstructionSignals(section.content, { source: section.key }),
-      ),
+      .map((section) => scanInstructionSignals(section.content, { source: section.key })),
   );
   const packed = packSections(input.task, sections, input.max_tokens);
   if (packed.truncated) {
-    warnings.push(
-      "One or more context layers were truncated to preserve the total token budget",
-    );
+    warnings.push("One or more context layers were truncated to preserve the total token budget");
   }
 
   const nextActions: string[] = [];
@@ -328,9 +302,7 @@ export async function execute(
       "Run index_codebase, then repeat assemble_task_context for indexed retrieval.",
     );
   }
-  const anchor = search.results.find(
-    (result) => !result.is_neighbor && result.symbolName,
-  );
+  const anchor = search.results.find((result) => !result.is_neighbor && result.symbolName);
   if (anchor?.filePath && anchor.symbolName) {
     nextActions.push(
       `Inspect ${anchor.symbolName} in ${anchor.filePath} with semantic_navigation or get_symbol_graph before reading whole files.`,
@@ -372,17 +344,13 @@ export async function execute(
   return {
     success: true,
     message: `Assembled ${input.depth} agent context with repository map from ${String(
-      Object.values(packed.statuses).filter(
-        (status) => status.enabled && status.available,
-      ).length,
+      Object.values(packed.statuses).filter((status) => status.enabled && status.available).length,
     )} available layer(s)${packed.truncated ? " (budget-bounded)" : ""}`,
     data: output,
   };
 }
 
-export const assembleTaskContextFeature: Feature<
-  typeof assembleTaskContextSchema
-> = {
+export const assembleTaskContextFeature: Feature<typeof assembleTaskContextSchema> = {
   name: "assemble_task_context",
   title: "Assemble task context",
   description:

@@ -4,11 +4,7 @@ import { config } from "@config";
 import { createFeatureResultSchema } from "@features/utils";
 
 export const infoSchema = z.object({
-  format: z
-    .enum(["json", "text"])
-    .optional()
-    .default("text")
-    .describe("Output format"),
+  format: z.enum(["json", "text"]).optional().default("text").describe("Output format"),
 });
 
 export type InfoInput = z.infer<typeof infoSchema>;
@@ -52,8 +48,7 @@ export function execute(input: InfoInput): FeatureResult {
   }
 
   const description = info.description ?? "";
-  const text =
-    `${info.fullName} (${info.name}) v${info.version}\n${description}`.trim();
+  const text = `${info.fullName} (${info.name}) v${info.version}\n${description}`.trim();
 
   return {
     success: true,

@@ -2,12 +2,7 @@ import type { Language, Tree } from "web-tree-sitter";
 
 import type { ASTNode, QueryMatch } from "@core/ast/types";
 
-import {
-  executeQuery,
-  executeTagsQuery,
-  type QueryOptions,
-  type QueryResult,
-} from "./engine";
+import { executeQuery, executeTagsQuery, type QueryOptions, type QueryResult } from "./engine";
 import {
   deduplicateNodes,
   extractNodes,
@@ -55,16 +50,11 @@ export function executePresetQuery(
   const fallbackPattern = getQueryPattern(language, preset);
   if (preset === "functions" || preset === "classes") {
     if (hasOfficialTags(language)) {
-      const { definitions } = extractSymbolsFromTags(
-        tree,
-        languageInstance,
-        language,
-      );
+      const { definitions } = extractSymbolsFromTags(tree, languageInstance, language);
       let filteredDefinitions =
         preset === "functions"
           ? definitions.filter(
-              (definition) =>
-                definition.kind === "function" || definition.kind === "method",
+              (definition) => definition.kind === "function" || definition.kind === "method",
             )
           : definitions.filter(
               (definition) =>
@@ -73,23 +63,14 @@ export function executePresetQuery(
                 definition.kind === "module",
             );
       if (filteredDefinitions.length > 0) {
-        if (
-          options.maxMatches !== undefined &&
-          filteredDefinitions.length > options.maxMatches
-        ) {
-          filteredDefinitions = filteredDefinitions.slice(
-            0,
-            options.maxMatches,
-          );
+        if (options.maxMatches !== undefined && filteredDefinitions.length > options.maxMatches) {
+          filteredDefinitions = filteredDefinitions.slice(0, options.maxMatches);
         }
         const matches: QueryMatch[] = filteredDefinitions.map((definition) => ({
           pattern: 0,
           captures: [
             {
-              name:
-                preset === "functions"
-                  ? "function.definition"
-                  : "class.definition",
+              name: preset === "functions" ? "function.definition" : "class.definition",
               node: definition.node,
             },
             {
@@ -154,10 +135,7 @@ export function extractSymbolsFromTags(
     if (!nameCapture) {
       continue;
     }
-    const definitionCapture = findCaptureByPrefix(
-      match.captures,
-      "definition.",
-    );
+    const definitionCapture = findCaptureByPrefix(match.captures, "definition.");
     const referenceCapture = findCaptureByPrefix(match.captures, "reference.");
     const documentationCapture = findCapture(match.captures, "doc");
     if (definitionCapture) {
@@ -189,19 +167,12 @@ export function findFunctions(
   if (options.preferOfficial !== false && hasOfficialTags(language)) {
     return extractSymbolsFromTags(tree, languageInstance, language)
       .definitions.filter(
-        (definition) =>
-          definition.kind === "function" || definition.kind === "method",
+        (definition) => definition.kind === "function" || definition.kind === "method",
       )
       .map((definition) => definition.node);
   }
   try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "functions",
-      options,
-    );
+    const result = executePresetQuery(tree, languageInstance, language, "functions", options);
     return extractNodes(result.matches, [
       "function.definition",
       "method.definition",
@@ -229,13 +200,7 @@ export function findClasses(
       .map((definition) => definition.node);
   }
   try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "classes",
-      options,
-    );
+    const result = executePresetQuery(tree, languageInstance, language, "classes", options);
     return extractNodes(result.matches, [
       "class.definition",
       "struct.definition",
@@ -256,16 +221,8 @@ function findPresetNodes(
   deduplicate = false,
 ): ASTNode[] {
   try {
-    const matches = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      preset,
-      options,
-    ).matches;
-    return deduplicate
-      ? deduplicateNodes(matches, captures)
-      : extractNodes(matches, captures);
+    const matches = executePresetQuery(tree, languageInstance, language, preset, options).matches;
+    return deduplicate ? deduplicateNodes(matches, captures) : extractNodes(matches, captures);
   } catch {
     return [];
   }

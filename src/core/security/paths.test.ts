@@ -214,17 +214,10 @@ describe("path containment", () => {
   });
 
   test("safeErrorMessage removes absolute paths but preserves short diagnostics", () => {
-    expect(safeErrorMessage(new Error("parser failed"), "fallback")).toBe(
-      "parser failed",
+    expect(safeErrorMessage(new Error("parser failed"), "fallback")).toBe("parser failed");
+    expect(safeErrorMessage(new Error("failed at C:\\Users\\kevin\\secret.ts"), "fallback")).toBe(
+      "fallback",
     );
-    expect(
-      safeErrorMessage(
-        new Error("failed at C:\\Users\\kevin\\secret.ts"),
-        "fallback",
-      ),
-    ).toBe("fallback");
-    expect(safeErrorMessage("provider unavailable", "fallback")).toBe(
-      "provider unavailable",
-    );
+    expect(safeErrorMessage("provider unavailable", "fallback")).toBe("provider unavailable");
   });
 });

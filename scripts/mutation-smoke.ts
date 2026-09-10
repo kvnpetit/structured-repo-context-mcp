@@ -12,10 +12,7 @@ interface MutationCase {
   testFile: string;
 }
 
-const repositoryRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const mutations: readonly MutationCase[] = [
   {
@@ -49,13 +46,7 @@ const mutations: readonly MutationCase[] = [
 ];
 
 function copyRepository(destination: string): void {
-  const excluded = new Set([
-    ".git",
-    "node_modules",
-    "dist",
-    "coverage",
-    ".src-index",
-  ]);
+  const excluded = new Set([".git", "node_modules", "dist", "coverage", ".src-index"]);
   fs.cpSync(repositoryRoot, destination, {
     recursive: true,
     filter: (source) => {
@@ -82,14 +73,9 @@ function applyMutation(destination: string, mutation: MutationCase): void {
   const source = fs.readFileSync(target, "utf8");
   const occurrences = source.split(mutation.search).length - 1;
   if (occurrences !== 1) {
-    throw new Error(
-      `${mutation.name}: expected one mutation site, found ${String(occurrences)}`,
-    );
+    throw new Error(`${mutation.name}: expected one mutation site, found ${String(occurrences)}`);
   }
-  fs.writeFileSync(
-    target,
-    source.replace(mutation.search, mutation.replacement),
-  );
+  fs.writeFileSync(target, source.replace(mutation.search, mutation.replacement));
 }
 
 interface TestRunResult {
@@ -119,9 +105,7 @@ function runTests(destination: string, testFile: string): TestRunResult {
   };
 }
 
-const baselineDestination = fs.mkdtempSync(
-  path.join(os.tmpdir(), "src-mcp-mutation-baseline-"),
-);
+const baselineDestination = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-mutation-baseline-"));
 try {
   copyRepository(baselineDestination);
   const baseline = runTests(baselineDestination, "src/core/pagination.test.ts");
@@ -137,17 +121,13 @@ try {
 const killed: string[] = [];
 const survived: string[] = [];
 for (const mutation of mutations) {
-  const destination = fs.mkdtempSync(
-    path.join(os.tmpdir(), "src-mcp-mutation-"),
-  );
+  const destination = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-mutation-"));
   try {
     copyRepository(destination);
     applyMutation(destination, mutation);
     const result = runTests(destination, mutation.testFile);
     if (result.signal !== null || result.status === null) {
-      throw new Error(
-        `${mutation.name}: mutation test process did not finish normally`,
-      );
+      throw new Error(`${mutation.name}: mutation test process did not finish normally`);
     }
     if (result.status === 0) {
       survived.push(mutation.name);
@@ -159,9 +139,7 @@ for (const mutation of mutations) {
   }
 }
 
-console.log(
-  `Mutation smoke: killed ${String(killed.length)}/${String(mutations.length)}`,
-);
+console.log(`Mutation smoke: killed ${String(killed.length)}/${String(mutations.length)}`);
 for (const name of killed) {
   console.log(`  killed: ${name}`);
 }

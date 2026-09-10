@@ -38,22 +38,20 @@ export {
   type SymbolGraphInput,
 } from "./schema";
 
-export async function execute(
-  rawInput: SymbolGraphInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: SymbolGraphInput): Promise<FeatureResult> {
   const input = symbolGraphSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
     return { success: false, error: secureDirectory.error };
   }
   const root = secureDirectory.path;
-  const { parsedFiles, filesTruncated, errors, sourceRevision } =
-    await loadGraphFiles(root, input.max_files);
+  const { parsedFiles, filesTruncated, errors, sourceRevision } = await loadGraphFiles(
+    root,
+    input.max_files,
+  );
 
   const knownFiles = new Set(parsedFiles.map((file) => file.absolutePath));
-  const fileByAbsolute = new Map(
-    parsedFiles.map((file) => [file.absolutePath, file]),
-  );
+  const fileByAbsolute = new Map(parsedFiles.map((file) => [file.absolutePath, file]));
   const aliases = readPathAliasesCached(root);
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
@@ -107,29 +105,18 @@ export async function execute(
       kind,
       confidence,
       path: file.relativePath,
-      ...(index === undefined
-        ? {}
-        : { line: positionAt(file.content, index).line }),
+      ...(index === undefined ? {} : { line: positionAt(file.content, index).line }),
       ...(safeEvidence === undefined ? {} : { evidence: safeEvidence.text }),
     });
   };
 
   addDefinitionNodes(parsedFiles, addNode, addEdge);
 
-  const importsByFile = new Map<
-    string,
-    { item: Import; target?: ParsedFile }[]
-  >();
+  const importsByFile = new Map<string, { item: Import; target?: ParsedFile }[]>();
   for (const file of parsedFiles) {
     const imports = file.imports.map((item) => ({
       item,
-      target: resolveImport(
-        item.source,
-        file.absolutePath,
-        root,
-        aliases,
-        knownFiles,
-      ),
+      target: resolveImport(item.source, file.absolutePath, root, aliases, knownFiles),
     }));
     const resolvedImports = imports.map(({ item, target }) => ({
       item,
@@ -168,19 +155,14 @@ export async function execute(
             0.9,
             file,
             item.start.offset,
-            imported.alias
-              ? `${imported.name} as ${imported.alias}`
-              : imported.name,
+            imported.alias ? `${imported.name} as ${imported.alias}` : imported.name,
           );
         }
       }
     }
   }
 
-  const symbolsByName = new Map<
-    string,
-    { file: ParsedFile; symbol: Symbol }[]
-  >();
+  const symbolsByName = new Map<string, { file: ParsedFile; symbol: Symbol }[]>();
   for (const file of parsedFiles) {
     for (const symbol of file.symbols) {
       const entries = symbolsByName.get(symbol.name) ?? [];
@@ -212,13 +194,9 @@ export async function execute(
           ? findSymbol(binding.file, binding.imported)
           : findSymbol(file, name, sourceSymbol.start.offset);
         const fallback =
-          target === undefined && candidates.length === 1
-            ? candidates[0]
-            : undefined;
+          target === undefined && candidates.length === 1 ? candidates[0] : undefined;
         const resolved =
-          target === undefined
-            ? fallback
-            : { file: binding?.file ?? file, symbol: target };
+          target === undefined ? fallback : { file: binding?.file ?? file, symbol: target };
         if (resolved === undefined) {
           continue;
         }
@@ -229,10 +207,7 @@ export async function execute(
         }
         const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "u");
         const match = callPattern.exec(body);
-        const bodyStart = stringIndexAtByteOffset(
-          file.content,
-          sourceSymbol.start.offset,
-        );
+        const bodyStart = stringIndexAtByteOffset(file.content, sourceSymbol.start.offset);
         addEdge(
           sourceId,
           targetId,
@@ -256,14 +231,8 @@ export async function execute(
       for (const parent of relation.parents) {
         const local = findSymbol(file, parent);
         const candidates = symbolsByName.get(parent) ?? [];
-        const target =
-          local ??
-          (candidates.length === 1 ? candidates[0]?.symbol : undefined);
-        const targetFile = local
-          ? file
-          : candidates.length === 1
-            ? candidates[0]?.file
-            : undefined;
+        const target = local ?? (candidates.length === 1 ? candidates[0]?.symbol : undefined);
+        const targetFile = local ? file : candidates.length === 1 ? candidates[0]?.file : undefined;
         if (target === undefined || targetFile === undefined) {
           unresolved.push({
             kind: relation.kind === "impl" ? "implements" : "inherits",
@@ -354,12 +323,7 @@ export async function execute(
 
   let signalCounts = { routes: 0, events: 0, dependencies: 0 };
   if (input.include_signals) {
-    const signalResult = addSignalNodes(
-      parsedFiles,
-      input.redact_secrets,
-      addNode,
-      addEdge,
-    );
+    const signalResult = addSignalNodes(parsedFiles, input.redact_secrets, addNode, addEdge);
     signalCounts = signalResult.counts;
     secretsRedacted ||= signalResult.secretsRedacted;
   }

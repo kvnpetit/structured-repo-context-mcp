@@ -16,11 +16,7 @@ function fixture(local = false): {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "src-lsp-launcher-"));
   directories.push(root);
   const bin = local ? path.join(root, "node_modules", ".bin") : root;
-  const packageRoot = path.join(
-    root,
-    "node_modules",
-    "typescript-language-server",
-  );
+  const packageRoot = path.join(root, "node_modules", "typescript-language-server");
   fs.mkdirSync(bin, { recursive: true });
   fs.mkdirSync(packageRoot, { recursive: true });
   fs.writeFileSync(
@@ -133,16 +129,16 @@ process.stdin.on('data', chunk => {
         : resolved;
     const client = await startClient(root, descriptor, 3000);
     try {
-      await expect(
-        client.request("textDocument/hover", {}, 3000),
-      ).resolves.toEqual({ contents: "Local hover proof" });
+      await expect(client.request("textDocument/hover", {}, 3000)).resolves.toEqual({
+        contents: "Local hover proof",
+      });
       const controller = new AbortController();
-      await expect(
-        client.request("fixture/timeout", {}, 30, controller.signal),
-      ).rejects.toThrow("timed out");
-      await expect(
-        client.request("textDocument/hover", {}, 3000),
-      ).resolves.toEqual({ contents: "Local hover proof" });
+      await expect(client.request("fixture/timeout", {}, 30, controller.signal)).rejects.toThrow(
+        "timed out",
+      );
+      await expect(client.request("textDocument/hover", {}, 3000)).resolves.toEqual({
+        contents: "Local hover proof",
+      });
     } finally {
       await client.close();
     }

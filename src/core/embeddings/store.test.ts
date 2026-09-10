@@ -70,9 +70,7 @@ describe("VectorStore", () => {
       const disconnectedStore = new VectorStore(tempDir, mockConfig);
       const chunks = [createMockChunk("func1", "/test/file1.ts")];
 
-      await expect(disconnectedStore.addChunks(chunks)).rejects.toThrow(
-        "Database not connected",
-      );
+      await expect(disconnectedStore.addChunks(chunks)).rejects.toThrow("Database not connected");
     });
   });
 
@@ -95,9 +93,7 @@ describe("VectorStore", () => {
 
     await store.connect();
     expect((await store.getStatus(tempDir)).totalChunks).toBe(1);
-    expect((await store.searchLexical("lifecycle", 1))[0]?.chunk.id).toBe(
-      "lifecycle",
-    );
+    expect((await store.searchLexical("lifecycle", 1))[0]?.chunk.id).toBe("lifecycle");
   });
 
   describe("search", () => {
@@ -118,10 +114,7 @@ describe("VectorStore", () => {
     });
 
     test("returns empty array when table does not exist", async () => {
-      const emptyStore = new VectorStore(
-        path.join(tempDir, "empty"),
-        mockConfig,
-      );
+      const emptyStore = new VectorStore(path.join(tempDir, "empty"), mockConfig);
       await emptyStore.connect();
 
       const queryVector: number[] = new Array<number>(768).fill(0);
@@ -151,10 +144,7 @@ describe("VectorStore", () => {
 
       expect(adjacent.truncated).toBe(false);
       expect(adjacent.candidatesConsidered).toBe(3);
-      expect(adjacent.neighbors.map((item) => item.result.chunk.id)).toEqual([
-        "before",
-        "after",
-      ]);
+      expect(adjacent.neighbors.map((item) => item.result.chunk.id)).toEqual(["before", "after"]);
       expect(adjacent.neighbors.map((item) => item.distance)).toEqual([1, 1]);
     });
   });
@@ -173,10 +163,7 @@ describe("VectorStore", () => {
     });
 
     test("does nothing when table does not exist", async () => {
-      const emptyStore = new VectorStore(
-        path.join(tempDir, "empty"),
-        mockConfig,
-      );
+      const emptyStore = new VectorStore(path.join(tempDir, "empty"), mockConfig);
       await emptyStore.connect();
 
       // Should not throw even without a table
@@ -229,9 +216,7 @@ describe("VectorStore", () => {
       await store.addChunks([createMockChunk("old", targetPath)]);
 
       await expect(
-        store.replaceFileChunks(targetPath, [
-          createMockChunk("wrong", otherPath),
-        ]),
+        store.replaceFileChunks(targetPath, [createMockChunk("wrong", otherPath)]),
       ).rejects.toThrow("chunk for another file");
 
       expect(await store.getIndexedFiles()).toContain(targetPath);
@@ -287,9 +272,7 @@ describe("VectorStore", () => {
       await secondStore.connect();
       try {
         await Promise.all([
-          store.replaceFileChunks(targetPath, [
-            createMockChunk("first-version", targetPath),
-          ]),
+          store.replaceFileChunks(targetPath, [createMockChunk("first-version", targetPath)]),
           secondStore.replaceFileChunks(targetPath, [
             createMockChunk("second-version-1", targetPath),
             createMockChunk("second-version-2", targetPath),
@@ -371,10 +354,7 @@ describe("VectorStore", () => {
     });
 
     test("returns false when index does not exist", () => {
-      const newStore = new VectorStore(
-        path.join(tempDir, "nonexistent"),
-        mockConfig,
-      );
+      const newStore = new VectorStore(path.join(tempDir, "nonexistent"), mockConfig);
       expect(newStore.exists()).toBe(false);
     });
   });
@@ -396,9 +376,7 @@ describe("source fingerprints", () => {
   });
 
   test("rejects an index when chunking configuration changes", async () => {
-    const tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "lancedb-metadata-test-"),
-    );
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-metadata-test-"));
     const baseConfig = {
       embeddingProvider: "lexical" as const,
       embeddingModel: "lexical-v1",
@@ -439,9 +417,7 @@ describe("source fingerprints", () => {
   });
 
   test("fails closed when persisted metadata is corrupt or oversized", async () => {
-    const tempDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "lancedb-corrupt-metadata-test-"),
-    );
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-corrupt-metadata-test-"));
     const makeChunk = (id: string, filePath: string): EmbeddedChunk => ({
       id,
       content: `function ${id}() { return true; }`,
@@ -456,9 +432,7 @@ describe("source fingerprints", () => {
     try {
       const first = new VectorStore(tempDir, config);
       await first.connect();
-      await first.addChunks([
-        makeChunk("persisted", path.join(tempDir, "file.ts")),
-      ]);
+      await first.addChunks([makeChunk("persisted", path.join(tempDir, "file.ts"))]);
       first.close();
 
       const metadataPath = path.join(tempDir, ".src-index", "metadata.json");
@@ -470,9 +444,7 @@ describe("source fingerprints", () => {
         corrupt.assertMetadataCompatible();
       }).toThrow();
       await expect(
-        corrupt.addChunks([
-          makeChunk("must-not-write", path.join(tempDir, "file.ts")),
-        ]),
+        corrupt.addChunks([makeChunk("must-not-write", path.join(tempDir, "file.ts"))]),
       ).rejects.toThrow();
       corrupt.close();
 
@@ -624,11 +596,7 @@ describe("VectorStore hybrid search", () => {
     embeddingDimensions: 768,
   };
 
-  const createMockChunk = (
-    id: string,
-    content: string,
-    filePath: string,
-  ): EmbeddedChunk => ({
+  const createMockChunk = (id: string, content: string, filePath: string): EmbeddedChunk => ({
     id,
     content,
     filePath,
@@ -663,16 +631,8 @@ describe("VectorStore hybrid search", () => {
     const store = new VectorStore(tempDir, mockConfig);
     await store.connect();
 
-    const chunk1 = createMockChunk(
-      "func1",
-      "function hello() { return 'hello'; }",
-      "/a.ts",
-    );
-    const chunk2 = createMockChunk(
-      "func2",
-      "function world() { return 'world'; }",
-      "/b.ts",
-    );
+    const chunk1 = createMockChunk("func1", "function hello() { return 'hello'; }", "/a.ts");
+    const chunk2 = createMockChunk("func2", "function world() { return 'world'; }", "/b.ts");
     await store.addChunks([chunk1, chunk2]);
 
     const results = await store.searchHybrid(chunk1.vector, "hello", 5, {

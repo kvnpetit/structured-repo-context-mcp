@@ -4,11 +4,7 @@ import * as path from "node:path";
 
 import { isSafeGitRelativePath } from "@core/git";
 import { redactSourceText, resolveSecureDirectory } from "@core/security";
-import type {
-  Feature,
-  FeatureExecutionContext,
-  FeatureResult,
-} from "@features/types";
+import type { Feature, FeatureExecutionContext, FeatureResult } from "@features/types";
 import {
   parseAstGrep,
   parseCodeql,
@@ -55,9 +51,7 @@ export async function execute(
     enabled: process.env.SRC_STATIC_ANALYSIS_ENABLED === "true",
     available: false,
     query_kind: queryKind,
-    ...(requestedRuleFile === undefined
-      ? {}
-      : { rule_file: requestedRuleFile }),
+    ...(requestedRuleFile === undefined ? {} : { rule_file: requestedRuleFile }),
     findings: [],
     findings_count: 0,
     truncated: false,
@@ -114,13 +108,10 @@ export async function execute(
     if (database === undefined || queryFile === undefined) {
       return {
         success: false,
-        error:
-          "CodeQL database and query_file must be existing project-relative paths",
+        error: "CodeQL database and query_file must be existing project-relative paths",
       };
     }
-    temporaryDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-codeql-"),
-    );
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-codeql-"));
     args = [
       "database",
       "analyze",
@@ -142,15 +133,7 @@ export async function execute(
     const targets = paths.length > 0 ? paths : ["."];
     args =
       input.backend === "ast-grep"
-        ? [
-            "scan",
-            "--rule",
-            ruleFile,
-            "--json",
-            "--include-metadata",
-            "--",
-            ...targets,
-          ]
+        ? ["scan", "--rule", ruleFile, "--json", "--include-metadata", "--", ...targets]
         : [
             "--json",
             "--metrics=off",
@@ -171,16 +154,7 @@ export async function execute(
     const targets = paths.length > 0 ? paths : ["."];
     args =
       input.backend === "ast-grep"
-        ? [
-            "run",
-            "--pattern",
-            input.pattern,
-            "--lang",
-            input.language,
-            "--json",
-            "--",
-            ...targets,
-          ]
+        ? ["run", "--pattern", input.pattern, "--lang", input.language, "--json", "--", ...targets]
         : [
             "--json",
             "--metrics=off",
@@ -212,9 +186,7 @@ export async function execute(
       }
     }
     if (payload === undefined) {
-      output.errors.push(
-        "Static analyzer did not return valid JSON/SARIF output",
-      );
+      output.errors.push("Static analyzer did not return valid JSON/SARIF output");
     } else {
       const findings =
         input.backend === "ast-grep"
@@ -229,8 +201,7 @@ export async function execute(
     }
     output.timed_out = processResult.timedOut;
     output.output_truncated = processResult.outputTruncated;
-    output.truncated =
-      output.output_truncated || output.findings_count >= input.max_results;
+    output.truncated = output.output_truncated || output.findings_count >= input.max_results;
     if (processResult.stderr.length > 0) {
       const stderr = input.redact_secrets
         ? redactSourceText(processResult.stderr)

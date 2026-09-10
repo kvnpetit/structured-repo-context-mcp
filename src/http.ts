@@ -73,9 +73,7 @@ function parsePositiveInteger(
   }
 
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum
-    ? parsed
-    : fallback;
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
 }
 
 function parseAllowedHostnames(value: string | undefined): string[] {
@@ -106,11 +104,7 @@ function normalizeHost(host: string): string {
 
 export function isLoopbackHost(host: string): boolean {
   const normalized = normalizeHost(host);
-  return (
-    normalized === "localhost" ||
-    normalized === "127.0.0.1" ||
-    normalized === "::1"
-  );
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }
 
 export function isWildcardHost(host: string): boolean {
@@ -121,26 +115,14 @@ export function isWildcardHost(host: string): boolean {
 export function getDefaultHttpOptions(): ResolvedHttpOptions {
   const configuredHost = process.env.MCP_HTTP_HOST?.trim();
   const host = withFallback(configuredHost, DEFAULT_HTTP_HOST);
-  const configuredToken = optionalValue(
-    process.env.MCP_HTTP_BEARER_TOKEN?.trim(),
-  );
-  const allowedHostnames = parseAllowedHostnames(
-    process.env.MCP_HTTP_ALLOWED_HOSTS,
-  );
+  const configuredToken = optionalValue(process.env.MCP_HTTP_BEARER_TOKEN?.trim());
+  const allowedHostnames = parseAllowedHostnames(process.env.MCP_HTTP_ALLOWED_HOSTS);
   const effectiveAllowedHostnames =
-    allowedHostnames.length > 0
-      ? allowedHostnames
-      : isWildcardHost(host)
-        ? []
-        : [host];
+    allowedHostnames.length > 0 ? allowedHostnames : isWildcardHost(host) ? [] : [host];
 
   return {
     host,
-    port: parsePositiveInteger(
-      process.env.MCP_HTTP_PORT,
-      DEFAULT_HTTP_PORT,
-      65_535,
-    ),
+    port: parsePositiveInteger(process.env.MCP_HTTP_PORT, DEFAULT_HTTP_PORT, 65_535),
     bearerToken: configuredToken,
     allowedHostnames: effectiveAllowedHostnames,
     maxBodyBytes: parsePositiveInteger(
@@ -155,8 +137,7 @@ export function getDefaultHttpOptions(): ResolvedHttpOptions {
     ),
     legacy: process.env.MCP_HTTP_LEGACY === "reject" ? "reject" : "stateless",
     responseMode:
-      process.env.MCP_HTTP_RESPONSE_MODE === "sse" ||
-      process.env.MCP_HTTP_RESPONSE_MODE === "json"
+      process.env.MCP_HTTP_RESPONSE_MODE === "sse" || process.env.MCP_HTTP_RESPONSE_MODE === "json"
         ? process.env.MCP_HTTP_RESPONSE_MODE
         : "auto",
   };
@@ -168,15 +149,10 @@ function resolveHttpOptions(options: HttpServerOptions): ResolvedHttpOptions {
   const host = withFallback(configuredHost, defaults.host);
   const allowedHostnames =
     options.allowedHostnames ??
-    (options.host === undefined
-      ? defaults.allowedHostnames
-      : isWildcardHost(host)
-        ? []
-        : [host]);
+    (options.host === undefined ? defaults.allowedHostnames : isWildcardHost(host) ? [] : [host]);
   const port = options.port ?? defaults.port;
   const maxBodyBytes = options.maxBodyBytes ?? defaults.maxBodyBytes;
-  const maxConcurrentRequests =
-    options.maxConcurrentRequests ?? defaults.maxConcurrentRequests;
+  const maxConcurrentRequests = options.maxConcurrentRequests ?? defaults.maxConcurrentRequests;
   const configuredToken = options.bearerToken?.trim();
   const bearerToken = configuredToken ?? defaults.bearerToken;
 
@@ -202,23 +178,13 @@ function resolveHttpOptions(options: HttpServerOptions): ResolvedHttpOptions {
     );
   }
   if (!isLoopbackHost(host) && !bearerToken) {
-    throw new Error(
-      "MCP_HTTP_BEARER_TOKEN is required when MCP HTTP binds to a non-loopback host",
-    );
+    throw new Error("MCP_HTTP_BEARER_TOKEN is required when MCP HTTP binds to a non-loopback host");
   }
   if (!isLoopbackHost(host) && !hasConfiguredAllowedRoots()) {
-    throw new Error(
-      "SRC_ALLOWED_ROOTS is required when MCP HTTP binds to a non-loopback host",
-    );
+    throw new Error("SRC_ALLOWED_ROOTS is required when MCP HTTP binds to a non-loopback host");
   }
-  if (
-    !isLoopbackHost(host) &&
-    isWildcardHost(host) &&
-    allowedHostnames.length === 0
-  ) {
-    throw new Error(
-      "MCP_HTTP_ALLOWED_HOSTS is required when MCP HTTP binds to a wildcard host",
-    );
+  if (!isLoopbackHost(host) && isWildcardHost(host) && allowedHostnames.length === 0) {
+    throw new Error("MCP_HTTP_ALLOWED_HOSTS is required when MCP HTTP binds to a wildcard host");
   }
 
   return {
@@ -253,9 +219,7 @@ export function hasValidBearerToken(
 
   const supplied = Buffer.from(authorization.slice("Bearer ".length), "utf8");
   const expected = Buffer.from(expectedToken, "utf8");
-  return (
-    supplied.length === expected.length && timingSafeEqual(supplied, expected)
-  );
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
 function sendJson(
@@ -347,10 +311,7 @@ function monitorRequestBody(
 async function closeNodeServer(server: Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((error) => {
-      if (
-        error &&
-        (error as NodeJS.ErrnoException).code !== "ERR_SERVER_NOT_RUNNING"
-      ) {
+      if (error && (error as NodeJS.ErrnoException).code !== "ERR_SERVER_NOT_RUNNING") {
         reject(error);
         return;
       }
@@ -359,9 +320,7 @@ async function closeNodeServer(server: Server): Promise<void> {
   });
 }
 
-export async function startHttpServer(
-  options: HttpServerOptions = {},
-): Promise<RunningHttpServer> {
+export async function startHttpServer(options: HttpServerOptions = {}): Promise<RunningHttpServer> {
   const resolved = resolveHttpOptions(options);
   const taskManager = createTaskManager();
   const handler = createMcpHandler(() => createMcpServer(taskManager), {
@@ -398,33 +357,19 @@ export async function startHttpServer(
         return;
       }
       if (!hasValidBearerToken(req, resolved.bearerToken)) {
-        sendJson(
-          res,
-          401,
-          { error: "Unauthorized" },
-          { "www-authenticate": "Bearer" },
-        );
+        sendJson(res, 401, { error: "Unauthorized" }, { "www-authenticate": "Bearer" });
         return;
       }
       if (!hasAcceptableBodySize(req, resolved.maxBodyBytes, res)) {
         return;
       }
       if (activeRequests >= resolved.maxConcurrentRequests) {
-        sendJson(
-          res,
-          429,
-          { error: "Too many concurrent requests" },
-          { "retry-after": "1" },
-        );
+        sendJson(res, 429, { error: "Too many concurrent requests" }, { "retry-after": "1" });
         return;
       }
 
       activeRequests += 1;
-      const stopBodyMonitor = monitorRequestBody(
-        req,
-        res,
-        resolved.maxBodyBytes,
-      );
+      const stopBodyMonitor = monitorRequestBody(req, res, resolved.maxBodyBytes);
       void nodeHandler(req, res)
         .catch(() => {
           sendJson(res, 500, { error: "MCP request failed" });
@@ -456,10 +401,7 @@ export async function startHttpServer(
   }
 
   const address = server.address();
-  const port =
-    typeof address === "object" && address !== null
-      ? address.port
-      : resolved.port;
+  const port = typeof address === "object" && address !== null ? address.port : resolved.port;
   const displayHost =
     resolved.host.includes(":") && !resolved.host.startsWith("[")
       ? `[${resolved.host}]`

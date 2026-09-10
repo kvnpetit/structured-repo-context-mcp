@@ -35,9 +35,7 @@ export {
   type GitContextInput,
 } from "./schema";
 
-export async function execute(
-  rawInput: GitContextInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: GitContextInput): Promise<FeatureResult> {
   const input = gitContextSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -51,9 +49,7 @@ export async function execute(
   const pathArgs = filesResult.length > 0 ? ["--", ...filesResult] : ["--"];
   let repositoryRoot: string;
   try {
-    repositoryRoot = (
-      await runLocalGit(root, ["rev-parse", "--show-toplevel"])
-    ).stdout.trim();
+    repositoryRoot = (await runLocalGit(root, ["rev-parse", "--show-toplevel"])).stdout.trim();
     if (repositoryRoot.length === 0) {
       return { success: false, error: "Directory is not a Git repository" };
     }
@@ -66,36 +62,19 @@ export async function execute(
 
   const errors: string[] = [];
   const statusPromise = input.include_status
-    ? runLocalGit(root, [
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        "-z",
-        ...pathArgs,
-      ])
+    ? runLocalGit(root, ["status", "--porcelain=v1", "--untracked-files=all", "-z", ...pathArgs])
         .then((result) => parseStatus(result.stdout))
         .catch((error: unknown) => {
-          errors.push(
-            `Cannot read Git status: ${safeGitError(error, "status unavailable")}`,
-          );
+          errors.push(`Cannot read Git status: ${safeGitError(error, "status unavailable")}`);
           return { entries: [], truncated: false };
         })
     : { entries: [], truncated: false };
-  const headPromise = runLocalGit(root, [
-    "rev-parse",
-    "--verify",
-    "HEAD",
-  ]).catch(() => undefined);
-  const branchPromise = runLocalGit(root, ["branch", "--show-current"]).catch(
-    () => undefined,
-  );
+  const headPromise = runLocalGit(root, ["rev-parse", "--verify", "HEAD"]).catch(() => undefined);
+  const branchPromise = runLocalGit(root, ["branch", "--show-current"]).catch(() => undefined);
   const changedSymbolsPromise = input.include_changed_symbols
     ? changedSymbolsFeature.execute({
         directory: root,
-        max_files: Math.min(
-          MAX_FILES,
-          Math.max(1, input.files.length || MAX_FILES),
-        ),
+        max_files: Math.min(MAX_FILES, Math.max(1, input.files.length || MAX_FILES)),
         max_symbols: 1_000,
       })
     : undefined;
@@ -106,13 +85,9 @@ export async function execute(
   ]);
   const status = statusResult.entries;
   const headValue = headResult?.stdout.trim();
-  const head =
-    headValue === undefined || headValue.length === 0 ? undefined : headValue;
+  const head = headValue === undefined || headValue.length === 0 ? undefined : headValue;
   const branchValue = branchResult?.stdout.trim();
-  const branch =
-    branchValue === undefined || branchValue.length === 0
-      ? undefined
-      : branchValue;
+  const branch = branchValue === undefined || branchValue.length === 0 ? undefined : branchValue;
 
   let secretRedacted = false;
   let diff = { text: "", bytes: 0, truncated: false };
@@ -131,19 +106,14 @@ export async function execute(
       const result = await runLocalGit(root, diffArgs);
       const redacted = redactText(result.stdout, input.redact_secrets);
       secretRedacted ||= redacted.redacted;
-      const bounded = truncateUtf8WithStatus(
-        redacted.text,
-        input.max_diff_bytes,
-      );
+      const bounded = truncateUtf8WithStatus(redacted.text, input.max_diff_bytes);
       diff = {
         text: bounded.text,
         bytes: Buffer.byteLength(bounded.text, "utf8"),
         truncated: bounded.truncated,
       };
     } catch (error) {
-      errors.push(
-        `Cannot read Git diff: ${safeGitError(error, "diff unavailable")}`,
-      );
+      errors.push(`Cannot read Git diff: ${safeGitError(error, "diff unavailable")}`);
     }
   }
 
@@ -165,9 +135,7 @@ export async function execute(
         return { ...entry, subject: subject.text };
       });
     } catch (error) {
-      errors.push(
-        `Cannot read Git history: ${safeGitError(error, "history unavailable")}`,
-      );
+      errors.push(`Cannot read Git history: ${safeGitError(error, "history unavailable")}`);
     }
   }
 
@@ -188,11 +156,7 @@ export async function execute(
         String(input.max_history + 1),
         ...pathArgs,
       ]);
-      return parseHotspots(
-        result.stdout,
-        input.max_history,
-        input.max_hotspots,
-      );
+      return parseHotspots(result.stdout, input.max_history, input.max_hotspots);
     } catch (error) {
       errors.push(
         `Cannot read Git hotspots: ${safeGitError(error, "historical hotspots unavailable")}`,
@@ -201,9 +165,7 @@ export async function execute(
     }
   })();
 
-  const revisionComparePromise = (async (): Promise<
-    RevisionComparison | undefined
-  > => {
+  const revisionComparePromise = (async (): Promise<RevisionComparison | undefined> => {
     if (input.compare_from === undefined || input.compare_to === undefined) {
       return undefined;
     }
@@ -224,10 +186,7 @@ export async function execute(
         toCommit,
         ...pathArgs,
       ]);
-      const parsed = parseRevisionChanges(
-        result.stdout,
-        input.max_compare_files,
-      );
+      const parsed = parseRevisionChanges(result.stdout, input.max_compare_files);
       return {
         from: input.compare_from,
         to: input.compare_to,
@@ -244,58 +203,42 @@ export async function execute(
       return undefined;
     }
   })();
-  const [hotspots, revisionCompare] = await Promise.all([
-    hotspotsPromise,
-    revisionComparePromise,
-  ]);
+  const [hotspots, revisionCompare] = await Promise.all([hotspotsPromise, revisionComparePromise]);
 
   const blame: Record<string, BlameEntry[]> = {};
   if (input.include_blame) {
-    const blameFiles =
-      filesResult.length > 0 ? filesResult : status.map((entry) => entry.path);
+    const blameFiles = filesResult.length > 0 ? filesResult : status.map((entry) => entry.path);
     for (const file of [...new Set(blameFiles)].slice(0, MAX_FILES)) {
       if (!isSafeGitRelativePath(file)) {
         continue;
       }
       try {
-        const result = await runLocalGit(root, [
-          "blame",
-          "--line-porcelain",
-          "--",
-          file,
-        ]);
-        const entries = parseBlame(result.stdout, input.max_blame_lines).map(
-          (entry) => {
-            const summary =
-              entry.summary === undefined
-                ? entry.summary
-                : redactText(entry.summary, input.redact_secrets);
-            if (summary !== undefined && typeof summary !== "string") {
-              secretRedacted ||= summary.redacted;
-            }
-            return {
-              ...entry,
-              ...(summary === undefined
-                ? {}
-                : {
-                    summary:
-                      typeof summary === "string" ? summary : summary.text,
-                  }),
-            };
-          },
-        );
+        const result = await runLocalGit(root, ["blame", "--line-porcelain", "--", file]);
+        const entries = parseBlame(result.stdout, input.max_blame_lines).map((entry) => {
+          const summary =
+            entry.summary === undefined
+              ? entry.summary
+              : redactText(entry.summary, input.redact_secrets);
+          if (summary !== undefined && typeof summary !== "string") {
+            secretRedacted ||= summary.redacted;
+          }
+          return {
+            ...entry,
+            ...(summary === undefined
+              ? {}
+              : {
+                  summary: typeof summary === "string" ? summary : summary.text,
+                }),
+          };
+        });
         blame[file] = entries;
       } catch (error) {
-        errors.push(
-          `Cannot read blame for ${file}: ${safeGitError(error, "blame unavailable")}`,
-        );
+        errors.push(`Cannot read blame for ${file}: ${safeGitError(error, "blame unavailable")}`);
       }
     }
   }
 
-  const codeowners = input.include_codeowners
-    ? readCodeowners(root)
-    : { lines: [] };
+  const codeowners = input.include_codeowners ? readCodeowners(root) : { lines: [] };
   if (input.redact_secrets && codeowners.lines.length > 0) {
     codeowners.lines = codeowners.lines.map((line) => {
       const redacted = redactSourceText(line);
@@ -349,9 +292,7 @@ export async function execute(
     diff,
     history,
     ...(hotspots === undefined ? {} : { hotspots }),
-    ...(revisionCompare === undefined
-      ? {}
-      : { revision_compare: revisionCompare }),
+    ...(revisionCompare === undefined ? {} : { revision_compare: revisionCompare }),
     blame,
     codeowners,
     change_analysis: changeAnalysis,

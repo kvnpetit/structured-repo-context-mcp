@@ -85,7 +85,5 @@ export function candidateFor(language: string): LspServerCandidate | undefined {
 }
 
 export function detectNavigationLanguage(filePath: string): string {
-  return normalizeLanguage(
-    getConfiguredLanguageFromPath(filePath) ?? "unknown",
-  );
+  return normalizeLanguage(getConfiguredLanguageFromPath(filePath) ?? "unknown");
 }

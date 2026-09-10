@@ -35,11 +35,7 @@ describe("native LanceDB search pagination", () => {
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
-  async function seed(
-    count: number,
-    duplicates = false,
-    createFts = true,
-  ): Promise<void> {
+  async function seed(count: number, duplicates = false, createFts = true): Promise<void> {
     const client = createLexicalEmbeddingClient(64);
     const chunks: EmbeddedChunk[] = [];
     for (let index = 0; index < count; index++) {
@@ -74,9 +70,7 @@ describe("native LanceDB search pagination", () => {
     }
   }
 
-  async function search(
-    input: Partial<SearchCodeInput> = {},
-  ): Promise<SearchOutput> {
+  async function search(input: Partial<SearchCodeInput> = {}): Promise<SearchOutput> {
     const response = await execute({
       directory,
       query: "pagination shared worker",
@@ -102,9 +96,7 @@ describe("native LanceDB search pagination", () => {
     expect(third.next_cursor).toBeUndefined();
     expect(
       new Set(
-        [...first.results, ...second.results, ...third.results].map(
-          (result) => result.filePath,
-        ),
+        [...first.results, ...second.results, ...third.results].map((result) => result.filePath),
       ).size,
     ).toBe(27);
   });

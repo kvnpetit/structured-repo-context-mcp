@@ -11,11 +11,7 @@
 import { z } from "zod";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import type {
-  Feature,
-  FeatureExecutionContext,
-  FeatureResult,
-} from "@features/types";
+import type { Feature, FeatureExecutionContext, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
   chunkFile,
@@ -33,11 +29,7 @@ import { writeHashCache } from "@core/embeddings/hash-cache";
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { logger } from "@utils";
 import { readPathAliasesCached } from "@core/utils";
-import {
-  readSecureTextFile,
-  resolveSecureDirectory,
-  safeErrorMessage,
-} from "@core/security";
+import { readSecureTextFile, resolveSecureDirectory, safeErrorMessage } from "@core/security";
 import { createFeatureResultSchema } from "@features/utils";
 
 /** Default concurrency for parallel file processing */
@@ -93,10 +85,7 @@ async function parallelMap<T, R>(
     }
   };
 
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    async () => worker(),
-  );
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => worker());
   await Promise.all(workers);
 
   // Filter out undefined values (shouldn't happen but TypeScript needs this)
@@ -109,11 +98,7 @@ export const indexCodebaseSchema = z.object({
     .optional()
     .default(".")
     .describe("Path to the directory to index (defaults to current directory)"),
-  force: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Force re-indexing even if index exists"),
+  force: z.boolean().optional().default(false).describe("Force re-indexing even if index exists"),
   exclude: z
     .array(z.string())
     .optional()
@@ -155,9 +140,7 @@ const indexCodebaseDataSchema = z
   })
   .strict();
 
-export const indexCodebaseOutputSchema = createFeatureResultSchema(
-  indexCodebaseDataSchema,
-);
+export const indexCodebaseOutputSchema = createFeatureResultSchema(indexCodebaseDataSchema);
 
 /**
  * Execute the index_codebase feature
@@ -177,9 +160,7 @@ export async function execute(
     return {
       success: false,
       error:
-        secureDirectory.error === "Path not found"
-          ? "Directory not found"
-          : secureDirectory.error,
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
@@ -206,8 +187,7 @@ export async function execute(
   if (vectorStore.exists() && !force) {
     return {
       success: false,
-      error:
-        "Index already exists. Use force=true to re-index or search_code to query.",
+      error: "Index already exists. Use force=true to re-index or search_code to query.",
     };
   }
 
@@ -228,8 +208,8 @@ export async function execute(
     const ig = createIgnoreFilter(absoluteDir, exclude);
 
     // Collect files
-    const files = collectFiles(absoluteDir, ig, absoluteDir).sort(
-      (left, right) => left.localeCompare(right),
+    const files = collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) =>
+      left.localeCompare(right),
     );
 
     if (files.length === 0) {
@@ -268,16 +248,12 @@ export async function execute(
       error?: string;
     }
 
-    const processFile = async (
-      filePath: string,
-    ): Promise<FileProcessResult> => {
+    const processFile = async (filePath: string): Promise<FileProcessResult> => {
       throwIfAborted(context?.signal);
       try {
         const readResult = readSecureTextFile(filePath, absoluteDir);
         if (!readResult.ok || readResult.content === undefined) {
-          const readError = readResult.ok
-            ? "File cannot be read"
-            : readResult.error;
+          const readError = readResult.ok ? "File cannot be read" : readResult.error;
           return {
             filePath,
             hash: "",
@@ -291,11 +267,7 @@ export async function execute(
         throwIfAborted(context?.signal);
 
         // Enrich chunks with semantic metadata including cross-file context
-        const enrichedChunks = await enrichChunksFromFile(
-          chunks,
-          content,
-          enrichmentOptions,
-        );
+        const enrichedChunks = await enrichChunksFromFile(chunks, content, enrichmentOptions);
         throwIfAborted(context?.signal);
 
         return { filePath, hash, chunks: enrichedChunks };
@@ -346,8 +318,7 @@ export async function execute(
 
         // Track language stats
         for (const chunk of fileResult.chunks) {
-          result.languages[chunk.language] =
-            (result.languages[chunk.language] ?? 0) + 1;
+          result.languages[chunk.language] = (result.languages[chunk.language] ?? 0) + 1;
         }
       }
     }
@@ -366,11 +337,7 @@ export async function execute(
       try {
         const embeddings = await embeddingClient.embedBatch(texts);
         throwIfAborted(context?.signal);
-        validateEmbeddingBatch(
-          embeddings,
-          texts.length,
-          EMBEDDING_CONFIG.embeddingDimensions,
-        );
+        validateEmbeddingBatch(embeddings, texts.length, EMBEDDING_CONFIG.embeddingDimensions);
 
         for (let j = 0; j < batch.length; j++) {
           const chunk = batch[j];
@@ -399,9 +366,7 @@ export async function execute(
     }
 
     if (embeddingBatchFailed) {
-      throw new Error(
-        "Embedding generation failed; the existing index was not modified",
-      );
+      throw new Error("Embedding generation failed; the existing index was not modified");
     }
 
     // Store embeddings

@@ -11,16 +11,13 @@ const scenarios = [
   "dns-rebinding-protection",
 ] as const;
 const conformanceVersion = process.env.MCP_CONFORMANCE_VERSION ?? "0.1.16";
-const conformanceSpecVersion =
-  process.env.MCP_CONFORMANCE_SPEC_VERSION ?? "2025-11-25";
+const conformanceSpecVersion = process.env.MCP_CONFORMANCE_SPEC_VERSION ?? "2025-11-25";
 
 if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(conformanceVersion)) {
   throw new Error("MCP_CONFORMANCE_VERSION contains unsupported characters");
 }
 if (!/^\d{4}-\d{2}-\d{2}$/u.test(conformanceSpecVersion)) {
-  throw new Error(
-    "MCP_CONFORMANCE_SPEC_VERSION must be a YYYY-MM-DD protocol revision",
-  );
+  throw new Error("MCP_CONFORMANCE_SPEC_VERSION must be a YYYY-MM-DD protocol revision");
 }
 
 if (process.platform === "win32") {
@@ -65,9 +62,7 @@ try {
     }
   }
   if (failures > 0) {
-    throw new Error(
-      `${String(failures)} MCP conformance smoke scenario(s) failed`,
-    );
+    throw new Error(`${String(failures)} MCP conformance smoke scenario(s) failed`);
   }
   console.log(
     `MCP conformance smoke passed: ${String(scenarios.length)} scenarios for ${conformanceSpecVersion} using @modelcontextprotocol/conformance@${conformanceVersion}.`,

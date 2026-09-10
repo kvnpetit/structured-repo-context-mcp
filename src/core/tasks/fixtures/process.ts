@@ -23,17 +23,11 @@ const report = (value: unknown): void => {
 
 if (mode === "crash-choose") {
   fs.mkdirSync(`${filePath}.locks`, { recursive: true });
-  fs.writeFileSync(
-    `${filePath}.locks/${String(process.pid)}-${randomUUID()}.json`,
-    "0",
-  );
+  fs.writeFileSync(`${filePath}.locks/${String(process.pid)}-${randomUUID()}.json`, "0");
   process.exit(17);
 } else if (mode === "crash-write") {
   withTaskStoreLock(filePath, () => {
-    fs.writeFileSync(
-      `${filePath}.${String(process.pid)}.${randomUUID()}.tmp`,
-      '{"partial":',
-    );
+    fs.writeFileSync(`${filePath}.${String(process.pid)}.${randomUUID()}.tmp`, '{"partial":');
     process.exit(17);
   });
 } else if (mode === "batch") {

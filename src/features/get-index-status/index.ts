@@ -21,11 +21,7 @@ import {
   type IndexStatus,
 } from "@core/embeddings";
 import { readHashCache } from "@core/embeddings/hash-cache";
-import {
-  readSecureTextFile,
-  resolveSecureDirectory,
-  safeErrorMessage,
-} from "@core/security";
+import { readSecureTextFile, resolveSecureDirectory, safeErrorMessage } from "@core/security";
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { createFeatureResultSchema } from "@features/utils";
 
@@ -74,9 +70,7 @@ export const indexStatusDataSchema = z
   })
   .strict();
 
-export const getIndexStatusOutputSchema = createFeatureResultSchema(
-  indexStatusDataSchema,
-);
+export const getIndexStatusOutputSchema = createFeatureResultSchema(indexStatusDataSchema);
 
 const MAX_FRESHNESS_FILES = 20_000;
 const MAX_STORAGE_ENTRIES = 100_000;
@@ -106,11 +100,9 @@ function sourceFreshness(
     return "unknown";
   }
   try {
-    const files = collectFiles(
-      directory,
-      createIgnoreFilter(directory),
-      directory,
-    ).sort((left, right) => left.localeCompare(right));
+    const files = collectFiles(directory, createIgnoreFilter(directory), directory).sort(
+      (left, right) => left.localeCompare(right),
+    );
     if (files.length > MAX_FRESHNESS_FILES) {
       return "unknown";
     }
@@ -174,11 +166,7 @@ function storageSummary(directory: string): {
   return { bytes, truncated: visited >= MAX_STORAGE_ENTRIES };
 }
 
-function enrichStatus(
-  directory: string,
-  indexPath: string,
-  status: IndexStatus,
-): IndexStatus {
+function enrichStatus(directory: string, indexPath: string, status: IndexStatus): IndexStatus {
   const storage = storageSummary(indexPath);
   const hashCachePresent = loadHashCache(directory) !== undefined;
   return {
@@ -191,9 +179,7 @@ function enrichStatus(
     storage_bytes: storage.bytes,
     storage_scan_truncated: storage.truncated,
     hash_cache_present: hashCachePresent,
-    write_lock_present: fs.existsSync(
-      path.join(path.dirname(indexPath), ".src-index-write.lock"),
-    ),
+    write_lock_present: fs.existsSync(path.join(path.dirname(indexPath), ".src-index-write.lock")),
     corrupt: Boolean(status.metadataError),
   };
 }
@@ -201,9 +187,7 @@ function enrichStatus(
 /**
  * Execute the get_index_status feature
  */
-export async function execute(
-  input: GetIndexStatusInput,
-): Promise<FeatureResult> {
+export async function execute(input: GetIndexStatusInput): Promise<FeatureResult> {
   const { directory } = input;
 
   const secureDirectory = resolveSecureDirectory(directory);
@@ -211,9 +195,7 @@ export async function execute(
     return {
       success: false,
       error:
-        secureDirectory.error === "Path not found"
-          ? "Directory not found"
-          : secureDirectory.error,
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
@@ -248,11 +230,7 @@ export async function execute(
   try {
     await vectorStore.connect();
 
-    const status = enrichStatus(
-      absoluteDir,
-      indexPath,
-      await vectorStore.getStatus(absoluteDir),
-    );
+    const status = enrichStatus(absoluteDir, indexPath, await vectorStore.getStatus(absoluteDir));
 
     // Format language breakdown
     const languageLines = Object.entries(status.languages)

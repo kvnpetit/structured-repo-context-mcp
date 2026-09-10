@@ -62,9 +62,7 @@ function parsePositiveInteger(
   maximum: number,
 ): number {
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum
-    ? parsed
-    : fallback;
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
 }
 
 function parseNonNegativeInteger(
@@ -73,9 +71,7 @@ function parseNonNegativeInteger(
   maximum: number,
 ): number {
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= maximum
-    ? parsed
-    : fallback;
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= maximum ? parsed : fallback;
 }
 
 /**
@@ -90,16 +86,12 @@ export function getMaxResultBytes(): number {
   }
 
   const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) &&
-    parsed > 0 &&
-    parsed <= HARD_MAX_RESULT_BYTES
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= HARD_MAX_RESULT_BYTES
     ? parsed
     : DEFAULT_MAX_RESULT_BYTES;
 }
 
-export function getEmbeddingConfig(
-  environment: NodeJS.ProcessEnv = process.env,
-): EmbeddingConfig {
+export function getEmbeddingConfig(environment: NodeJS.ProcessEnv = process.env): EmbeddingConfig {
   const defaultChunkSize = parsePositiveInteger(
     environment.CHUNK_SIZE,
     DEFAULT_CHUNK_SIZE,
@@ -114,18 +106,14 @@ export function getEmbeddingConfig(
   return {
     ollamaBaseUrl: localOllamaBaseUrl(environment.OLLAMA_BASE_URL),
     embeddingModel: environment.EMBEDDING_MODEL ?? "nomic-embed-text",
-    embeddingProvider:
-      environment.EMBEDDING_PROVIDER === "lexical" ? "lexical" : "ollama",
+    embeddingProvider: environment.EMBEDDING_PROVIDER === "lexical" ? "lexical" : "ollama",
     embeddingDimensions: parsePositiveInteger(
       environment.EMBEDDING_DIMENSIONS,
       DEFAULT_EMBEDDING_DIMENSIONS,
       16_384,
     ),
     defaultChunkSize,
-    defaultChunkOverlap: Math.min(
-      configuredOverlap,
-      Math.max(0, defaultChunkSize - 1),
-    ),
+    defaultChunkOverlap: Math.min(configuredOverlap, Math.max(0, defaultChunkSize - 1)),
     batchSize: parsePositiveInteger(
       environment.EMBEDDING_BATCH_SIZE,
       DEFAULT_EMBEDDING_BATCH_SIZE,
@@ -134,20 +122,14 @@ export function getEmbeddingConfig(
   };
 }
 
-export function getEnrichmentConfig(
-  environment: NodeJS.ProcessEnv = process.env,
-): {
+export function getEnrichmentConfig(environment: NodeJS.ProcessEnv = process.env): {
   includeCrossFileContext: boolean;
   maxImportsToResolve: number;
   maxSymbolsPerImport: number;
 } {
   return {
     includeCrossFileContext: environment.ENRICHMENT_CROSS_FILE !== "false",
-    maxImportsToResolve: parsePositiveInteger(
-      environment.ENRICHMENT_MAX_IMPORTS,
-      10,
-      100,
-    ),
+    maxImportsToResolve: parsePositiveInteger(environment.ENRICHMENT_MAX_IMPORTS, 10, 100),
     maxSymbolsPerImport: parsePositiveInteger(
       environment.ENRICHMENT_MAX_SYMBOLS_PER_IMPORT,
       5,

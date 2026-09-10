@@ -12,10 +12,7 @@ import type { ASTNode, QueryCapture, QueryMatch } from "@core/ast/types";
  * @param name - Exact capture name to find
  * @returns The matching capture or undefined
  */
-export function findCapture(
-  captures: QueryCapture[],
-  name: string,
-): QueryCapture | undefined {
+export function findCapture(captures: QueryCapture[], name: string): QueryCapture | undefined {
   return captures.find((c) => c.name === name);
 }
 
@@ -54,10 +51,7 @@ export function findCaptureByPrefix(
  * @param prefix - Prefix to match
  * @returns Array of matching captures
  */
-export function filterCapturesByPrefix(
-  captures: QueryCapture[],
-  prefix: string,
-): QueryCapture[] {
+export function filterCapturesByPrefix(captures: QueryCapture[], prefix: string): QueryCapture[] {
   return captures.filter((c) => c.name.startsWith(prefix));
 }
 
@@ -69,9 +63,7 @@ export function filterCapturesByPrefix(
  * @returns The suffix (e.g., "function") or the original name if prefix not found
  */
 export function getCaptureKind(captureName: string, prefix: string): string {
-  return captureName.startsWith(prefix)
-    ? captureName.slice(prefix.length)
-    : captureName;
+  return captureName.startsWith(prefix) ? captureName.slice(prefix.length) : captureName;
 }
 
 /**
@@ -81,10 +73,7 @@ export function getCaptureKind(captureName: string, prefix: string): string {
  * @param captureNames - Capture names to extract nodes from
  * @returns Array of unique ASTNode objects
  */
-export function deduplicateNodes(
-  matches: QueryMatch[],
-  captureNames: string[],
-): ASTNode[] {
+export function deduplicateNodes(matches: QueryMatch[], captureNames: string[]): ASTNode[] {
   const nodes: ASTNode[] = [];
   const seen = new Set<number>();
 
@@ -106,10 +95,7 @@ export function deduplicateNodes(
  * @param captureNames - Capture names to extract nodes from
  * @returns Array of ASTNode objects
  */
-export function extractNodes(
-  matches: QueryMatch[],
-  captureNames: string[],
-): ASTNode[] {
+export function extractNodes(matches: QueryMatch[], captureNames: string[]): ASTNode[] {
   const nodes: ASTNode[] = [];
 
   for (const match of matches) {

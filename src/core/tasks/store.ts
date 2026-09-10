@@ -19,9 +19,7 @@ export interface TaskStoreOptions {
 }
 
 function positiveInteger(value: number | undefined, fallback: number): number {
-  return value !== undefined && Number.isSafeInteger(value) && value > 0
-    ? value
-    : fallback;
+  return value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 
 function clone<T>(value: T): T {
@@ -30,9 +28,7 @@ function clone<T>(value: T): T {
 
 function defaultStorePath(): string {
   const configured = process.env.MCP_TASK_STORE_DIR?.trim();
-  const directory = configured
-    ? path.resolve(configured)
-    : path.join(os.tmpdir(), "src-mcp-tasks");
+  const directory = configured ? path.resolve(configured) : path.join(os.tmpdir(), "src-mcp-tasks");
   return path.join(directory, "tasks.json");
 }
 
@@ -51,9 +47,7 @@ function configuredTtl(): number | null {
 }
 
 function isTerminal(status: TaskStatus): boolean {
-  return (
-    status === "completed" || status === "failed" || status === "cancelled"
-  );
+  return status === "completed" || status === "failed" || status === "cancelled";
 }
 
 function isExpired(task: StoredTask, now: number): boolean {
@@ -89,10 +83,7 @@ export class DurableTaskStore {
     this.owner = options.owner;
     this.pollIntervalMs = positiveInteger(
       options.pollIntervalMs,
-      positiveInteger(
-        Number(process.env.MCP_TASK_POLL_INTERVAL_MS),
-        DEFAULT_POLL_INTERVAL_MS,
-      ),
+      positiveInteger(Number(process.env.MCP_TASK_POLL_INTERVAL_MS), DEFAULT_POLL_INTERVAL_MS),
     );
     this.transaction(() => undefined);
   }
@@ -140,19 +131,13 @@ export class DurableTaskStore {
     return task === undefined ? undefined : clone(task);
   }
 
-  setStatusMessage(
-    taskId: string,
-    statusMessage: string,
-  ): StoredTask | undefined {
+  setStatusMessage(taskId: string, statusMessage: string): StoredTask | undefined {
     return this.update(taskId, (task) => ({
       ...task,
       statusMessage: statusMessage.slice(0, 500),
     }));
   }
-  setInputRequired(
-    taskId: string,
-    inputRequests: Record<string, unknown>,
-  ): StoredTask | undefined {
+  setInputRequired(taskId: string, inputRequests: Record<string, unknown>): StoredTask | undefined {
     return this.transition(taskId, "input_required", {
       inputRequests: clone(inputRequests),
     });
@@ -160,10 +145,7 @@ export class DurableTaskStore {
   markWorking(taskId: string): StoredTask | undefined {
     return this.transition(taskId, "working", { inputRequests: undefined });
   }
-  complete(
-    taskId: string,
-    result: Record<string, unknown>,
-  ): StoredTask | undefined {
+  complete(taskId: string, result: Record<string, unknown>): StoredTask | undefined {
     return this.transition(taskId, "completed", {
       result: clone(result),
       inputRequests: undefined,
@@ -176,10 +158,7 @@ export class DurableTaskStore {
       inputRequests: undefined,
     });
   }
-  cancel(
-    taskId: string,
-    statusMessage = "Task cancelled",
-  ): StoredTask | undefined {
+  cancel(taskId: string, statusMessage = "Task cancelled"): StoredTask | undefined {
     return this.transition(taskId, "cancelled", {
       statusMessage,
       inputRequests: undefined,
@@ -250,9 +229,7 @@ export class DurableTaskStore {
     return withTaskStoreLock(this.filePath, () => {
       this.tasks = readTaskState(this.filePath);
       const now = Date.now();
-      const retained = new Map(
-        [...this.tasks].filter(([, task]) => !isExpired(task, now)),
-      );
+      const retained = new Map([...this.tasks].filter(([, task]) => !isExpired(task, now)));
       if (retained.size !== this.tasks.size) {
         this.commit(retained);
       }

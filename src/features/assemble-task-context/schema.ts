@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  createFeatureResultSchema,
-  instructionSignalsSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, instructionSignalsSchema } from "@features/utils";
 
 export const assembleTaskContextSchema = z.object({
   directory: z.string().optional().default(".").describe("Project directory"),
@@ -17,9 +14,7 @@ export const assembleTaskContextSchema = z.object({
     .enum(["minimal", "standard", "deep"])
     .optional()
     .default("standard")
-    .describe(
-      "Context breadth: map/search only, normal agent dossier, or deeper evidence",
-    ),
+    .describe("Context breadth: map/search only, normal agent dossier, or deeper evidence"),
   max_tokens: z
     .number()
     .int()
@@ -56,9 +51,7 @@ export const assembleTaskContextSchema = z.object({
     .describe("Ignore low-confidence memories in the agent dossier"),
 });
 
-export type AssembleTaskContextInput = z.input<
-  typeof assembleTaskContextSchema
->;
+export type AssembleTaskContextInput = z.input<typeof assembleTaskContextSchema>;
 
 const taskSearchResultSchema = z
   .object({

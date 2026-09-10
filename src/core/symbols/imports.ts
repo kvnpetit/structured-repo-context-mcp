@@ -1,12 +1,6 @@
 import type { Language, Tree } from "web-tree-sitter";
 
-import type {
-  Export,
-  Import,
-  ImportedName,
-  Symbol,
-  SymbolType,
-} from "@core/ast/types";
+import type { Export, Import, ImportedName, Symbol, SymbolType } from "@core/ast/types";
 import {
   createOffsetTracker,
   executePresetQuery,
@@ -14,19 +8,10 @@ import {
   findCaptureByNames,
 } from "@core/queries";
 
-export function extractImports(
-  tree: Tree,
-  languageInstance: Language,
-  language: string,
-): Import[] {
+export function extractImports(tree: Tree, languageInstance: Language, language: string): Import[] {
   const imports: Import[] = [];
   try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "imports",
-    );
+    const result = executePresetQuery(tree, languageInstance, language, "imports");
     const tracker = createOffsetTracker();
     for (const match of result.matches) {
       const statementCapture = findCaptureByNames(match.captures, [
@@ -43,12 +28,8 @@ export function extractImports(
         "include.path",
       ]);
       const defaultCapture = findCapture(match.captures, "import.default");
-      const nameCaptures = match.captures.filter(
-        (capture) => capture.name === "import.name",
-      );
-      const source = sourceCapture
-        ? sourceCapture.node.text.replace(/['"]/g, "")
-        : "";
+      const nameCaptures = match.captures.filter((capture) => capture.name === "import.name");
+      const source = sourceCapture ? sourceCapture.node.text.replace(/['"]/g, "") : "";
       const names: ImportedName[] = [];
       if (defaultCapture) {
         names.push({ name: defaultCapture.node.text });
@@ -70,19 +51,10 @@ export function extractImports(
   return imports;
 }
 
-export function extractExports(
-  tree: Tree,
-  languageInstance: Language,
-  language: string,
-): Export[] {
+export function extractExports(tree: Tree, languageInstance: Language, language: string): Export[] {
   const exports: Export[] = [];
   try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "exports",
-    );
+    const result = executePresetQuery(tree, languageInstance, language, "exports");
     const tracker = createOffsetTracker();
     for (const match of result.matches) {
       const statementCapture = findCaptureByNames(match.captures, [
@@ -119,17 +91,11 @@ export function extractExports(
   return exports;
 }
 
-export function getSymbolsByType(
-  symbols: Symbol[],
-  type: SymbolType,
-): Symbol[] {
+export function getSymbolsByType(symbols: Symbol[], type: SymbolType): Symbol[] {
   return symbols.filter((symbol) => symbol.type === type);
 }
 
-export function findSymbolByName(
-  symbols: Symbol[],
-  name: string,
-): Symbol | undefined {
+export function findSymbolByName(symbols: Symbol[], name: string): Symbol | undefined {
   return symbols.find((symbol) => symbol.name === name);
 }
 
@@ -140,11 +106,9 @@ export function getSymbolAtPosition(
 ): Symbol | undefined {
   return symbols.find((symbol) => {
     const afterStart =
-      line > symbol.start.line ||
-      (line === symbol.start.line && column >= symbol.start.column);
+      line > symbol.start.line || (line === symbol.start.line && column >= symbol.start.column);
     const beforeEnd =
-      line < symbol.end.line ||
-      (line === symbol.end.line && column <= symbol.end.column);
+      line < symbol.end.line || (line === symbol.end.line && column <= symbol.end.column);
     return afterStart && beforeEnd;
   });
 }

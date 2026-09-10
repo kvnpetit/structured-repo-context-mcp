@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -21,11 +13,7 @@ vi.mock("@core/embeddings", () => ({
   enrichChunksFromFile: vi.fn(),
   shouldIndexFile: vi.fn(),
   validateEmbeddingBatch: vi.fn(
-    (
-      vectors: number[][],
-      expectedCount: number,
-      expectedDimensions: number,
-    ) => {
+    (vectors: number[][], expectedCount: number, expectedDimensions: number) => {
       if (
         vectors.length !== expectedCount ||
         vectors.some((vector) => vector.length !== expectedDimensions)
@@ -122,9 +110,7 @@ describe("execute", () => {
     mockEmbedBatch = vi
       .fn()
       .mockImplementation(async (texts: string[]) =>
-        Promise.resolve(
-          texts.map(() => new Array(768).fill(0).map(() => Math.random())),
-        ),
+        Promise.resolve(texts.map(() => new Array(768).fill(0).map(() => Math.random()))),
       );
     mockExists = vi.fn().mockReturnValue(true);
     mockConnect = vi.fn().mockResolvedValue(undefined);
@@ -322,9 +308,7 @@ describe("execute", () => {
     const cachePath = path.join(cacheDir, ".src-index-hashes.json");
     fs.writeFileSync(cachePath, JSON.stringify({ [testFile]: "old-hash" }));
 
-    (embeddings.chunkFile as Mock).mockRejectedValueOnce(
-      new Error("transient parse failure"),
-    );
+    (embeddings.chunkFile as Mock).mockRejectedValueOnce(new Error("transient parse failure"));
 
     const firstResult = await execute({ directory: tempDir });
     expect(firstResult.success).toBe(true);
@@ -402,10 +386,7 @@ describe("execute", () => {
     // Create hash cache with the same hash
     const content = fs.readFileSync(testFile, "utf-8");
     const crypto = await import("node:crypto");
-    const hash = crypto
-      .createHash("sha256")
-      .update(content, "utf8")
-      .digest("hex");
+    const hash = crypto.createHash("sha256").update(content, "utf8").digest("hex");
     fs.writeFileSync(hashCachePath, JSON.stringify({ [testFile]: hash }));
 
     // Also mock it as indexed
@@ -486,10 +467,7 @@ describe("execute", () => {
     // Write invalid JSON to the hash cache file
     const indexDir = path.join(tempDir, ".src-index");
     fs.mkdirSync(indexDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(indexDir, ".src-index-hashes.json"),
-      "{ invalid json }",
-    );
+    fs.writeFileSync(path.join(indexDir, ".src-index-hashes.json"), "{ invalid json }");
 
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "const x = 1;");

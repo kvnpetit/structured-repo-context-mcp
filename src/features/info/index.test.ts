@@ -18,10 +18,7 @@ describe("info feature", () => {
     expect(result.success).toBe(true);
     expect(result.message).toBeDefined();
 
-    const parsed = JSON.parse(result.message ?? "{}") as Record<
-      string,
-      unknown
-    >;
+    const parsed = JSON.parse(result.message ?? "{}") as Record<string, unknown>;
     expect(parsed).toHaveProperty("name");
     expect(parsed).toHaveProperty("fullName");
     expect(parsed).toHaveProperty("version");
@@ -67,7 +64,6 @@ describe("info feature with undefined description", () => {
     // and .trim() removes trailing newline from empty description
     expect(result.message).toBeDefined();
 
-    (config as { description: string | undefined }).description =
-      originalDescription;
+    (config as { description: string | undefined }).description = originalDescription;
   });
 });

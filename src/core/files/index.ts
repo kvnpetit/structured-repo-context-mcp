@@ -15,13 +15,7 @@ import { getMaxFileBytes } from "@core/security";
 export type { Ignore };
 
 /** Patterns always excluded regardless of .gitignore */
-const DEFAULT_EXCLUSIONS = [
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  ".src-index",
-];
+const DEFAULT_EXCLUSIONS = ["node_modules", ".git", "dist", "build", ".src-index"];
 
 const SENSITIVE_FILE_PATTERNS = [
   /^\.env(?:\..*)?$/iu,
@@ -37,10 +31,7 @@ export function isSensitiveFileName(name: string): boolean {
 /**
  * Create an ignore filter combining default exclusions, .gitignore, and extra patterns
  */
-export function createIgnoreFilter(
-  baseDir: string,
-  extraPatterns: string[] = [],
-): Ignore {
+export function createIgnoreFilter(baseDir: string, extraPatterns: string[] = []): Ignore {
   const ig = ignore();
   ig.add(DEFAULT_EXCLUSIONS);
 
@@ -72,19 +63,12 @@ export function isHidden(name: string): boolean {
  * Recursively collect all indexable files from a directory,
  * respecting ignore rules and skipping hidden entries.
  */
-export function collectFiles(
-  dir: string,
-  ig: Ignore,
-  baseDir: string,
-): string[] {
+export function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
   const files: string[] = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (
-      isHidden(entry.name) &&
-      (entry.isDirectory() || !shouldIndexFile(entry.name))
-    ) {
+    if (isHidden(entry.name) && (entry.isDirectory() || !shouldIndexFile(entry.name))) {
       continue;
     }
 

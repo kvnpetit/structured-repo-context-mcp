@@ -392,11 +392,7 @@ describe("Concurrent Initialization", () => {
 
   test("handles concurrent initialization calls", async () => {
     // Call init multiple times concurrently
-    const promises = [
-      initializeParser(),
-      initializeParser(),
-      initializeParser(),
-    ];
+    const promises = [initializeParser(), initializeParser(), initializeParser()];
 
     await Promise.all(promises);
     expect(isParserInitialized()).toBe(true);
@@ -416,17 +412,14 @@ describe("Concurrent Initialization", () => {
   test("parses concurrent files that share a grammar", async () => {
     const results = await Promise.all(
       Array.from({ length: 8 }, async (_, index) => {
-        const result = await parseCode(
-          `export const value${String(index)} = ${String(index)};`,
-          { language: "typescript" },
-        );
+        const result = await parseCode(`export const value${String(index)} = ${String(index)};`, {
+          language: "typescript",
+        });
         return result;
       }),
     );
 
     expect(results).toHaveLength(8);
-    expect(results.every((result) => result.language === "typescript")).toBe(
-      true,
-    );
+    expect(results.every((result) => result.language === "typescript")).toBe(true);
   });
 });

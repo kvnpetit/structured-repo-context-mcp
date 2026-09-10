@@ -1,5 +1,4 @@
-export type ChangeStatus =
-  "added" | "modified" | "deleted" | "renamed" | "unknown";
+export type ChangeStatus = "added" | "modified" | "deleted" | "renamed" | "unknown";
 
 export interface StatusEntry {
   path: string;

@@ -1,9 +1,4 @@
-import {
-  type Language,
-  Query,
-  type QueryMatch as TSQueryMatch,
-  type Tree,
-} from "web-tree-sitter";
+import { type Language, Query, type QueryMatch as TSQueryMatch, type Tree } from "web-tree-sitter";
 
 import type { QueryCapture, QueryMatch } from "@core/ast/types";
 import { registerLanguageCacheInvalidator, toASTNode } from "@core/parser";
@@ -16,10 +11,7 @@ import {
   loadTagsQuery,
   type SCMQueryType,
 } from "./loader";
-import {
-  getAvailablePresets as getAvailablePresetsBase,
-  type QueryPreset,
-} from "./patterns";
+import { getAvailablePresets as getAvailablePresetsBase, type QueryPreset } from "./patterns";
 
 const QUERY_CAPTURE_MAX_DEPTH = 1;
 const MAX_COMPILED_QUERIES = 128;
@@ -87,8 +79,7 @@ function compiledQuery(
   if (!cache || compiledQueryCount >= MAX_COMPILED_QUERIES) {
     return { query, owned: true };
   }
-  const languageQueries =
-    compiledQueries.get(language) ?? new Map<string, Query>();
+  const languageQueries = compiledQueries.get(language) ?? new Map<string, Query>();
   languageQueries.set(queryString, query);
   compiledQueries.set(language, languageQueries);
   compiledQueryCount += 1;
@@ -187,11 +178,5 @@ export function executeTagsQuery(
   language: string,
   options: QueryOptions = {},
 ): QueryResult | undefined {
-  return executeOfficialQuery(
-    tree,
-    languageInstance,
-    language,
-    "tags",
-    options,
-  );
+  return executeOfficialQuery(tree, languageInstance, language, "tags", options);
 }

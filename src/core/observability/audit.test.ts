@@ -25,10 +25,7 @@ describe("local audit log", () => {
       const status = getAuditStatus(directory);
       expect(status.enabled).toBe(true);
       expect(status.events).toBe(1);
-      const raw = fs.readFileSync(
-        path.join(directory, ".src-index", "audit-log.json"),
-        "utf8",
-      );
+      const raw = fs.readFileSync(path.join(directory, ".src-index", "audit-log.json"), "utf8");
       expect(raw).toContain("search_code");
       expect(raw).not.toContain(directory);
       expect(raw).not.toContain("api_key");

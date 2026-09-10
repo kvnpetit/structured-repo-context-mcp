@@ -2,8 +2,7 @@ import type { LspDiagnostic, LspHover, LspLocation } from "./types";
 
 const MAX_LSP_MESSAGE_BYTES = 8 * 1024 * 1024;
 const MAX_LSP_HEADER_BYTES = 16 * 1024;
-export const MAX_LSP_BUFFER_BYTES =
-  MAX_LSP_MESSAGE_BYTES + MAX_LSP_HEADER_BYTES + 4;
+export const MAX_LSP_BUFFER_BYTES = MAX_LSP_MESSAGE_BYTES + MAX_LSP_HEADER_BYTES + 4;
 
 export function jsonRpcMessage(message: Record<string, unknown>): Buffer {
   const body = Buffer.from(JSON.stringify(message), "utf8");
@@ -25,11 +24,7 @@ function isNumber(value: unknown): value is number {
 }
 
 function parseLocation(value: unknown): LspLocation | undefined {
-  if (
-    !isRecord(value) ||
-    typeof value.uri !== "string" ||
-    !isRecord(value.range)
-  ) {
+  if (!isRecord(value) || typeof value.uri !== "string" || !isRecord(value.range)) {
     return undefined;
   }
   const start = value.range.start;
@@ -84,9 +79,7 @@ export function parseHover(value: unknown): LspHover | null {
   }
   const rangeValue = value.range;
   const range =
-    rangeValue === undefined
-      ? undefined
-      : parseLocation({ uri: "", range: rangeValue })?.range;
+    rangeValue === undefined ? undefined : parseLocation({ uri: "", range: rangeValue })?.range;
   return {
     contents: value.contents,
     ...(range === undefined ? {} : { range }),
@@ -95,11 +88,7 @@ export function parseHover(value: unknown): LspHover | null {
 
 export function parseDiagnostics(value: unknown): LspDiagnostic[] {
   const items =
-    isRecord(value) && Array.isArray(value.items)
-      ? value.items
-      : Array.isArray(value)
-        ? value
-        : [];
+    isRecord(value) && Array.isArray(value.items) ? value.items : Array.isArray(value) ? value : [];
   return items.flatMap((item) => {
     if (!isRecord(item) || typeof item.message !== "string") {
       return [];

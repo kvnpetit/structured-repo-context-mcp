@@ -13,11 +13,7 @@ import {
   safeErrorMessage,
 } from "@core/security";
 import type { Feature, FeatureResult } from "@features/types";
-import {
-  createFeatureResultSchema,
-  positionSchema,
-  symbolTypeSchema,
-} from "@features/utils";
+import { createFeatureResultSchema, positionSchema, symbolTypeSchema } from "@features/utils";
 
 const execFileAsync = promisify(execFile);
 
@@ -116,9 +112,7 @@ const changedSymbolDataSchema = z
   })
   .strict();
 
-export const changedSymbolsOutputSchema = createFeatureResultSchema(
-  changedSymbolDataSchema,
-);
+export const changedSymbolsOutputSchema = createFeatureResultSchema(changedSymbolDataSchema);
 
 function parseNameStatus(value: string): ChangedFile[] {
   const records = value.split("\0");
@@ -182,10 +176,7 @@ function symbolTouchesHunk(symbol: Symbol, hunk: Hunk): boolean {
   return hunk.start <= symbol.end.line && hunk.end >= symbol.start.line;
 }
 
-async function git(
-  directory: string,
-  args: string[],
-): Promise<{ stdout: string; stderr: string }> {
+async function git(directory: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   const result = await execFileAsync("git", ["-C", directory, ...args], {
     cwd: directory,
     windowsHide: true,
@@ -199,9 +190,7 @@ async function git(
   };
 }
 
-export async function execute(
-  rawInput: ChangedSymbolsInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: ChangedSymbolsInput): Promise<FeatureResult> {
   const input = changedSymbolsSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -214,30 +203,29 @@ export async function execute(
   let untracked: ChangedFile[];
   let diff: string;
   try {
-    const [revisionResult, statusResult, untrackedResult, diffResult] =
-      await Promise.all([
-        git(root, ["rev-parse", "HEAD"]),
-        git(root, [
-          "diff",
-          "-z",
-          "--name-status",
-          "--no-renames",
-          "--diff-filter=ACDMUXB",
-          "HEAD",
-          "--",
-        ]),
-        git(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
-        git(root, [
-          "--no-pager",
-          "diff",
-          "--no-color",
-          "--no-ext-diff",
-          "--no-textconv",
-          "--unified=0",
-          "HEAD",
-          "--",
-        ]),
-      ]);
+    const [revisionResult, statusResult, untrackedResult, diffResult] = await Promise.all([
+      git(root, ["rev-parse", "HEAD"]),
+      git(root, [
+        "diff",
+        "-z",
+        "--name-status",
+        "--no-renames",
+        "--diff-filter=ACDMUXB",
+        "HEAD",
+        "--",
+      ]),
+      git(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
+      git(root, [
+        "--no-pager",
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--unified=0",
+        "HEAD",
+        "--",
+      ]),
+    ]);
     revision = revisionResult.stdout.trim();
     tracked = parseNameStatus(statusResult.stdout);
     untracked = parseUntracked(untrackedResult.stdout);
@@ -254,9 +242,7 @@ export async function execute(
     const normalized = file.path.replace(/\\/gu, "/");
     byPath.set(normalized, { ...file, path: normalized });
   }
-  const files = [...byPath.values()].sort((left, right) =>
-    left.path.localeCompare(right.path),
-  );
+  const files = [...byPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   const boundedFiles = files.slice(0, input.max_files);
   const hunks = parseHunks(diff);
   const output: ChangedSymbolsOutput = {
@@ -296,11 +282,7 @@ export async function execute(
       const parsed = await parseCode(readResult.content, {
         filePath: secureFile.path,
       });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       const fileHunks = hunks.get(file.path) ?? [];
       const symbols = info.symbols.symbols.filter(
         (symbol) =>

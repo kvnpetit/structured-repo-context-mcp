@@ -3,10 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 
-import {
-  executeGetProjectCatalog,
-  executeRefreshProjectCatalog,
-} from "@features/project-catalog";
+import { executeGetProjectCatalog, executeRefreshProjectCatalog } from "@features/project-catalog";
 
 const directories: string[] = [];
 
@@ -47,11 +44,7 @@ describe("project artifact catalog", () => {
     expect(refreshData.artifacts_count).toBe(2);
     expect(refreshData.source_revision).toMatch(/^[a-f0-9]{64}$/u);
 
-    const statePath = path.join(
-      directory,
-      ".src-index",
-      "artifacts-catalog.json",
-    );
+    const statePath = path.join(directory, ".src-index", "artifacts-catalog.json");
     const stateText = fs.readFileSync(statePath, "utf8");
     expect(stateText).not.toContain("# Architecture");
 
@@ -107,9 +100,7 @@ describe("project artifact catalog", () => {
     });
     expect(second.success).toBe(true);
     if (second.success) {
-      expect((second.data as { artifacts: unknown[] }).artifacts).toHaveLength(
-        1,
-      );
+      expect((second.data as { artifacts: unknown[] }).artifacts).toHaveLength(1);
     }
   });
 
@@ -130,9 +121,7 @@ describe("project artifact catalog", () => {
       catalog_file: ".src-index/artifacts-catalog-release.json",
     });
     expect(
-      fs.existsSync(
-        path.join(directory, ".src-index", "artifacts-catalog-release.json"),
-      ),
+      fs.existsSync(path.join(directory, ".src-index", "artifacts-catalog-release.json")),
     ).toBe(true);
 
     const defaultCatalog = executeGetProjectCatalog({ directory });

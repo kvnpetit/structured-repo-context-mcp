@@ -101,14 +101,8 @@ import { projectArtifactsFeature } from "@features/project-artifacts";
 import { projectContextFeature } from "@features/project-context";
 import { semanticNavigationFeature } from "@features/semantic-navigation";
 import { symbolGraphFeature } from "@features/symbol-graph";
-import {
-  getProjectMemoryFeature,
-  setProjectMemoryFeature,
-} from "@features/project-memory";
-import {
-  getProjectCatalogFeature,
-  refreshProjectCatalogFeature,
-} from "@features/project-catalog";
+import { getProjectMemoryFeature, setProjectMemoryFeature } from "@features/project-memory";
+import { getProjectCatalogFeature, refreshProjectCatalogFeature } from "@features/project-catalog";
 import { gitContextFeature } from "@features/git-context";
 import { indexSnapshotsFeature } from "@features/index-snapshots";
 import { staticAnalysisFeature } from "@features/static-analysis";

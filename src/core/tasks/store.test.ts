@@ -49,10 +49,9 @@ describe("durable task store", () => {
     });
     const task = store.create("test_tool");
 
-    expect(
-      store.setInputRequired(task.taskId, { confirm: { type: "boolean" } })
-        ?.status,
-    ).toBe("input_required");
+    expect(store.setInputRequired(task.taskId, { confirm: { type: "boolean" } })?.status).toBe(
+      "input_required",
+    );
     expect(store.markWorking(task.taskId)?.status).toBe("working");
     expect(store.complete(task.taskId, { ok: true })?.status).toBe("completed");
     expect(store.cancel(task.taskId)?.status).toBe("completed");
@@ -80,9 +79,7 @@ describe("durable task store", () => {
     const storePath = filePath("tasks-corrupt-");
     fs.writeFileSync(storePath, "not-json", "utf8");
 
-    expect(
-      () => new DurableTaskStore({ filePath: storePath, ttlMs: null }),
-    ).toThrow();
+    expect(() => new DurableTaskStore({ filePath: storePath, ttlMs: null })).toThrow();
     vi.stubEnv("MCP_TASK_STORE_DIR", path.dirname(storePath));
     expect(createTaskManager().getStatus()).toMatchObject({
       enabled: false,
@@ -146,15 +143,17 @@ describe("durable task store", () => {
       "utf8",
     );
 
-    expect(
-      () => new DurableTaskStore({ filePath: storePath, ttlMs: null }),
-    ).toThrow("corrupt task record");
+    expect(() => new DurableTaskStore({ filePath: storePath, ttlMs: null })).toThrow(
+      "corrupt task record",
+    );
     const snapshot = JSON.parse(fs.readFileSync(storePath, "utf8")) as {
       tasks: Record<string, unknown>;
     };
-    delete snapshot.tasks.invalid;
-    delete snapshot.tasks.mismatch;
-    delete snapshot.tasks.nullEntry;
+    snapshot.tasks = Object.fromEntries(
+      Object.entries(snapshot.tasks).filter(
+        ([key]) => !["invalid", "mismatch", "nullEntry"].includes(key),
+      ),
+    );
     fs.writeFileSync(storePath, JSON.stringify(snapshot));
     const store = new DurableTaskStore({ filePath: storePath, ttlMs: null });
 
@@ -181,19 +180,11 @@ describe("durable task store", () => {
     expect(store.setStatusMessage("missing", "ignored")).toBeUndefined();
     expect(store.setInputRequired("missing", {})).toBeUndefined();
     expect(store.markWorking("missing")).toBeUndefined();
-    expect(
-      store.setStatusMessage(task.taskId, "x".repeat(600))?.statusMessage,
-    ).toHaveLength(500);
-    expect(store.setInputRequired(task.taskId, { confirm: true })?.status).toBe(
-      "input_required",
-    );
-    expect(store.setInputRequired(task.taskId, {})?.status).toBe(
-      "input_required",
-    );
+    expect(store.setStatusMessage(task.taskId, "x".repeat(600))?.statusMessage).toHaveLength(500);
+    expect(store.setInputRequired(task.taskId, { confirm: true })?.status).toBe("input_required");
+    expect(store.setInputRequired(task.taskId, {})?.status).toBe("input_required");
     expect(store.complete(task.taskId, { ok: true })?.status).toBe("completed");
-    expect(
-      store.setStatusMessage(task.taskId, "late")?.statusMessage,
-    ).toHaveLength(500);
+    expect(store.setStatusMessage(task.taskId, "late")?.statusMessage).toHaveLength(500);
     expect(store.markWorking(task.taskId)?.status).toBe("completed");
   });
 

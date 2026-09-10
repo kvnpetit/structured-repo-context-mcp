@@ -51,8 +51,7 @@ export class IndexMetadataStore {
     }
     const parsed = value as Record<string, unknown>;
     const isBoundedString = (candidate: unknown): candidate is string =>
-      typeof candidate === "string" &&
-      candidate.length <= MAX_METADATA_STRING_LENGTH;
+      typeof candidate === "string" && candidate.length <= MAX_METADATA_STRING_LENGTH;
     const isPositiveInteger = (candidate: unknown): candidate is number =>
       typeof candidate === "number" &&
       Number.isSafeInteger(candidate) &&
@@ -63,12 +62,8 @@ export class IndexMetadataStore {
       Number.isSafeInteger(candidate) &&
       candidate >= 0 &&
       candidate <= MAX_METADATA_CHUNK_SIZE;
-    const isProvider = (
-      candidate: unknown,
-    ): candidate is IndexMetadata["embeddingProvider"] =>
-      candidate === "ollama" ||
-      candidate === "lexical" ||
-      candidate === "unknown";
+    const isProvider = (candidate: unknown): candidate is IndexMetadata["embeddingProvider"] =>
+      candidate === "ollama" || candidate === "lexical" || candidate === "unknown";
     const {
       schemaVersion,
       embeddingProvider,
@@ -96,16 +91,13 @@ export class IndexMetadataStore {
       embeddingDimensions > MAX_METADATA_DIMENSIONS ||
       (chunkSize !== undefined && !isPositiveInteger(chunkSize)) ||
       (chunkOverlap !== undefined && !isNonNegativeInteger(chunkOverlap)) ||
-      (chunkSize !== undefined &&
-        chunkOverlap !== undefined &&
-        chunkOverlap > chunkSize) ||
+      (chunkSize !== undefined && chunkOverlap !== undefined && chunkOverlap > chunkSize) ||
       !isBoundedString(createdAt) ||
       !isBoundedString(updatedAt) ||
       Number.isNaN(Date.parse(createdAt)) ||
       Number.isNaN(Date.parse(updatedAt)) ||
       (sourceFingerprint !== undefined &&
-        (!isBoundedString(sourceFingerprint) ||
-          !/^[a-f0-9]{16,128}$/u.test(sourceFingerprint))) ||
+        (!isBoundedString(sourceFingerprint) || !/^[a-f0-9]{16,128}$/u.test(sourceFingerprint))) ||
       (legacy !== undefined && typeof legacy !== "boolean")
     ) {
       return undefined;
@@ -159,8 +151,7 @@ export class IndexMetadataStore {
         metadata.chunkSize !== expected.chunkSize ||
         metadata.chunkOverlap !== expected.chunkOverlap
       ) {
-        this.metadataError =
-          "Index configuration mismatch; run index_codebase with force=true.";
+        this.metadataError = "Index configuration mismatch; run index_codebase with force=true.";
       }
     } catch {
       this.metadataError = "Index metadata is unreadable; rebuild the index.";

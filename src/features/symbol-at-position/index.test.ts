@@ -61,16 +61,11 @@ describe("get_symbol_at_position", () => {
   });
 
   test("returns a bounded source body and reports positions outside the file", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-symbol-limit-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-symbol-limit-"));
     try {
       fs.writeFileSync(
         path.join(directory, "large.ts"),
-        "export function large() {\n" +
-          '  return "' +
-          "x".repeat(500) +
-          '";\n}\n',
+        `export function large() {\n  return "${"x".repeat(500)}";\n}\n`,
       );
       const bounded = await execute({
         directory,
@@ -84,9 +79,7 @@ describe("get_symbol_at_position", () => {
         symbol: { source?: string; source_truncated?: boolean } | null;
       };
       expect(boundedData.symbol?.source_truncated).toBe(true);
-      expect(Buffer.byteLength(boundedData.symbol?.source ?? "", "utf8")).toBe(
-        20,
-      );
+      expect(Buffer.byteLength(boundedData.symbol?.source ?? "", "utf8")).toBe(20);
 
       const outside = await execute({
         directory,

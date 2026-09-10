@@ -5,8 +5,8 @@
  * across all core modules.
  */
 import * as nodeFs from "node:fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Cached assets directory path
@@ -26,9 +26,7 @@ export function getAssetsDir(): string {
 
   // Handle both ESM and CJS contexts
   const currentDir =
-    typeof __dirname !== "undefined"
-      ? __dirname
-      : dirname(fileURLToPath(import.meta.url));
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
 
   // Try various paths relative to current file location
   const possiblePaths = [

@@ -76,9 +76,7 @@ export const astNodeSchema: z.ZodType = z.lazy(() =>
       start: positionSchema,
       end: positionSchema,
       children: astNodeSchema.array().optional(),
-      fields: z
-        .record(z.string(), z.union([astNodeSchema, astNodeSchema.array()]))
-        .optional(),
+      fields: z.record(z.string(), z.union([astNodeSchema, astNodeSchema.array()])).optional(),
       isNamed: z.boolean().optional(),
     })
     .strict(),

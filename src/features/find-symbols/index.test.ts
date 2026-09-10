@@ -41,9 +41,7 @@ describe("find_symbols", () => {
         snippet: string;
       }[];
     };
-    expect(data.matches.some((match) => match.kind === "definition")).toBe(
-      true,
-    );
+    expect(data.matches.some((match) => match.kind === "definition")).toBe(true);
     expect(data.matches[0]?.file_path).toBe("a.ts");
     expect(data.matches[0]?.start.offset).toBeGreaterThanOrEqual(0);
     expect(data.matches[0]?.snippet).toContain("greet");
@@ -66,13 +64,9 @@ describe("find_symbols", () => {
     });
 
     expect(references.success).toBe(true);
-    expect(
-      (references.data as { matches: unknown[] }).matches.length,
-    ).toBeGreaterThan(0);
+    expect((references.data as { matches: unknown[] }).matches.length).toBeGreaterThan(0);
     expect(imports.success).toBe(true);
-    expect(
-      (imports.data as { matches: unknown[] }).matches.length,
-    ).toBeGreaterThan(0);
+    expect((imports.data as { matches: unknown[] }).matches.length).toBeGreaterThan(0);
   });
 
   test("redacts common secrets from navigation snippets by default", async () => {
@@ -98,9 +92,7 @@ describe("find_symbols", () => {
       matches: { snippet: string }[];
     };
     expect(data.secrets_redacted).toBe(true);
-    expect(
-      data.matches.some((match) => match.snippet.includes("secret-value")),
-    ).toBe(false);
+    expect(data.matches.some((match) => match.snippet.includes("secret-value"))).toBe(false);
   });
 
   test("rejects a file outside the project root", async () => {
@@ -122,8 +114,7 @@ describe("find_symbols", () => {
       path.join(directory, "pages.ts"),
       Array.from(
         { length: 5 },
-        (_, index) =>
-          `export function page${String(index)}() { return ${String(index)}; }`,
+        (_, index) => `export function page${String(index)}() { return ${String(index)}; }`,
       ).join("\n"),
     );
 
@@ -144,10 +135,7 @@ describe("find_symbols", () => {
       cursor_offset: number;
       truncated: boolean;
     };
-    expect(firstData.matches.map((match) => match.name)).toEqual([
-      "page0",
-      "page1",
-    ]);
+    expect(firstData.matches.map((match) => match.name)).toEqual(["page0", "page1"]);
     expect(firstData.cursor_offset).toBe(0);
     expect(firstData.truncated).toBe(true);
     expect(firstData.next_cursor).toBeDefined();
@@ -169,10 +157,7 @@ describe("find_symbols", () => {
       next_cursor?: string;
       cursor_offset: number;
     };
-    expect(secondData.matches.map((match) => match.name)).toEqual([
-      "page2",
-      "page3",
-    ]);
+    expect(secondData.matches.map((match) => match.name)).toEqual(["page2", "page3"]);
     expect(secondData.cursor_offset).toBe(2);
     expect(secondData.next_cursor).toBeDefined();
 

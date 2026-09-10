@@ -37,10 +37,9 @@ function cleanParentType(value: string): string | undefined {
       "",
     )
     .trim();
-  const match =
-    /[A-Za-z_$][\w$]*(?:\s*<[^<>]*>)?(?:\s*\.\s*[A-Za-z_$][\w$]*)?/u.exec(
-      withoutModifiers,
-    );
+  const match = /[A-Za-z_$][\w$]*(?:\s*<[^<>]*>)?(?:\s*\.\s*[A-Za-z_$][\w$]*)?/u.exec(
+    withoutModifiers,
+  );
   return match?.[0]?.replace(/\s+/gu, "").replace(/<.*>/u, "");
 }
 
@@ -49,11 +48,7 @@ function declarationParents(header: string): string[] {
   const extendsMatch = /\bextends\s+(.+?)(?=\bimplements\b|$)/u.exec(header);
   const implementsMatch = /\bimplements\s+(.+)$/u.exec(header);
   const colonMatch = /:\s*(.+)$/u.exec(header);
-  for (const section of [
-    extendsMatch?.[1],
-    implementsMatch?.[1],
-    colonMatch?.[1],
-  ]) {
+  for (const section of [extendsMatch?.[1], implementsMatch?.[1], colonMatch?.[1]]) {
     if (!section) {
       continue;
     }
@@ -67,10 +62,7 @@ function declarationParents(header: string): string[] {
   return parents;
 }
 
-export function extractTypeHierarchy(
-  content: string,
-  language: string,
-): TypeHierarchyRelation[] {
+export function extractTypeHierarchy(content: string, language: string): TypeHierarchyRelation[] {
   const relations: TypeHierarchyRelation[] = [];
   const add = (
     name: string,
@@ -93,8 +85,7 @@ export function extractTypeHierarchy(
   }
 
   if (language.toLowerCase() === "python") {
-    const pythonPattern =
-      /\bclass\s+([A-Za-z_$][\w$]*)\s*(?:\(([^)]*)\))?\s*:/gu;
+    const pythonPattern = /\bclass\s+([A-Za-z_$][\w$]*)\s*(?:\(([^)]*)\))?\s*:/gu;
     for (const match of content.matchAll(pythonPattern)) {
       const name = match[1] ?? "";
       const parents = splitTypeList(match[2] ?? "")

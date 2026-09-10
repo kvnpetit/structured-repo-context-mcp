@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import { serveCommand } from "@cli/commands/serve.command";
 import type { CommandMeta } from "citty";
 import { createIndexWatcher, type WatcherOptions } from "@core/embeddings";
@@ -52,30 +44,21 @@ describe("Serve Command", () => {
   });
 
   test("has transport arg with default stdio", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.transport).toBeDefined();
     expect(args.transport?.default).toBe("stdio");
   });
 
   test("has directory arg with default current directory", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.directory).toBeDefined();
     expect(args.directory?.default).toBe(".");
   });
 
   test("has watch arg with default true", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.watch).toBeDefined();
     expect(args.watch?.default).toBe(true);
@@ -129,9 +112,7 @@ describe("Serve Command", () => {
 
     expect(createIndexWatcher).toHaveBeenCalledWith({
       directory: "/test/dir",
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       config: expect.any(Object),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       onError: expect.any(Function),
     });
     expect(mockStart).toHaveBeenCalled();
@@ -139,9 +120,7 @@ describe("Serve Command", () => {
   });
 
   test("logs warning when watcher.start() throws Error", async () => {
-    const mockStart = vi
-      .fn()
-      .mockRejectedValue(new Error("Ollama unavailable"));
+    const mockStart = vi.fn().mockRejectedValue(new Error("Ollama unavailable"));
     (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: vi.fn(),
@@ -164,10 +143,7 @@ describe("Serve Command", () => {
       cmd: serveCommand,
     });
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(logger.warn).toHaveBeenCalledWith(
-      "Watcher disabled: Ollama unavailable",
-    );
+    expect(logger.warn).toHaveBeenCalledWith("Watcher disabled: Ollama unavailable");
     expect(startServer).toHaveBeenCalled();
   });
 
@@ -195,23 +171,20 @@ describe("Serve Command", () => {
       cmd: serveCommand,
     });
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(logger.warn).toHaveBeenCalledWith("Watcher disabled: string error");
     expect(startServer).toHaveBeenCalled();
   });
 
   test("onError callback logs watcher errors", async () => {
     let capturedOnError: ((error: Error) => void) | undefined;
-    (createIndexWatcher as Mock).mockImplementation(
-      (options: WatcherOptions) => {
-        capturedOnError = options.onError;
-        return {
-          start: vi.fn().mockResolvedValue(undefined),
-          stop: vi.fn(),
-          isRunning: vi.fn().mockReturnValue(true),
-        };
-      },
-    );
+    (createIndexWatcher as Mock).mockImplementation((options: WatcherOptions) => {
+      capturedOnError = options.onError;
+      return {
+        start: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn(),
+        isRunning: vi.fn().mockReturnValue(true),
+      };
+    });
 
     await serveCommand.run?.({
       args: {
@@ -233,10 +206,7 @@ describe("Serve Command", () => {
     expect(capturedOnError).toBeDefined();
     capturedOnError?.(new Error("File read failed"));
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(logger.error).toHaveBeenCalledWith(
-      "Watcher error: File read failed",
-    );
+    expect(logger.error).toHaveBeenCalledWith("Watcher error: File read failed");
   });
 
   test("registers SIGINT handler that stops watcher", async () => {

@@ -37,13 +37,10 @@ export function redactSourceText(source: string): RedactedSource {
   text = text.replace(BEARER_PATTERN, "Bearer [REDACTED TOKEN]");
   text = text.replace(
     QUOTED_SECRET_ASSIGNMENT_PATTERN,
-    (_match, prefix: string, quote: string) =>
-      `${prefix}${quote}[REDACTED]${quote}`,
+    (_match, prefix: string, quote: string) => `${prefix}${quote}[REDACTED]${quote}`,
   );
-  text = text.replace(
-    UNQUOTED_SECRET_ASSIGNMENT_PATTERN,
-    (match, prefix: string, value: string) =>
-      LANGUAGE_TYPE_ANNOTATION.test(value) ? match : `${prefix}[REDACTED]`,
+  text = text.replace(UNQUOTED_SECRET_ASSIGNMENT_PATTERN, (match, prefix: string, value: string) =>
+    LANGUAGE_TYPE_ANNOTATION.test(value) ? match : `${prefix}[REDACTED]`,
   );
   text = text.replace(TOKEN_PATTERN, "[REDACTED TOKEN]");
   return { text, redacted: text !== source };
@@ -54,10 +51,7 @@ export function redactSourceText(source: string): RedactedSource {
  * shape. Tool outputs are JSON-like, so this deliberately does not traverse
  * class instances, Maps, or arbitrary prototypes.
  */
-export function redactStructuredValue(
-  value: unknown,
-  containingKey?: string,
-): RedactedValue {
+export function redactStructuredValue(value: unknown, containingKey?: string): RedactedValue {
   if (typeof value === "string") {
     if (
       containingKey !== undefined &&

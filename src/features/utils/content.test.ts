@@ -1,6 +1,6 @@
 import { unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as nodeFs from "node:fs";
 
@@ -62,9 +62,7 @@ describe("Content Utilities", () => {
       const result = readContent();
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toBe(
-          "Either file_path or content must be provided",
-        );
+        expect(result.error).toBe("Either file_path or content must be provided");
       }
     });
 
@@ -115,10 +113,7 @@ describe("Content Utilities - Error Handling", () => {
   let readErrorPath: string;
 
   beforeAll(() => {
-    readErrorPath = join(
-      tmpdir(),
-      `test-content-errors-${String(Date.now())}.ts`,
-    );
+    readErrorPath = join(tmpdir(), `test-content-errors-${String(Date.now())}.ts`);
     writeFileSync(readErrorPath, "const value = 1;");
   });
 
@@ -132,7 +127,6 @@ describe("Content Utilities - Error Handling", () => {
 
   test("handles non-Error thrown values", () => {
     vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw "string error"; // Throw a string instead of Error
     });
 
@@ -149,7 +143,6 @@ describe("Content Utilities - Error Handling", () => {
 
   test("handles thrown numbers", () => {
     vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw 42; // Throw a number
     });
 
@@ -166,7 +159,6 @@ describe("Content Utilities - Error Handling", () => {
 
   test("handles thrown objects", () => {
     vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw { code: "EACCES", message: "Permission denied" };
     });
 

@@ -29,8 +29,7 @@ export function registerPrompts(server: McpServer): void {
     "src-overview",
     {
       title: "SRC Overview",
-      description:
-        "Learn about SRC capabilities and when to use it for code search and analysis",
+      description: "Learn about SRC capabilities and when to use it for code search and analysis",
     },
     () => ({
       messages: [

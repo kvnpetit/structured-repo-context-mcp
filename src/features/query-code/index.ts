@@ -6,6 +6,7 @@ import {
   executePresetQuery,
   executeQuery,
   getAvailablePresets,
+  type QueryResult,
 } from "@core/queries";
 
 import type { Feature, FeatureResult } from "@features/types";
@@ -34,23 +35,16 @@ export const queryCodeSchema = z
     file_path: z
       .string()
       .optional()
-      .describe(
-        "Path to the file to query (either file_path or content required)",
-      ),
+      .describe("Path to the file to query (either file_path or content required)"),
     content: z
       .string()
       .optional()
-      .describe(
-        "Code content to query directly (either file_path or content required)",
-      ),
+      .describe("Code content to query directly (either file_path or content required)"),
     language: z
       .string()
       .optional()
       .describe("Language name (auto-detected from file path if not provided)"),
-    query: z
-      .string()
-      .optional()
-      .describe("SCM query pattern (either query or preset required)"),
+    query: z.string().optional().describe("SCM query pattern (either query or preset required)"),
     preset: z
       .enum(presetValues)
       .optional()
@@ -82,10 +76,7 @@ export type QueryCodeInput = z.input<typeof queryCodeSchema>;
 const queryMatchSchema = z
   .object({
     pattern: z.number().int().nonnegative(),
-    captures: z
-      .object({ name: z.string(), node: astNodeSchema })
-      .strict()
-      .array(),
+    captures: z.object({ name: z.string(), node: astNodeSchema }).strict().array(),
   })
   .strict();
 
@@ -102,12 +93,9 @@ const queryCodeDataSchema = z
   })
   .strict();
 
-export const queryCodeOutputSchema =
-  createFeatureResultSchema(queryCodeDataSchema);
+export const queryCodeOutputSchema = createFeatureResultSchema(queryCodeDataSchema);
 
-export async function execute(
-  rawInput: QueryCodeInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: QueryCodeInput): Promise<FeatureResult> {
   const input = queryCodeSchema.parse(rawInput);
   const {
     file_path,
@@ -136,7 +124,7 @@ export async function execute(
     });
 
     // Execute query
-    let result;
+    let result: QueryResult;
     if (preset) {
       // Check if preset is available for this language
       const availablePresets = getAvailablePresets(parseResult.language);

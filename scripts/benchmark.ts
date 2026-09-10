@@ -7,11 +7,7 @@ import { createLexicalEmbeddingClient } from "@core/embeddings/client";
 import type { CodeChunk } from "@core/embeddings/types";
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { readSecureTextFile, resolveSecureDirectory } from "@core/security";
-import {
-  estimateTokenCount,
-  evaluateRetrieval,
-  type RetrievalQuery,
-} from "@core/evaluation";
+import { estimateTokenCount, evaluateRetrieval, type RetrievalQuery } from "@core/evaluation";
 
 interface BenchmarkOptions {
   directory: string;
@@ -62,9 +58,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readOption(name: string): string | undefined {
   const prefix = `--${name}=`;
-  return process.argv
-    .find((argument) => argument.startsWith(prefix))
-    ?.slice(prefix.length);
+  return process.argv.find((argument) => argument.startsWith(prefix))?.slice(prefix.length);
 }
 
 function readThreshold(name: string): number | undefined {
@@ -81,18 +75,9 @@ function readThreshold(name: string): number | undefined {
 
 function optionsFromArgs(): BenchmarkOptions {
   const directory = readOption("directory") ?? process.cwd();
-  const iterations = Math.max(
-    1,
-    Number.parseInt(readOption("iterations") ?? "1", 10) || 1,
-  );
-  const maxFiles = Math.max(
-    1,
-    Number.parseInt(readOption("max-files") ?? "100", 10) || 100,
-  );
-  const evaluationK = Math.max(
-    1,
-    Number.parseInt(readOption("k") ?? "10", 10) || 10,
-  );
+  const iterations = Math.max(1, Number.parseInt(readOption("iterations") ?? "1", 10) || 1);
+  const maxFiles = Math.max(1, Number.parseInt(readOption("max-files") ?? "100", 10) || 100);
+  const evaluationK = Math.max(1, Number.parseInt(readOption("k") ?? "10", 10) || 10);
   return {
     directory,
     iterations,
@@ -113,9 +98,7 @@ function loadRetrievalDataset(datasetPath: string): RetrievalQuery[] {
   }
   const raw: unknown = JSON.parse(fs.readFileSync(datasetPath, "utf8"));
   if (!Array.isArray(raw) || raw.length > 1000) {
-    throw new Error(
-      "Benchmark dataset must be an array of at most 1000 queries",
-    );
+    throw new Error("Benchmark dataset must be an array of at most 1000 queries");
   }
   return raw.map((entry, index) => {
     if (
@@ -138,10 +121,7 @@ function percentile(values: number[], ratio: number): number {
     return 0;
   }
   const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil(sorted.length * ratio) - 1),
-  );
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
   return Number((sorted[index] ?? 0).toFixed(2));
 }
 
@@ -150,16 +130,10 @@ function qualityGateFor(
   options: BenchmarkOptions,
 ): QualityGate {
   const thresholds: QualityGate["thresholds"] = {
-    ...(options.minPrecisionAtK === undefined
-      ? {}
-      : { precisionAtK: options.minPrecisionAtK }),
-    ...(options.minRecallAtK === undefined
-      ? {}
-      : { recallAtK: options.minRecallAtK }),
+    ...(options.minPrecisionAtK === undefined ? {} : { precisionAtK: options.minPrecisionAtK }),
+    ...(options.minRecallAtK === undefined ? {} : { recallAtK: options.minRecallAtK }),
     ...(options.minMrr === undefined ? {} : { mrr: options.minMrr }),
-    ...(options.minNdcgAtK === undefined
-      ? {}
-      : { ndcgAtK: options.minNdcgAtK }),
+    ...(options.minNdcgAtK === undefined ? {} : { ndcgAtK: options.minNdcgAtK }),
   };
   const failures: string[] = [];
   const checks: [keyof QualityGate["thresholds"], number][] = [
@@ -171,17 +145,13 @@ function qualityGateFor(
   for (const [metric, actual] of checks) {
     const threshold = thresholds[metric];
     if (threshold !== undefined && actual < threshold) {
-      failures.push(
-        `${metric}=${String(actual)} is below ${String(threshold)}`,
-      );
+      failures.push(`${metric}=${String(actual)} is below ${String(threshold)}`);
     }
   }
   return { passed: failures.length === 0, thresholds, failures };
 }
 
-async function runBenchmark(
-  options: BenchmarkOptions,
-): Promise<BenchmarkReport> {
+async function runBenchmark(options: BenchmarkOptions): Promise<BenchmarkReport> {
   const secureDirectory = resolveSecureDirectory(options.directory);
   if (!secureDirectory.ok) {
     throw new Error(secureDirectory.error);
@@ -189,10 +159,7 @@ async function runBenchmark(
 
   const directory = secureDirectory.path;
   const ignore = createIgnoreFilter(directory);
-  const files = collectFiles(directory, ignore, directory).slice(
-    0,
-    options.maxFiles,
-  );
+  const files = collectFiles(directory, ignore, directory).slice(0, options.maxFiles);
   const payloads = files.flatMap((filePath) => {
     const result = readSecureTextFile(filePath, directory);
     return result.ok && result.content !== undefined
@@ -242,9 +209,7 @@ async function runBenchmark(
       (total, chunk) => total + estimateTokenCount(chunk.content),
       0,
     );
-    await embeddingClient.embedBatch(
-      embeddedChunks.map((chunk) => chunk.content),
-    );
+    await embeddingClient.embedBatch(embeddedChunks.map((chunk) => chunk.content));
     embeddingTimes.push(performance.now() - embeddingStart);
   }
 
@@ -257,16 +222,12 @@ async function runBenchmark(
     chunkingMs: {
       p50: percentile(chunkingTimes, 0.5),
       p95: percentile(chunkingTimes, 0.95),
-      total: Number(
-        chunkingTimes.reduce((sum, value) => sum + value, 0).toFixed(2),
-      ),
+      total: Number(chunkingTimes.reduce((sum, value) => sum + value, 0).toFixed(2)),
     },
     embeddingMs: {
       p50: percentile(embeddingTimes, 0.5),
       p95: percentile(embeddingTimes, 0.95),
-      total: Number(
-        embeddingTimes.reduce((sum, value) => sum + value, 0).toFixed(2),
-      ),
+      total: Number(embeddingTimes.reduce((sum, value) => sum + value, 0).toFixed(2)),
     },
     embeddingDimensions: 768,
     tokenCost: {

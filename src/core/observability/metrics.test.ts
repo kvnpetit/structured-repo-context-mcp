@@ -41,8 +41,6 @@ describe("bounded metrics registry", () => {
       registry.recordTool(`tool-${String(index)}`, true, 1);
     }
 
-    expect(Object.keys(registry.snapshot().tools).length).toBeLessThanOrEqual(
-      256,
-    );
+    expect(Object.keys(registry.snapshot().tools).length).toBeLessThanOrEqual(256);
   });
 });

@@ -20,10 +20,7 @@ export interface LoadedGraphFiles {
   sourceRevision: string;
 }
 
-export async function loadGraphFiles(
-  root: string,
-  maxFiles: number,
-): Promise<LoadedGraphFiles> {
+export async function loadGraphFiles(root: string, maxFiles: number): Promise<LoadedGraphFiles> {
   const ignore = createIgnoreFilter(root);
   const allFiles = collectFiles(root, ignore, root).sort((left, right) =>
     relativePath(root, left).localeCompare(relativePath(root, right)),
@@ -47,23 +44,15 @@ export async function loadGraphFiles(
       const parsed = await parseCode(readResult.content, {
         filePath: absolutePath,
       });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       parsedFiles.push({
         absolutePath,
         relativePath: relative,
         language: parsed.language,
         content: readResult.content,
-        symbols: mergeSymbols(
-          info.symbols.symbols,
-          fallbackSymbols(readResult.content),
-        ),
+        symbols: mergeSymbols(info.symbols.symbols, fallbackSymbols(readResult.content)),
         imports:
-          info.imports.length > 0 &&
-          info.imports.some((item) => item.source.length > 0)
+          info.imports.length > 0 && info.imports.some((item) => item.source.length > 0)
             ? info.imports
             : extractTextImports(readResult.content),
         isTest: isTestPath(relative),

@@ -57,11 +57,7 @@ describe("get_symbol_graph", () => {
       source_revision: string;
       coverage: string;
     };
-    expect(
-      data.nodes.some(
-        (node) => node.kind === "symbol" && node.name === "Service",
-      ),
-    ).toBe(true);
+    expect(data.nodes.some((node) => node.kind === "symbol" && node.name === "Service")).toBe(true);
     expect(data.edges.some((edge) => edge.kind === "imports")).toBe(true);
     expect(data.edges.some((edge) => edge.kind === "calls")).toBe(true);
     expect(data.edges.some((edge) => edge.kind === "inherits")).toBe(true);

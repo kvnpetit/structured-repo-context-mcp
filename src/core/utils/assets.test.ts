@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import * as nodeFs from "node:fs";
-import * as path from "path";
+import * as path from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
@@ -148,9 +148,7 @@ describe("loadJsonConfig edge cases", () => {
 
   test("returns default value when JSON is invalid", () => {
     vi.spyOn(nodeFs, "existsSync").mockImplementation(() => true);
-    vi.spyOn(nodeFs, "readFileSync").mockImplementation(
-      () => "{ invalid json }",
-    );
+    vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => "{ invalid json }");
 
     clearAssetsDirCache();
     const defaultValue = { fallback: true };

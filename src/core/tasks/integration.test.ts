@@ -37,8 +37,8 @@ describe("Tasks extension transport integration", () => {
       "mcp-protocol-version": protocolVersion,
     };
     const envelope = {
-      ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
-      ["io.modelcontextprotocol/clientCapabilities"]: {
+      "io.modelcontextprotocol/protocolVersion": protocolVersion,
+      "io.modelcontextprotocol/clientCapabilities": {
         extensions: { [tasksExtension]: {} },
       },
     };
@@ -131,8 +131,8 @@ describe("Tasks extension transport integration", () => {
             params: {
               taskId: "missing-task",
               _meta: {
-                ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
-                ["io.modelcontextprotocol/clientCapabilities"]: {},
+                "io.modelcontextprotocol/protocolVersion": protocolVersion,
+                "io.modelcontextprotocol/clientCapabilities": {},
               },
             },
           }),
@@ -150,9 +150,7 @@ describe("Tasks extension transport integration", () => {
   }, 20_000);
 
   test("supports task lifecycle methods and rejects malformed task requests", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tasks-life-http-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-life-http-"));
     directories.push(directory);
     vi.stubEnv("MCP_TASK_STORE_DIR", directory);
     vi.stubEnv("MCP_TASK_TOOLS", "get_server_info");
@@ -167,8 +165,8 @@ describe("Tasks extension transport integration", () => {
       "mcp-protocol-version": protocolVersion,
     };
     const envelope = {
-      ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
-      ["io.modelcontextprotocol/clientCapabilities"]: {
+      "io.modelcontextprotocol/protocolVersion": protocolVersion,
+      "io.modelcontextprotocol/clientCapabilities": {
         extensions: { [tasksExtension]: {} },
       },
     };
@@ -203,9 +201,7 @@ describe("Tasks extension transport integration", () => {
         { name: "get_server_info", arguments: {} },
         { "mcp-method": "tools/call", "mcp-name": "get_server_info" },
       );
-      const taskId = (
-        created.body.result as Record<string, unknown> | undefined
-      )?.taskId as string;
+      const taskId = (created.body.result as Record<string, unknown> | undefined)?.taskId as string;
       expect(created.status).toBe(200);
       expect(typeof taskId).toBe("string");
 
@@ -272,9 +268,7 @@ describe("Tasks extension transport integration", () => {
   }, 20_000);
 
   test("returns invalid-argument errors for task-enabled tools", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tasks-invalid-http-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-invalid-http-"));
     directories.push(directory);
     vi.stubEnv("MCP_TASK_STORE_DIR", directory);
     vi.stubEnv("MCP_TASK_TOOLS", "parse_ast");
@@ -302,8 +296,8 @@ describe("Tasks extension transport integration", () => {
               name: "parse_ast",
               arguments: {},
               _meta: {
-                ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
-                ["io.modelcontextprotocol/clientCapabilities"]: {
+                "io.modelcontextprotocol/protocolVersion": protocolVersion,
+                "io.modelcontextprotocol/clientCapabilities": {
                   extensions: { [tasksExtension]: {} },
                 },
               },
@@ -323,9 +317,7 @@ describe("Tasks extension transport integration", () => {
   }, 20_000);
 
   test("accepts flat union inputs when a tool is enabled for tasks", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "tasks-union-http-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-union-http-"));
     directories.push(directory);
     vi.stubEnv("MCP_TASK_STORE_DIR", directory);
     vi.stubEnv("MCP_TASK_TOOLS", "run_static_analysis");
@@ -357,8 +349,8 @@ describe("Tasks extension transport integration", () => {
                 language: "typescript",
               },
               _meta: {
-                ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
-                ["io.modelcontextprotocol/clientCapabilities"]: {
+                "io.modelcontextprotocol/protocolVersion": protocolVersion,
+                "io.modelcontextprotocol/clientCapabilities": {
                   extensions: { [tasksExtension]: {} },
                 },
               },

@@ -6,28 +6,16 @@
  * 2. LangChain text splitter - for unsupported languages but known file types
  * 3. Generic text splitting - for any other text files
  */
-import { readFileSync } from "fs";
+import { readFileSync } from "node:fs";
 
 import type { Language, Tree } from "web-tree-sitter";
 
 import type { ASTNode } from "@core/ast/types";
-import {
-  isTextSplitterLanguage,
-  splitCode,
-  type TextChunk,
-} from "@core/fallback";
+import { isTextSplitterLanguage, splitCode, type TextChunk } from "@core/fallback";
 import { getASTRoot, isLanguageSupported, parseCode } from "@core/parser";
 import type { GrammarMetadata } from "@core/parser";
-import {
-  extractSymbolsFromTags,
-  findClasses,
-  findFunctions,
-} from "@core/queries";
-import {
-  DEFAULT_CHUNK_OVERLAP,
-  DEFAULT_CHUNK_SIZE,
-  SKIP_KEYWORDS,
-} from "@core/constants";
+import { extractSymbolsFromTags, findClasses, findFunctions } from "@core/queries";
+import { DEFAULT_CHUNK_OVERLAP, DEFAULT_CHUNK_SIZE, SKIP_KEYWORDS } from "@core/constants";
 import { detectLanguage, isBinaryFile } from "./languages";
 
 export {
@@ -123,11 +111,7 @@ function extractNameFromNode(text: string): string {
   // Find first non-keyword identifier
   for (const part of parts) {
     const trimmed = part.trim();
-    if (
-      trimmed &&
-      !SKIP_KEYWORDS.has(trimmed.toLowerCase()) &&
-      /^[a-zA-Z_]/.test(trimmed)
-    ) {
+    if (trimmed && !SKIP_KEYWORDS.has(trimmed.toLowerCase()) && /^[a-zA-Z_]/.test(trimmed)) {
       return trimmed;
     }
   }
@@ -186,12 +170,7 @@ export async function parseFile(
 
       // Include AST if requested
       if (options.includeAst) {
-        result.ast = getASTRoot(
-          parseResult,
-          options.astMaxDepth,
-          undefined,
-          options.astMaxNodes,
-        );
+        result.ast = getASTRoot(parseResult, options.astMaxDepth, undefined, options.astMaxNodes);
       }
 
       return result;
@@ -201,10 +180,7 @@ export async function parseFile(
   }
 
   // Try LangChain with detected language
-  const {
-    chunkSize = DEFAULT_CHUNK_SIZE,
-    chunkOverlap = DEFAULT_CHUNK_OVERLAP,
-  } = options;
+  const { chunkSize = DEFAULT_CHUNK_SIZE, chunkOverlap = DEFAULT_CHUNK_OVERLAP } = options;
 
   if (isTextSplitterLanguage(language)) {
     try {
@@ -277,12 +253,7 @@ export async function parseContent(
       };
 
       if (options.includeAst) {
-        result.ast = getASTRoot(
-          parseResult,
-          options.astMaxDepth,
-          undefined,
-          options.astMaxNodes,
-        );
+        result.ast = getASTRoot(parseResult, options.astMaxDepth, undefined, options.astMaxNodes);
       }
 
       return result;
@@ -292,10 +263,7 @@ export async function parseContent(
   }
 
   // Try LangChain with detected language
-  const {
-    chunkSize = DEFAULT_CHUNK_SIZE,
-    chunkOverlap = DEFAULT_CHUNK_OVERLAP,
-  } = options;
+  const { chunkSize = DEFAULT_CHUNK_SIZE, chunkOverlap = DEFAULT_CHUNK_OVERLAP } = options;
 
   if (isTextSplitterLanguage(language)) {
     try {
@@ -344,11 +312,7 @@ export async function parseContent(
  */
 export function extractSymbols(result: UnifiedParseResult): UnifiedSymbols {
   // Tree-sitter path
-  if (
-    result.method === "tree-sitter" &&
-    result.tree &&
-    result.languageInstance
-  ) {
+  if (result.method === "tree-sitter" && result.tree && result.languageInstance) {
     const { definitions } = extractSymbolsFromTags(
       result.tree,
       result.languageInstance,
@@ -372,22 +336,14 @@ export function extractSymbols(result: UnifiedParseResult): UnifiedSymbols {
 
       if (def.kind === "function" || def.kind === "method") {
         functions.push(symbol);
-      } else if (
-        def.kind === "class" ||
-        def.kind === "interface" ||
-        def.kind === "module"
-      ) {
+      } else if (def.kind === "class" || def.kind === "interface" || def.kind === "module") {
         classes.push(symbol);
       }
     }
 
     // If tags.scm didn't find anything, try direct AST queries
     if (functions.length === 0) {
-      const funcNodes = findFunctions(
-        result.tree,
-        result.languageInstance,
-        result.language,
-      );
+      const funcNodes = findFunctions(result.tree, result.languageInstance, result.language);
       for (const node of funcNodes) {
         const symbol: UnifiedSymbol = {
           name: extractNameFromNode(node.text),
@@ -401,11 +357,7 @@ export function extractSymbols(result: UnifiedParseResult): UnifiedSymbols {
     }
 
     if (classes.length === 0) {
-      const classNodes = findClasses(
-        result.tree,
-        result.languageInstance,
-        result.language,
-      );
+      const classNodes = findClasses(result.tree, result.languageInstance, result.language);
       for (const node of classNodes) {
         const symbol: UnifiedSymbol = {
           name: extractNameFromNode(node.text),

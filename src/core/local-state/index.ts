@@ -7,7 +7,8 @@ const LOCAL_STATE_DIRECTORY = ".src-index";
 const MAX_LOCAL_STATE_BYTES = 4 * 1024 * 1024;
 
 type LocalStateReadResult<T> =
-  { ok: true; exists: boolean; value?: T } | { ok: false; error: string };
+  | { ok: true; exists: boolean; value?: T }
+  | { ok: false; error: string };
 
 const stateLocks = new Map<string, Promise<void>>();
 
@@ -82,11 +83,7 @@ export function readLocalState<T = unknown>(
 }
 
 /** Write a bounded JSON state file using the repository's atomic writer. */
-export function writeLocalState(
-  root: string,
-  fileName: string,
-  value: unknown,
-): void {
+export function writeLocalState(root: string, fileName: string, value: unknown): void {
   ensureStateDirectory(root);
   const filePath = statePath(root, fileName);
   ensureRegularStateFile(filePath);
@@ -118,10 +115,7 @@ export async function withLocalStateLock<T>(
   await previous.catch(() => undefined);
   try {
     ensureStateDirectory(root);
-    return await withProcessFileLock(
-      `${statePath(root, fileName)}.lock`,
-      operation,
-    );
+    return await withProcessFileLock(`${statePath(root, fileName)}.lock`, operation);
   } finally {
     release();
     if (stateLocks.get(key) === queued) {

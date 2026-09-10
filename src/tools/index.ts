@@ -98,17 +98,12 @@ export function getToolConfiguration(
     profile: normalizedProfile,
     allowListConfigured: configured.length > 0,
     allowList: [...configured],
-    unknownAllowListEntries: configured.filter(
-      (name) => name !== "*" && !known.has(name),
-    ),
+    unknownAllowListEntries: configured.filter((name) => name !== "*" && !known.has(name)),
     enabledTools: resolveToolNames(allNames, configured, normalizedProfile),
   };
 }
 
-export function registerTools(
-  server: McpServer,
-  enabledFeatures = getEnabledFeatures(),
-): void {
+export function registerTools(server: McpServer, enabledFeatures = getEnabledFeatures()): void {
   for (const feature of enabledFeatures) {
     registerFeatureAsTool(server, feature);
   }

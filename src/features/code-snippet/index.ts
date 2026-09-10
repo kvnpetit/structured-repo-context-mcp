@@ -21,18 +21,8 @@ export const codeSnippetSchema = z
   .object({
     directory: z.string().optional().default(".").describe("Project root"),
     file_path: z.string().describe("File path relative to directory"),
-    start_offset: z
-      .number()
-      .int()
-      .min(0)
-      .default(0)
-      .describe("Inclusive UTF-8 byte offset"),
-    end_offset: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe("Exclusive UTF-8 byte offset"),
+    start_offset: z.number().int().min(0).default(0).describe("Inclusive UTF-8 byte offset"),
+    end_offset: z.number().int().min(0).optional().describe("Exclusive UTF-8 byte offset"),
     max_bytes: z
       .number()
       .int()
@@ -44,18 +34,12 @@ export const codeSnippetSchema = z
       .boolean()
       .optional()
       .default(false)
-      .describe(
-        "Redact common secrets; offsets remain those of the original file",
-      ),
+      .describe("Redact common secrets; offsets remain those of the original file"),
   })
-  .refine(
-    (value) =>
-      value.end_offset === undefined || value.end_offset >= value.start_offset,
-    {
-      message: "end_offset must be greater than or equal to start_offset",
-      path: ["end_offset"],
-    },
-  );
+  .refine((value) => value.end_offset === undefined || value.end_offset >= value.start_offset, {
+    message: "end_offset must be greater than or equal to start_offset",
+    path: ["end_offset"],
+  });
 
 export type CodeSnippetInput = z.input<typeof codeSnippetSchema>;
 
@@ -74,9 +58,7 @@ const codeSnippetDataSchema = z
   })
   .strict();
 
-export const codeSnippetOutputSchema = createFeatureResultSchema(
-  codeSnippetDataSchema,
-);
+export const codeSnippetOutputSchema = createFeatureResultSchema(codeSnippetDataSchema);
 
 function positionAt(content: string, index: number): Position {
   const prefix = content.slice(0, index);
@@ -88,9 +70,7 @@ function positionAt(content: string, index: number): Position {
   };
 }
 
-export async function execute(
-  rawInput: CodeSnippetInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: CodeSnippetInput): Promise<FeatureResult> {
   await Promise.resolve();
   let input: z.output<typeof codeSnippetSchema>;
   try {
@@ -103,10 +83,7 @@ export async function execute(
     return { success: false, error: secureDirectory.error };
   }
   const root = secureDirectory.path;
-  const secureFile = resolveSecureFile(
-    path.resolve(root, input.file_path),
-    root,
-  );
+  const secureFile = resolveSecureFile(path.resolve(root, input.file_path), root);
   if (!secureFile.ok) {
     return { success: false, error: secureFile.error };
   }
@@ -124,29 +101,20 @@ export async function execute(
     return { success: false, error: "start_offset is outside the file" };
   }
   const startIndex = stringIndexAtByteOffset(content, input.start_offset);
-  if (
-    Buffer.byteLength(content.slice(0, startIndex), "utf8") !==
-    input.start_offset
-  ) {
+  if (Buffer.byteLength(content.slice(0, startIndex), "utf8") !== input.start_offset) {
     return {
       success: false,
       error: "start_offset must be a UTF-8 character boundary",
     };
   }
   const requestedEnd = input.end_offset ?? fileBytes;
-  const boundedEnd = Math.min(
-    requestedEnd,
-    input.start_offset + input.max_bytes,
-    fileBytes,
-  );
+  const boundedEnd = Math.min(requestedEnd, input.start_offset + input.max_bytes, fileBytes);
   const endIndex = stringIndexAtByteOffset(content, boundedEnd);
   const endOffset = Buffer.byteLength(content.slice(0, endIndex), "utf8");
   const source = input.redact_secrets
     ? redactSourceText(content.slice(startIndex, endIndex))
     : { text: content.slice(startIndex, endIndex), redacted: false };
-  const relativeFilePath = path
-    .relative(root, secureFile.path)
-    .replace(/\\/gu, "/");
+  const relativeFilePath = path.relative(root, secureFile.path).replace(/\\/gu, "/");
   const output = {
     file_path: relativeFilePath,
     start_offset: input.start_offset,
@@ -157,12 +125,9 @@ export async function execute(
     truncated: endOffset < requestedEnd,
     source_is_untrusted: true as const,
     source_redacted: source.redacted,
-    instruction_signals: scanInstructionSignals(
-      content.slice(startIndex, endIndex),
-      {
-        source: relativeFilePath,
-      },
-    ),
+    instruction_signals: scanInstructionSignals(content.slice(startIndex, endIndex), {
+      source: relativeFilePath,
+    }),
   };
   return {
     success: true,

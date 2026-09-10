@@ -35,9 +35,7 @@ interface ProjectSummary {
 
 const projectIndexSchema = z.union([
   indexStatusDataSchema,
-  z
-    .object({ available: z.literal(false), error: z.string().optional() })
-    .strict(),
+  z.object({ available: z.literal(false), error: z.string().optional() }).strict(),
 ]);
 
 const listProjectsDataSchema = z
@@ -58,13 +56,9 @@ const listProjectsDataSchema = z
   })
   .strict();
 
-export const listProjectsOutputSchema = createFeatureResultSchema(
-  listProjectsDataSchema,
-);
+export const listProjectsOutputSchema = createFeatureResultSchema(listProjectsDataSchema);
 
-export async function execute(
-  input: ListProjectsInput,
-): Promise<FeatureResult> {
+export async function execute(input: ListProjectsInput): Promise<FeatureResult> {
   const configured = getConfiguredAllowedRoots();
   const roots =
     configured.length > 0

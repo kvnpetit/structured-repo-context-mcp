@@ -39,13 +39,7 @@ export const scipImportSchema = z.object({
     .optional()
     .default("auto")
     .describe("Read JSON directly or ask the local scip CLI to print JSON"),
-  timeout_ms: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_TIMEOUT_MS)
-    .optional()
-    .default(15_000),
+  timeout_ms: z.number().int().positive().max(MAX_TIMEOUT_MS).optional().default(15_000),
 });
 
 export type ScipImportInput = z.input<typeof scipImportSchema>;
@@ -66,8 +60,7 @@ const scipImportDataSchema = z
   })
   .strict();
 
-export const scipImportOutputSchema =
-  createFeatureResultSchema(scipImportDataSchema);
+export const scipImportOutputSchema = createFeatureResultSchema(scipImportDataSchema);
 
 function isSafeRelativePath(value: string): boolean {
   const normalized = value.replace(/\\/gu, "/");
@@ -81,11 +74,7 @@ function isSafeRelativePath(value: string): boolean {
   );
 }
 
-async function readViaScipCli(
-  filePath: string,
-  root: string,
-  timeoutMs: number,
-): Promise<string> {
+async function readViaScipCli(filePath: string, root: string, timeoutMs: number): Promise<string> {
   try {
     const result = await execFileAsync("scip", ["print", "--json", filePath], {
       cwd: root,
@@ -102,9 +91,7 @@ async function readViaScipCli(
   }
 }
 
-export async function execute(
-  rawInput: ScipImportInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: ScipImportInput): Promise<FeatureResult> {
   const input = scipImportSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -117,10 +104,7 @@ export async function execute(
       error: "index_file must be a safe project-relative path",
     };
   }
-  const resolvedFile = resolveSecureFile(
-    path.resolve(root, input.index_file),
-    root,
-  );
+  const resolvedFile = resolveSecureFile(path.resolve(root, input.index_file), root);
   if (!resolvedFile.ok) {
     return { success: false, error: resolvedFile.error };
   }
@@ -153,19 +137,12 @@ export async function execute(
     }
     if (payloadText === undefined) {
       try {
-        payloadText = await readViaScipCli(
-          resolvedFile.path,
-          root,
-          input.timeout_ms,
-        );
+        payloadText = await readViaScipCli(resolvedFile.path, root, input.timeout_ms);
         sourceFormat = "cli";
       } catch (error) {
         return {
           success: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Unable to read SCIP index",
+          error: error instanceof Error ? error.message : "Unable to read SCIP index",
         };
       }
     }

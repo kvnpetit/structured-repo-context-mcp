@@ -29,9 +29,7 @@ function stableValue(value: unknown): unknown {
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(
-          ([, child]) => child !== undefined && typeof child !== "function",
-        )
+        .filter(([, child]) => child !== undefined && typeof child !== "function")
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([key, child]) => [key, stableValue(child)]),
     );
@@ -53,11 +51,7 @@ function jsonSchema(schema: z.ZodType): unknown {
 function collectPromptContracts(): unknown[] {
   const prompts: unknown[] = [];
   const server = {
-    registerPrompt(
-      name: string,
-      promptConfig: unknown,
-      callback: () => unknown,
-    ): void {
+    registerPrompt(name: string, promptConfig: unknown, callback: () => unknown): void {
       prompts.push({ name, config: promptConfig, result: callback() });
     },
   };
@@ -71,17 +65,11 @@ export function buildContractSurfaceSnapshot(): ContractSurfaceSnapshot {
     title: feature.title ?? feature.name,
     description: feature.description,
     inputSchema: jsonSchema(feature.schema),
-    outputSchema:
-      feature.outputSchema === undefined
-        ? undefined
-        : jsonSchema(feature.outputSchema),
+    outputSchema: feature.outputSchema === undefined ? undefined : jsonSchema(feature.outputSchema),
     annotations: feature.annotations ?? {},
   }));
   const featureContracts = Object.fromEntries(
-    featureDescriptors.map((descriptor) => [
-      descriptor.name,
-      digest(descriptor),
-    ]),
+    featureDescriptors.map((descriptor) => [descriptor.name, digest(descriptor)]),
   );
   const toolDescriptors = features.map((feature) => {
     const tool = createFeatureToolConfig(feature);
@@ -113,9 +101,7 @@ export function buildContractSurfaceSnapshot(): ContractSurfaceSnapshot {
       digest: digest(cliDescriptors),
     },
     prompts: {
-      names: promptDescriptors.map((descriptor) =>
-        String((descriptor as { name: unknown }).name),
-      ),
+      names: promptDescriptors.map((descriptor) => String((descriptor as { name: unknown }).name)),
       digest: digest(promptDescriptors),
     },
     resources: {

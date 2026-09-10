@@ -15,10 +15,7 @@ const COMMANDS: Record<StaticBackend, readonly string[]> = {
   codeql: ["codeql"],
 };
 
-function appendBounded(
-  current: string,
-  chunk: string,
-): { value: string; truncated: boolean } {
+function appendBounded(current: string, chunk: string): { value: string; truncated: boolean } {
   const remaining = MAX_OUTPUT_BYTES - Buffer.byteLength(current, "utf8");
   if (remaining <= 0) {
     return { value: current, truncated: true };
@@ -122,13 +119,7 @@ export async function findExecutable(
   signal?: AbortSignal,
 ): Promise<{ command?: string; probe?: ProcessResult }> {
   for (const command of COMMANDS[backend]) {
-    const probe = await runProcess(
-      command,
-      ["--version"],
-      cwd,
-      timeoutMs,
-      signal,
-    );
+    const probe = await runProcess(command, ["--version"], cwd, timeoutMs, signal);
     if (probe.spawnError === undefined) {
       return { command, probe };
     }

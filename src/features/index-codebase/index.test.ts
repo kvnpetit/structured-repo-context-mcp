@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -21,11 +13,7 @@ vi.mock("@core/embeddings", () => ({
   enrichChunksFromFile: vi.fn(),
   shouldIndexFile: vi.fn(),
   validateEmbeddingBatch: vi.fn(
-    (
-      vectors: number[][],
-      expectedCount: number,
-      expectedDimensions: number,
-    ) => {
+    (vectors: number[][], expectedCount: number, expectedDimensions: number) => {
       if (
         vectors.length !== expectedCount ||
         vectors.some((vector) => vector.length !== expectedDimensions)
@@ -100,9 +88,7 @@ describe("execute", () => {
     mockEmbedBatch = vi
       .fn()
       .mockImplementation(async (texts: string[]) =>
-        Promise.resolve(
-          texts.map(() => new Array(768).fill(0).map(() => Math.random())),
-        ),
+        Promise.resolve(texts.map(() => new Array(768).fill(0).map(() => Math.random()))),
       );
     mockExists = vi.fn().mockReturnValue(false);
     mockConnect = vi.fn().mockResolvedValue(undefined);
@@ -123,18 +109,17 @@ describe("execute", () => {
       addChunks: mockAddChunks,
     });
 
-    (embeddings.chunkFile as Mock).mockImplementation(
-      async (filePath: string, content: string) =>
-        Promise.resolve([
-          {
-            id: "chunk_1",
-            content,
-            filePath,
-            language: "typescript",
-            startLine: 1,
-            endLine: 1,
-          },
-        ]),
+    (embeddings.chunkFile as Mock).mockImplementation(async (filePath: string, content: string) =>
+      Promise.resolve([
+        {
+          id: "chunk_1",
+          content,
+          filePath,
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+        },
+      ]),
     );
 
     // Mock enrichChunksFromFile to return enriched chunks
@@ -151,8 +136,7 @@ describe("execute", () => {
     );
 
     (embeddings.shouldIndexFile as Mock).mockImplementation(
-      (filePath: string) =>
-        filePath.endsWith(".ts") || filePath.endsWith(".js"),
+      (filePath: string) => filePath.endsWith(".ts") || filePath.endsWith(".js"),
     );
   });
 
@@ -220,10 +204,7 @@ describe("execute", () => {
 
   test("indexes TypeScript files", async () => {
     // Create test files
-    fs.writeFileSync(
-      path.join(tempDir, "test.ts"),
-      'export function hello() { return "world"; }',
-    );
+    fs.writeFileSync(path.join(tempDir, "test.ts"), 'export function hello() { return "world"; }');
 
     const result = await execute({
       directory: tempDir,
@@ -250,17 +231,10 @@ describe("execute", () => {
 
     expect(result.success).toBe(true);
 
-    const cachePath = path.join(
-      tempDir,
-      ".src-index",
-      ".src-index-hashes.json",
-    );
+    const cachePath = path.join(tempDir, ".src-index", ".src-index-hashes.json");
     expect(fs.existsSync(cachePath)).toBe(true);
 
-    const cache = JSON.parse(fs.readFileSync(cachePath, "utf8")) as Record<
-      string,
-      string
-    >;
+    const cache = JSON.parse(fs.readFileSync(cachePath, "utf8")) as Record<string, string>;
     expect(cache[path.resolve(filePath)]).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -268,10 +242,7 @@ describe("execute", () => {
     // Create files
     fs.writeFileSync(path.join(tempDir, "included.ts"), "export const x = 1;");
     fs.mkdirSync(path.join(tempDir, "excluded"));
-    fs.writeFileSync(
-      path.join(tempDir, "excluded", "skip.ts"),
-      "export const y = 2;",
-    );
+    fs.writeFileSync(path.join(tempDir, "excluded", "skip.ts"), "export const y = 2;");
 
     const result = await execute({
       directory: tempDir,
@@ -291,10 +262,7 @@ describe("execute", () => {
     // Create files
     fs.writeFileSync(path.join(tempDir, "main.ts"), 'import x from "pkg";');
     fs.mkdirSync(path.join(tempDir, "node_modules"));
-    fs.writeFileSync(
-      path.join(tempDir, "node_modules", "pkg.ts"),
-      "export default 1;",
-    );
+    fs.writeFileSync(path.join(tempDir, "node_modules", "pkg.ts"), "export default 1;");
 
     const result = await execute({
       directory: tempDir,
@@ -308,9 +276,7 @@ describe("execute", () => {
     const indexedPaths = vi
       .mocked(embeddings.chunkFile)
       .mock.calls.map(([filePath]) => path.basename(filePath));
-    expect(indexedPaths).toEqual(
-      expect.arrayContaining([".gitignore", "main.ts"]),
-    );
+    expect(indexedPaths).toEqual(expect.arrayContaining([".gitignore", "main.ts"]));
     expect(indexedPaths).not.toContain("pkg.ts");
   });
 
@@ -318,10 +284,7 @@ describe("execute", () => {
     // Create files
     fs.writeFileSync(path.join(tempDir, "main.ts"), "export const x = 1;");
     fs.mkdirSync(path.join(tempDir, ".hidden"));
-    fs.writeFileSync(
-      path.join(tempDir, ".hidden", "secret.ts"),
-      "export default 1;",
-    );
+    fs.writeFileSync(path.join(tempDir, ".hidden", "secret.ts"), "export default 1;");
 
     const result = await execute({
       directory: tempDir,
@@ -397,9 +360,7 @@ describe("execute", () => {
   test("handles file processing errors", async () => {
     fs.writeFileSync(path.join(tempDir, "test.ts"), "export const x = 1;");
 
-    (embeddings.chunkFile as Mock).mockRejectedValueOnce(
-      new Error("Parse error"),
-    );
+    (embeddings.chunkFile as Mock).mockRejectedValueOnce(new Error("Parse error"));
 
     const result = await execute({
       directory: tempDir,

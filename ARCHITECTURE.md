@@ -919,9 +919,9 @@ npm run cli help         # Test CLI
 npm run check            # Typecheck + lint + format + contract baseline
 npm run contract:verify  # MCP/CLI/prompts/resources/exports/config parity
 npm run typecheck        # TypeScript only
-npm run lint             # ESLint only
+npm run lint             # Biome lint only
 npm run lint:fix         # Auto-fix lint issues
-npm run format           # Prettier format
+npm run format           # Biome format
 npm run format:check     # Check formatting
 
 # Build
@@ -932,8 +932,8 @@ npm run mutation:smoke    # Kill curated pagination mutants in temp copies
 npm run conformance:smoke # Official MCP compatibility smoke scenarios
 ```
 
-Production modules are limited by ESLint to 500 physical lines and functions
-to 350 logical lines. Public refactors must keep `contract:verify` green: its
+Biome applies the repository formatter and lint rules. Public refactors must
+keep `contract:verify` green: its
 reviewed baseline fingerprints feature schemas and annotations, the MCP and CLI
 surfaces, prompts, resources, package exports, and default configuration.
 

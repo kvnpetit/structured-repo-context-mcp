@@ -69,17 +69,12 @@ function snippetAt(content: string, start: number, end: number): string {
   const startIndex = stringIndexAtByteOffset(content, start);
   const endIndex = stringIndexAtByteOffset(content, end);
   const contextStart = Math.max(0, startIndex - 100);
-  const contextEnd = Math.min(
-    content.length,
-    Math.max(endIndex, startIndex) + 180,
-  );
+  const contextEnd = Math.min(content.length, Math.max(endIndex, startIndex) + 180);
   return content.slice(contextStart, contextEnd).trim();
 }
 
 function matchesQuery(value: string, query: string): boolean {
-  return (
-    query.length === 0 || value.toLowerCase().includes(query.toLowerCase())
-  );
+  return query.length === 0 || value.toLowerCase().includes(query.toLowerCase());
 }
 
 function extractTextImports(content: string): Import[] {
@@ -107,11 +102,7 @@ function extractTextImports(content: string): Import[] {
   return imports;
 }
 
-function definitionMatch(
-  symbol: Symbol,
-  filePath: string,
-  content: string,
-): NavigationMatch {
+function definitionMatch(symbol: Symbol, filePath: string, content: string): NavigationMatch {
   return {
     kind: "definition",
     name: symbol.name,
@@ -124,16 +115,10 @@ function definitionMatch(
   };
 }
 
-function importMatch(
-  item: Import,
-  filePath: string,
-  content: string,
-): NavigationMatch {
+function importMatch(item: Import, filePath: string, content: string): NavigationMatch {
   return {
     kind: "import",
-    name:
-      item.names.map((name) => name.alias ?? name.name).join(", ") ||
-      item.source,
+    name: item.names.map((name) => name.alias ?? name.name).join(", ") || item.source,
     file_path: filePath,
     start: item.start,
     end: item.end,
@@ -142,11 +127,7 @@ function importMatch(
   };
 }
 
-function exportMatch(
-  item: Export,
-  filePath: string,
-  content: string,
-): NavigationMatch {
+function exportMatch(item: Export, filePath: string, content: string): NavigationMatch {
   return {
     kind: "export",
     name: item.name,
@@ -158,11 +139,7 @@ function exportMatch(
   };
 }
 
-function referenceMatches(
-  query: string,
-  filePath: string,
-  content: string,
-): NavigationMatch[] {
+function referenceMatches(query: string, filePath: string, content: string): NavigationMatch[] {
   if (query.length === 0) {
     return [];
   }
@@ -182,9 +159,7 @@ function referenceMatches(
   });
 }
 
-export async function execute(
-  rawInput: FindSymbolsInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: FindSymbolsInput): Promise<FeatureResult> {
   const input = findSymbolsSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -195,21 +170,20 @@ export async function execute(
   let files: string[];
   let filesTruncated = false;
   if (input.file_path) {
-    const secureFile = resolveSecurePath(
-      resolvePath(absoluteDirectory, input.file_path),
-      { kind: "file", root: absoluteDirectory, allowMissing: true },
-    );
+    const secureFile = resolveSecurePath(resolvePath(absoluteDirectory, input.file_path), {
+      kind: "file",
+      root: absoluteDirectory,
+      allowMissing: true,
+    });
     if (!secureFile.ok) {
       return { success: false, error: secureFile.error };
     }
     files = [secureFile.path];
   } else {
     const ignore = createIgnoreFilter(absoluteDirectory);
-    const allFiles = collectFiles(
-      absoluteDirectory,
-      ignore,
-      absoluteDirectory,
-    ).sort((left, right) => left.localeCompare(right));
+    const allFiles = collectFiles(absoluteDirectory, ignore, absoluteDirectory).sort(
+      (left, right) => left.localeCompare(right),
+    );
     files = allFiles.slice(0, input.max_files);
     filesTruncated = allFiles.length > files.length;
   }
@@ -263,9 +237,7 @@ export async function execute(
   for (const file of files) {
     const readResult = readSecureTextFile(file, absoluteDirectory);
     if (!readResult.ok || readResult.content === undefined) {
-      output.errors.push(
-        `Cannot read ${relativePath(absoluteDirectory, file)}`,
-      );
+      output.errors.push(`Cannot read ${relativePath(absoluteDirectory, file)}`);
       continue;
     }
     const content = readResult.content;
@@ -279,14 +251,9 @@ export async function execute(
     let stopProcessingFile = false;
     try {
       const parsed = await parseCode(content, { filePath: file });
-      const info = extractCodeInfo(
-        parsed.tree,
-        parsed.languageInstance,
-        parsed.language,
-      );
+      const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
       const imports =
-        info.imports.length > 0 &&
-        info.imports.some((item) => item.source.length > 0)
+        info.imports.length > 0 && info.imports.some((item) => item.source.length > 0)
           ? info.imports
           : extractTextImports(content);
 
@@ -300,10 +267,7 @@ export async function execute(
           stopProcessingFile = true;
         }
       }
-      if (
-        !stopProcessingFile &&
-        (input.mode === "imports" || input.mode === "all")
-      ) {
+      if (!stopProcessingFile && (input.mode === "imports" || input.mode === "all")) {
         const stopped = appendMatches(
           imports
             .filter(
@@ -317,10 +281,7 @@ export async function execute(
           stopProcessingFile = true;
         }
       }
-      if (
-        !stopProcessingFile &&
-        (input.mode === "exports" || input.mode === "all")
-      ) {
+      if (!stopProcessingFile && (input.mode === "exports" || input.mode === "all")) {
         const stopped = appendMatches(
           info.exports
             .filter(
@@ -334,13 +295,8 @@ export async function execute(
           stopProcessingFile = true;
         }
       }
-      if (
-        !stopProcessingFile &&
-        (input.mode === "references" || input.mode === "all")
-      ) {
-        const stopped = appendMatches(
-          referenceMatches(input.query, relativeFile, content),
-        );
+      if (!stopProcessingFile && (input.mode === "references" || input.mode === "all")) {
+        const stopped = appendMatches(referenceMatches(input.query, relativeFile, content));
         if (stopped) {
           stopProcessingFile = true;
         }
@@ -359,10 +315,8 @@ export async function execute(
   if (input.redact_secrets) {
     output.matches = output.matches.map((match) => {
       const snippet = redactSourceText(match.snippet);
-      const source =
-        match.source === undefined ? undefined : redactSourceText(match.source);
-      output.secrets_redacted ||=
-        snippet.redacted || (source?.redacted ?? false);
+      const source = match.source === undefined ? undefined : redactSourceText(match.source);
+      output.secrets_redacted ||= snippet.redacted || (source?.redacted ?? false);
       return {
         ...match,
         snippet: snippet.text,
@@ -374,10 +328,7 @@ export async function execute(
   output.truncated ||= filesTruncated;
   output.instruction_signals = mergeInstructionSignals(instructionScans);
   if (nextCursorOffset !== undefined) {
-    output.next_cursor = createPaginationCursor(
-      paginationScope,
-      nextCursorOffset,
-    );
+    output.next_cursor = createPaginationCursor(paginationScope, nextCursorOffset);
   }
 
   const message = `Found ${String(output.matches.length)} ${input.mode} match${output.matches.length === 1 ? "" : "es"}`;

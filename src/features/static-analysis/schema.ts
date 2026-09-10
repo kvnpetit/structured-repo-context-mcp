@@ -19,20 +19,8 @@ const commonInput = {
     .optional()
     .default([])
     .describe("Optional safe project-relative paths"),
-  max_results: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_RESULTS)
-    .optional()
-    .default(100),
-  timeout_ms: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_TIMEOUT_MS)
-    .optional()
-    .default(15_000),
+  max_results: z.number().int().positive().max(MAX_RESULTS).optional().default(100),
+  timeout_ms: z.number().int().positive().max(MAX_TIMEOUT_MS).optional().default(15_000),
   redact_secrets: z.boolean().optional().default(true),
 };
 
@@ -70,7 +58,7 @@ export const staticAnalysisSchema = z.union([
 export type StaticAnalysisInput = z.input<typeof staticAnalysisSchema>;
 
 export function ruleFileOf(input: StaticAnalysisInput): string | undefined {
-  if (!Object.prototype.hasOwnProperty.call(input, "rule_file")) {
+  if (!Object.hasOwn(input, "rule_file")) {
     return undefined;
   }
   const value = (input as { rule_file?: unknown }).rule_file;
@@ -113,6 +101,4 @@ const staticAnalysisDataSchema = z
   })
   .strict();
 
-export const staticAnalysisOutputSchema = createFeatureResultSchema(
-  staticAnalysisDataSchema,
-);
+export const staticAnalysisOutputSchema = createFeatureResultSchema(staticAnalysisDataSchema);

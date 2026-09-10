@@ -30,8 +30,7 @@ export const serveCommand = defineCommand({
     directory: {
       type: "string",
       alias: "d",
-      description:
-        "Directory to watch and index (defaults to current directory)",
+      description: "Directory to watch and index (defaults to current directory)",
       default: ".",
     },
     watch: {
@@ -48,8 +47,7 @@ export const serveCommand = defineCommand({
       throw new Error(`Unsupported transport: ${transport}`);
     }
 
-    let runningHttpServer:
-      Awaited<ReturnType<typeof startHttpServer>> | undefined;
+    let runningHttpServer: Awaited<ReturnType<typeof startHttpServer>> | undefined;
     let watcher: ReturnType<typeof createIndexWatcher> | undefined;
 
     // Start watcher if enabled

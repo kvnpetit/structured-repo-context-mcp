@@ -52,16 +52,14 @@ const detectors: {
   {
     kind: "instruction_override",
     confidence: 0.99,
-    reason:
-      "Text attempts to override earlier, system, developer, or safety instructions.",
+    reason: "Text attempts to override earlier, system, developer, or safety instructions.",
     pattern:
       /\b(?:ignore|disregard|forget|override|bypass|follow only)\b[\s\S]{0,140}\b(?:previous|prior|above|system|developer|assistant|safety|instruction|rule)s?\b/giu,
   },
   {
     kind: "authority_spoofing",
     confidence: 0.96,
-    reason:
-      "Text presents itself as a system, developer, or assistant message.",
+    reason: "Text presents itself as a system, developer, or assistant message.",
     pattern:
       /(?:^|[\r\n])\s*(?:system|developer|assistant)\s*(?:message|prompt|instruction)\s*[:>]/gimu,
   },
@@ -82,8 +80,7 @@ const detectors: {
   {
     kind: "delimiter_spoofing",
     confidence: 0.91,
-    reason:
-      "Text contains a prompt/tool delimiter that can impersonate protocol data.",
+    reason: "Text contains a prompt/tool delimiter that can impersonate protocol data.",
     pattern:
       /<\s*\/?\s*(?:system|tool_call|function_call|assistant|developer)\s*>|\[\s*(?:system|assistant|developer)\s*\]|```\s*(?:system|tool_call|function_call)\b/giu,
   },
@@ -97,8 +94,7 @@ const detectors: {
   {
     kind: "encoded_instruction",
     confidence: 0.78,
-    reason:
-      "Text mentions decoding an encoded payload into an instruction, command, or secret.",
+    reason: "Text mentions decoding an encoded payload into an instruction, command, or secret.",
     pattern:
       /\b(?:base64|atob|frombase64|decode|decode64)\b[\s\S]{0,100}\b(?:instruction|prompt|command|secret|token)\b/giu,
   },
@@ -113,10 +109,7 @@ function positionAt(
   byteOffset: number;
 } {
   const prefix = value.slice(0, offset);
-  const lineStart = Math.max(
-    prefix.lastIndexOf("\n"),
-    prefix.lastIndexOf("\r"),
-  );
+  const lineStart = Math.max(prefix.lastIndexOf("\n"), prefix.lastIndexOf("\r"));
   return {
     line: (prefix.match(/\n/gu) ?? []).length + 1,
     column: Array.from(prefix.slice(lineStart + 1)).length,
@@ -128,14 +121,8 @@ export function scanInstructionSignals(
   value: string,
   options: InstructionSignalOptions = {},
 ): InstructionSignals {
-  const maxBytes = Math.max(
-    1,
-    Math.min(options.maxBytes ?? DEFAULT_MAX_BYTES, 2_000_000),
-  );
-  const maxSignals = Math.max(
-    1,
-    Math.min(options.maxSignals ?? DEFAULT_MAX_SIGNALS, 500),
-  );
+  const maxBytes = Math.max(1, Math.min(options.maxBytes ?? DEFAULT_MAX_BYTES, 2_000_000));
+  const maxSignals = Math.max(1, Math.min(options.maxSignals ?? DEFAULT_MAX_SIGNALS, 500));
   const scanned = truncateUtf8(value, maxBytes);
   const scanTruncated = scanned.length < value.length;
   const signals: InstructionSignal[] = [];
@@ -171,14 +158,9 @@ export function scanInstructionSignals(
     }
   }
 
-  signals.sort(
-    (left, right) =>
-      left.offset - right.offset || left.kind.localeCompare(right.kind),
-  );
+  signals.sort((left, right) => left.offset - right.offset || left.kind.localeCompare(right.kind));
   const boundedSignals = signals.slice(0, maxSignals);
-  const kinds = [
-    ...new Set(boundedSignals.map((signal) => signal.kind)),
-  ].sort();
+  const kinds = [...new Set(boundedSignals.map((signal) => signal.kind))].sort();
   return {
     detected: boundedSignals.length > 0,
     count: boundedSignals.length,
@@ -210,7 +192,6 @@ export function mergeInstructionSignals(
     signals: boundedSignals,
     scanned_bytes: scans.reduce((total, scan) => total + scan.scanned_bytes, 0),
     scan_truncated:
-      scans.some((scan) => scan.scan_truncated) ||
-      signals.length > boundedSignals.length,
+      scans.some((scan) => scan.scan_truncated) || signals.length > boundedSignals.length,
   };
 }

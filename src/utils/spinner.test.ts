@@ -41,9 +41,7 @@ describe("Spinner Utilities", () => {
   test("withSpinner handles errors", async () => {
     const testFn = vi.fn().mockRejectedValue(new Error("Test error"));
 
-    await expect(withSpinner("Processing...", testFn)).rejects.toThrow(
-      "Test error",
-    );
+    await expect(withSpinner("Processing...", testFn)).rejects.toThrow("Test error");
   });
 });
 
@@ -86,8 +84,6 @@ describe("Spinner with TTY", () => {
   test("withSpinner handles errors in TTY mode", async () => {
     const testFn = vi.fn().mockRejectedValue(new Error("TTY error"));
 
-    await expect(withSpinner("Processing...", testFn)).rejects.toThrow(
-      "TTY error",
-    );
+    await expect(withSpinner("Processing...", testFn)).rejects.toThrow("TTY error");
   });
 });

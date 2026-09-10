@@ -108,22 +108,16 @@ function collectIndexFiles(indexDirectory: string): IndexFile[] {
       const stats = fs.statSync(absolutePath);
       files.push({
         absolutePath,
-        relativePath: path
-          .relative(indexDirectory, absolutePath)
-          .replace(/\\/gu, "/"),
+        relativePath: path.relative(indexDirectory, absolutePath).replace(/\\/gu, "/"),
         sizeBytes: stats.size,
         mtimeMs: stats.mtimeMs,
       });
       if (files.length > MAX_SNAPSHOT_FILES) {
-        throw new Error(
-          `Snapshot exceeds the ${String(MAX_SNAPSHOT_FILES)}-file limit`,
-        );
+        throw new Error(`Snapshot exceeds the ${String(MAX_SNAPSHOT_FILES)}-file limit`);
       }
     }
   }
-  return files.sort((left, right) =>
-    left.relativePath.localeCompare(right.relativePath),
-  );
+  return files.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
 function hashFile(filePath: string): { sha256: string; sizeBytes: number } {
@@ -157,9 +151,7 @@ function sourceRevision(root: string): string | undefined {
     return undefined;
   }
   const value = metadata.value as { sourceFingerprint?: unknown };
-  return typeof value.sourceFingerprint === "string"
-    ? value.sourceFingerprint
-    : undefined;
+  return typeof value.sourceFingerprint === "string" ? value.sourceFingerprint : undefined;
 }
 
 function snapshotId(): string {
@@ -170,14 +162,9 @@ function createSnapshot(root: string, maxBytes: number): SnapshotManifest {
   const indexDirectory = stateDirectory(root);
   ensureRegularDirectory(indexDirectory);
   const files = collectIndexFiles(indexDirectory);
-  const estimatedBytes = files.reduce(
-    (total, file) => total + file.sizeBytes,
-    0,
-  );
+  const estimatedBytes = files.reduce((total, file) => total + file.sizeBytes, 0);
   if (estimatedBytes > maxBytes) {
-    throw new Error(
-      `Index snapshot exceeds the ${String(maxBytes)}-byte quota`,
-    );
+    throw new Error(`Index snapshot exceeds the ${String(maxBytes)}-byte quota`);
   }
 
   const id = snapshotId();
@@ -204,9 +191,7 @@ function createSnapshot(root: string, maxBytes: number): SnapshotManifest {
       const digest = hashFile(destination);
       totalBytes += digest.sizeBytes;
       if (totalBytes > maxBytes) {
-        throw new Error(
-          `Index snapshot exceeds the ${String(maxBytes)}-byte quota`,
-        );
+        throw new Error(`Index snapshot exceeds the ${String(maxBytes)}-byte quota`);
       }
       snapshotFiles.push({
         path: relative,
@@ -218,17 +203,12 @@ function createSnapshot(root: string, maxBytes: number): SnapshotManifest {
       version: 1,
       id,
       created_at: new Date().toISOString(),
-      ...(sourceRevision(root) === undefined
-        ? {}
-        : { source_revision: sourceRevision(root) }),
+      ...(sourceRevision(root) === undefined ? {} : { source_revision: sourceRevision(root) }),
       total_bytes: totalBytes,
       files: snapshotFiles,
       complete: true,
     };
-    writeJsonAtomically(
-      path.join(temporaryDirectory, "manifest.json"),
-      manifest,
-    );
+    writeJsonAtomically(path.join(temporaryDirectory, "manifest.json"), manifest);
     fs.renameSync(temporaryDirectory, finalDirectory);
     return manifest;
   } finally {
@@ -244,11 +224,7 @@ function readManifest(root: string, id: string): SnapshotManifest | undefined {
     ensureRegularDirectory(directory);
     const manifestPath = path.join(directory, "manifest.json");
     const stats = fs.lstatSync(manifestPath);
-    if (
-      stats.isSymbolicLink() ||
-      !stats.isFile() ||
-      stats.size > 2 * 1024 * 1024
-    ) {
+    if (stats.isSymbolicLink() || !stats.isFile() || stats.size > 2 * 1024 * 1024) {
       return undefined;
     }
     const parsed: unknown = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -259,9 +235,7 @@ function readManifest(root: string, id: string): SnapshotManifest | undefined {
   }
 }
 
-function listSnapshots(
-  root: string,
-): { manifest?: SnapshotManifest; id: string }[] {
+function listSnapshots(root: string): { manifest?: SnapshotManifest; id: string }[] {
   const directory = snapshotsDirectory(root);
   if (!fs.existsSync(directory)) {
     return [];
@@ -269,26 +243,19 @@ function listSnapshots(
   ensureRegularDirectory(directory);
   return fs
     .readdirSync(directory, { withFileTypes: true })
-    .filter(
-      (entry) => entry.isDirectory() && SNAPSHOT_ID_PATTERN.test(entry.name),
-    )
+    .filter((entry) => entry.isDirectory() && SNAPSHOT_ID_PATTERN.test(entry.name))
     .map((entry) => ({
       id: entry.name,
       manifest: readManifest(root, entry.name),
     }))
     .sort(
       (left, right) =>
-        (right.manifest?.created_at ?? "").localeCompare(
-          left.manifest?.created_at ?? "",
-        ) || right.id.localeCompare(left.id),
+        (right.manifest?.created_at ?? "").localeCompare(left.manifest?.created_at ?? "") ||
+        right.id.localeCompare(left.id),
     );
 }
 
-function verifySnapshot(
-  root: string,
-  manifest: SnapshotManifest,
-  maxBytes: number,
-): void {
+function verifySnapshot(root: string, manifest: SnapshotManifest, maxBytes: number): void {
   if (manifest.total_bytes > maxBytes) {
     throw new Error("Snapshot exceeds the configured restore quota");
   }
@@ -322,15 +289,9 @@ function verifySnapshot(
 }
 
 function restoreSnapshot(root: string, manifest: SnapshotManifest): void {
-  const temporaryIndex = path.join(
-    root,
-    `.src-index-restore-${crypto.randomUUID()}`,
-  );
+  const temporaryIndex = path.join(root, `.src-index-restore-${crypto.randomUUID()}`);
   const currentIndex = stateDirectory(root);
-  const backupIndex = path.join(
-    root,
-    `.src-index-recovery-${crypto.randomUUID()}`,
-  );
+  const backupIndex = path.join(root, `.src-index-recovery-${crypto.randomUUID()}`);
   const payload = path.join(safeSnapshotPath(root, manifest.id), "payload");
   fs.mkdirSync(temporaryIndex, { recursive: true });
   try {
@@ -367,11 +328,7 @@ function restoreSnapshot(root: string, manifest: SnapshotManifest): void {
   }
 }
 
-function performCleanup(
-  root: string,
-  maxSnapshots: number,
-  maxTotalBytes: number,
-): string[] {
+function performCleanup(root: string, maxSnapshots: number, maxTotalBytes: number): string[] {
   const entries = listSnapshots(root);
   const deleted: string[] = [];
   let kept = 0;
@@ -381,8 +338,7 @@ function performCleanup(
       continue;
     }
     const exceedsCount = kept >= maxSnapshots;
-    const exceedsBytes =
-      total + entry.manifest.total_bytes > maxTotalBytes && kept > 0;
+    const exceedsBytes = total + entry.manifest.total_bytes > maxTotalBytes && kept > 0;
     if (exceedsCount || exceedsBytes) {
       fs.rmSync(safeSnapshotPath(root, entry.id), {
         recursive: true,
@@ -397,9 +353,7 @@ function performCleanup(
   return deleted;
 }
 
-export async function execute(
-  rawInput: IndexSnapshotsInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: IndexSnapshotsInput): Promise<FeatureResult> {
   const input = indexSnapshotsSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
@@ -430,19 +384,12 @@ export async function execute(
         snapshotIdValue = manifest.id;
         restored = true;
       } else if (input.operation === "cleanup") {
-        deletedSnapshots = performCleanup(
-          root,
-          input.max_snapshots,
-          input.max_total_bytes,
-        );
+        deletedSnapshots = performCleanup(root, input.max_snapshots, input.max_total_bytes);
       }
     } catch (error) {
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Index snapshot operation failed",
+        error: error instanceof Error ? error.message : "Index snapshot operation failed",
       };
     }
 
@@ -452,20 +399,13 @@ export async function execute(
       index_directory: INDEX_DIRECTORY,
       snapshot_directory: SNAPSHOT_DIRECTORY,
       operation: input.operation,
-      ...(snapshotIdValue === undefined
-        ? {}
-        : { snapshot_id: snapshotIdValue }),
-      ...(backupSnapshotId === undefined
-        ? {}
-        : { backup_snapshot_id: backupSnapshotId }),
+      ...(snapshotIdValue === undefined ? {} : { snapshot_id: snapshotIdValue }),
+      ...(backupSnapshotId === undefined ? {} : { backup_snapshot_id: backupSnapshotId }),
       restored,
       deleted_snapshots: deletedSnapshots,
       snapshots: summaries.summaries,
       total_snapshot_bytes: summaries.totalBytes,
-      quota_bytes:
-        input.operation === "cleanup"
-          ? input.max_total_bytes
-          : input.max_snapshot_bytes,
+      quota_bytes: input.operation === "cleanup" ? input.max_total_bytes : input.max_snapshot_bytes,
       truncated: summaries.truncated,
       source_is_untrusted: true as const,
       secrets_redacted: true as const,

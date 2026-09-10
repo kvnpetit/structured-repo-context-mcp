@@ -166,15 +166,9 @@ describe("task manager", () => {
       toolNames: ["test_tool"],
       recoverUnfinished: false,
     });
-    expect(manager.updateTask(persistedTask.taskId, { unexpected: true })).toBe(
-      true,
-    );
-    expect(manager.getTask(persistedTask.taskId)?.status).toBe(
-      "input_required",
-    );
-    expect(manager.updateTask(persistedTask.taskId, { approval: true })).toBe(
-      true,
-    );
+    expect(manager.updateTask(persistedTask.taskId, { unexpected: true })).toBe(true);
+    expect(manager.getTask(persistedTask.taskId)?.status).toBe("input_required");
+    expect(manager.updateTask(persistedTask.taskId, { approval: true })).toBe(true);
     expect(manager.getTask(persistedTask.taskId)?.status).toBe("working");
     expect(manager.updateTask("missing", {})).toBe(false);
 

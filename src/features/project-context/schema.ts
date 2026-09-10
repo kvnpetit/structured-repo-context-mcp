@@ -42,9 +42,7 @@ const projectContextDataSchema = z
     directory: z.string(),
     project_name: z.string().optional(),
     project_kind: z.enum(["application", "library", "workspace", "unknown"]),
-    languages: z
-      .object({ language: z.string(), files: z.number(), bytes: z.number() })
-      .array(),
+    languages: z.object({ language: z.string(), files: z.number(), bytes: z.number() }).array(),
     frameworks: z
       .object({
         name: z.string(),
@@ -63,9 +61,7 @@ const projectContextDataSchema = z
         workspaces: z.string().array().optional(),
       })
       .array(),
-    scripts: z
-      .object({ name: z.string(), command: z.string(), source: z.string() })
-      .array(),
+    scripts: z.object({ name: z.string(), command: z.string(), source: z.string() }).array(),
     workspaces: z.string().array(),
     entrypoints: z.string().array(),
     test_roots: z.string().array(),
@@ -83,6 +79,4 @@ const projectContextDataSchema = z
   })
   .strict();
 
-export const projectContextOutputSchema = createFeatureResultSchema(
-  projectContextDataSchema,
-);
+export const projectContextOutputSchema = createFeatureResultSchema(projectContextDataSchema);

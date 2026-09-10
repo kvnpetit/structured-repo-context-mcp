@@ -3,7 +3,6 @@ import { ENV } from "@config";
 import { logger } from "@utils/logger";
 
 describe("Logger", () => {
-  /* eslint-disable no-console */
   const originalConsole = {
     log: console.log,
     warn: console.warn,
@@ -48,7 +47,6 @@ describe("Logger", () => {
     // The function runs but doesn't output
     expect(console.error).not.toHaveBeenCalled();
   });
-  /* eslint-enable no-console */
 
   test("logger has all required methods", () => {
     expect(typeof logger.info).toBe("function");
@@ -78,9 +76,7 @@ describe("Logger with debug level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "debug";
 
-    const consoleSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     logger.debug("Debug message");
 
@@ -96,9 +92,7 @@ describe("Logger with invalid log level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "invalid_level";
 
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     // Info should still log (default fallback is info level)
     logger.info("Test info message");
@@ -117,12 +111,8 @@ describe("Logger with invalid log level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "error";
 
-    const consoleWarnSpy = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     // Info should NOT log (info < error) - info uses console.error now
     logger.info("Test info");
@@ -146,12 +136,8 @@ describe("Logger with invalid log level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "warn";
 
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    const consoleWarnSpy = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     // Info should NOT log (info < warn) - info uses console.error now
     logger.info("Test info");
@@ -170,9 +156,7 @@ describe("Logger with invalid log level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "invalid_level";
 
-    const consoleWarnSpy = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     logger.warn("Test warning");
     expect(consoleWarnSpy).toHaveBeenCalled();
@@ -185,9 +169,7 @@ describe("Logger with invalid log level", () => {
     const originalLogLevel = ENV.logLevel;
     (ENV as { logLevel: string }).logLevel = "invalid_level";
 
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     logger.error("Test error");
     expect(consoleErrorSpy).toHaveBeenCalled();

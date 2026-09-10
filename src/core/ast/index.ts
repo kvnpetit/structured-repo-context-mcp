@@ -13,20 +13,13 @@ export type * from "./types";
 /**
  * Traversal callback function type
  */
-export type TraversalCallback = (
-  node: ASTNode,
-  depth: number,
-) => boolean | undefined;
+export type TraversalCallback = (node: ASTNode, depth: number) => boolean | undefined;
 
 /**
  * Traverse AST tree in depth-first order
  * Return false from callback to stop traversal
  */
-export function traverseAST(
-  node: ASTNode,
-  callback: TraversalCallback,
-  depth = 0,
-): boolean {
+export function traverseAST(node: ASTNode, callback: TraversalCallback, depth = 0): boolean {
   const result = callback(node, depth);
   if (result === false) {
     return false;
@@ -47,10 +40,7 @@ export function traverseAST(
 /**
  * Find all nodes matching a predicate
  */
-export function findNodes(
-  root: ASTNode,
-  predicate: (node: ASTNode) => boolean,
-): ASTNode[] {
+export function findNodes(root: ASTNode, predicate: (node: ASTNode) => boolean): ASTNode[] {
   const matches: ASTNode[] = [];
 
   traverseAST(root, (node) => {
@@ -115,8 +105,7 @@ export function findNodeAtPosition(
     const endCol = node.end.column;
 
     // Check if position is within node range
-    const afterStart =
-      line > startLine || (line === startLine && column >= startCol);
+    const afterStart = line > startLine || (line === startLine && column >= startCol);
     const beforeEnd = line < endLine || (line === endLine && column <= endCol);
 
     if (afterStart && beforeEnd) {
@@ -131,10 +120,7 @@ export function findNodeAtPosition(
 /**
  * Get the path from root to a node
  */
-export function getNodePath(
-  root: ASTNode,
-  target: ASTNode,
-): ASTNode[] | undefined {
+export function getNodePath(root: ASTNode, target: ASTNode): ASTNode[] | undefined {
   const path: ASTNode[] = [];
 
   function search(node: ASTNode): boolean {
@@ -174,11 +160,7 @@ export function getAncestorTypes(root: ASTNode, target: ASTNode): string[] {
 /**
  * Extract text from a position range
  */
-export function extractText(
-  source: string,
-  start: Position,
-  end: Position,
-): string {
+export function extractText(source: string, start: Position, end: Position): string {
   return source.slice(start.offset, end.offset);
 }
 
@@ -213,10 +195,7 @@ function boundedText(
   text: string,
   maxTextBytes: number | undefined,
 ): { text: string; truncated: boolean } {
-  if (
-    maxTextBytes === undefined ||
-    Buffer.byteLength(text, "utf8") <= maxTextBytes
-  ) {
+  if (maxTextBytes === undefined || Buffer.byteLength(text, "utf8") <= maxTextBytes) {
     return { text, truncated: false };
   }
 
@@ -236,10 +215,7 @@ function boundedText(
 /**
  * Extract a filtered/limited AST from a Tree-sitter tree
  */
-export function extractAST(
-  rootNode: Node,
-  options: ExtractOptions = {},
-): ASTNode {
+export function extractAST(rootNode: Node, options: ExtractOptions = {}): ASTNode {
   const {
     maxDepth,
     namedOnly = true,
@@ -313,13 +289,12 @@ export function serializeAST(node: ASTNode, indent = 0): string {
   if (node.children && node.children.length > 0) {
     result += "\n";
     for (const child of node.children) {
-      result += serializeAST(child, indent + 1) + "\n";
+      result += `${serializeAST(child, indent + 1)}\n`;
     }
     result += `${prefix})`;
   } else {
     // Leaf node - show text excerpt
-    const text =
-      node.text.length > 30 ? node.text.slice(0, 30) + "..." : node.text;
+    const text = node.text.length > 30 ? `${node.text.slice(0, 30)}...` : node.text;
     const escaped = text.replace(/\n/g, "\\n").replace(/"/g, '\\"');
     result += ` "${escaped}")`;
   }

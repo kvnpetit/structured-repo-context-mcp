@@ -49,9 +49,12 @@ describe("evaluation of actual engine rankings", () => {
   });
 
   test("handles empty results and rejects invalid cutoffs", () => {
-    expect(
-      evaluateRankedRetrieval([{ relevant: ["missing"], retrieved: [] }], 5),
-    ).toMatchObject({ precisionAtK: 0, recallAtK: 0, mrr: 0, ndcgAtK: 0 });
+    expect(evaluateRankedRetrieval([{ relevant: ["missing"], retrieved: [] }], 5)).toMatchObject({
+      precisionAtK: 0,
+      recallAtK: 0,
+      mrr: 0,
+      ndcgAtK: 0,
+    });
     expect(evaluateRankedRetrieval([], 5).queries).toBe(0);
     expect(() => evaluateRankedRetrieval([], 0)).toThrow("positive integer");
     expect(() => evaluateRankedRetrieval([], 1.5)).toThrow("positive integer");

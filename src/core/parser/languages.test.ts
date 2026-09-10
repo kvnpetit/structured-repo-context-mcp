@@ -137,14 +137,7 @@ describe("Language Configuration", () => {
     test("includes Tree-sitter and fallback extension classes", () => {
       const extensions = getIndexableExtensions();
       expect(extensions).toEqual(
-        expect.arrayContaining([
-          ".html",
-          ".ml",
-          ".json",
-          ".yaml",
-          ".sql",
-          ".md",
-        ]),
+        expect.arrayContaining([".html", ".ml", ".json", ".yaml", ".sql", ".md"]),
       );
       expect(extensions).not.toContain(".png");
       expect(extensions).not.toContain(".wasm");

@@ -56,9 +56,7 @@ describe("OllamaClient", () => {
       mockEmbed.mockResolvedValueOnce({ embeddings: [] });
 
       const client = new OllamaClient(mockConfig);
-      await expect(client.embed("test")).rejects.toThrow(
-        "No embedding returned from Ollama",
-      );
+      await expect(client.embed("test")).rejects.toThrow("No embedding returned from Ollama");
     });
   });
 
@@ -185,9 +183,7 @@ describe("LexicalEmbeddingClient", () => {
     expect(first).toEqual(second);
     expect(first).toHaveLength(8);
     expect(first.every(Number.isFinite)).toBe(true);
-    expect(
-      Math.sqrt(first.reduce((sum, value) => sum + value * value, 0)),
-    ).toBeCloseTo(1);
+    expect(Math.sqrt(first.reduce((sum, value) => sum + value * value, 0))).toBeCloseTo(1);
     expect(await client.embedBatch(["a", "b"])).toHaveLength(2);
     expect(await client.healthCheck()).toEqual({ ok: true });
   });

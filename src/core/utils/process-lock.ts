@@ -59,9 +59,7 @@ function isStale(lockPath: string, staleMs: number): boolean {
     if (!stats.isFile() || stats.size > MAX_PROCESS_LOCK_BYTES) {
       return true;
     }
-    const record = JSON.parse(
-      fs.readFileSync(lockPath, "utf8"),
-    ) as Partial<ProcessLockRecord>;
+    const record = JSON.parse(fs.readFileSync(lockPath, "utf8")) as Partial<ProcessLockRecord>;
     if (typeof record.pid === "number" && isProcessAlive(record.pid)) {
       return age >= staleMs * 10;
     }
@@ -132,9 +130,7 @@ function release(lockPath: string, token: string): void {
     if (!stats.isFile() || stats.size > MAX_PROCESS_LOCK_BYTES) {
       return;
     }
-    const record = JSON.parse(
-      fs.readFileSync(lockPath, "utf8"),
-    ) as Partial<ProcessLockRecord>;
+    const record = JSON.parse(fs.readFileSync(lockPath, "utf8")) as Partial<ProcessLockRecord>;
     if (record.token !== token) {
       return;
     }
@@ -151,16 +147,8 @@ export async function withProcessFileLock<T>(
   options: ProcessLockOptions = {},
 ): Promise<T> {
   const normalizedOptions: Required<ProcessLockOptions> = {
-    timeoutMs: boundedPositiveInteger(
-      options.timeoutMs,
-      DEFAULT_TIMEOUT_MS,
-      MAX_TIMEOUT_MS,
-    ),
-    staleMs: boundedPositiveInteger(
-      options.staleMs,
-      DEFAULT_STALE_MS,
-      MAX_STALE_MS,
-    ),
+    timeoutMs: boundedPositiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
+    staleMs: boundedPositiveInteger(options.staleMs, DEFAULT_STALE_MS, MAX_STALE_MS),
   };
   const token = await acquireAsync(lockPath, normalizedOptions);
   try {

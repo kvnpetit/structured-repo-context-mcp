@@ -5,9 +5,7 @@ import { truncateUtf8, truncateUtf8WithStatus } from "@core/utils/utf8";
 describe("UTF-8 truncation", () => {
   test("preserves complete code points within the byte budget", () => {
     expect(truncateUtf8("ab😀cd", 6)).toBe("ab😀");
-    expect(
-      Buffer.byteLength(truncateUtf8("ab😀cd", 5), "utf8"),
-    ).toBeLessThanOrEqual(5);
+    expect(Buffer.byteLength(truncateUtf8("ab😀cd", 5), "utf8")).toBeLessThanOrEqual(5);
     expect(truncateUtf8("ab😀cd", 5)).toBe("ab");
   });
 

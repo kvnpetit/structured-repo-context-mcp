@@ -11,8 +11,7 @@ export interface PaginationCursor {
   offset: number;
 }
 
-export type PaginationCursorResult =
-  { ok: true; offset: number } | { ok: false; error: string };
+export type PaginationCursorResult = { ok: true; offset: number } | { ok: false; error: string };
 
 function stableValue(value: unknown): string {
   if (value === null || typeof value !== "object") {
@@ -30,10 +29,7 @@ function stableValue(value: unknown): string {
 
 /** Build a compact, opaque scope hash for a bounded query. */
 export function createPaginationScope(value: unknown): string {
-  return crypto
-    .createHash("sha256")
-    .update(stableValue(value), "utf8")
-    .digest("hex");
+  return crypto.createHash("sha256").update(stableValue(value), "utf8").digest("hex");
 }
 
 function encodeBase64Url(value: string): string {

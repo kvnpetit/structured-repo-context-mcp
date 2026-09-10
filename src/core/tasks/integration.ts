@@ -31,9 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function requestMeta(
-  request: JSONRPCRequest,
-): Record<string, unknown> | undefined {
+function requestMeta(request: JSONRPCRequest): Record<string, unknown> | undefined {
   const params = request.params;
   if (!isRecord(params) || !isRecord(params._meta)) {
     return undefined;
@@ -53,9 +51,7 @@ function isModernRequest(request: JSONRPCRequest): boolean {
 function hasTaskCapability(request: JSONRPCRequest): boolean {
   const meta = requestMeta(request);
   const capabilities = meta?.[CLIENT_CAPABILITIES_META_KEY];
-  const extensions = isRecord(capabilities)
-    ? capabilities.extensions
-    : undefined;
+  const extensions = isRecord(capabilities) ? capabilities.extensions : undefined;
   return isRecord(extensions) && Object.hasOwn(extensions, TASKS_EXTENSION_ID);
 }
 
@@ -77,16 +73,12 @@ function decodeHeaderValue(value: string): string | undefined {
   if (
     encoded.length === 0 ||
     encoded.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
-      encoded,
-    )
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded)
   ) {
     return undefined;
   }
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(
-      Buffer.from(encoded, "base64"),
-    );
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(encoded, "base64"));
   } catch {
     return undefined;
   }
@@ -186,9 +178,7 @@ export function installTaskExtension(
   lowLevel.registerCapabilities({
     extensions: { [TASKS_EXTENSION_ID]: {} },
   });
-  const featureMap = new Map(
-    features.map((feature) => [feature.name, feature]),
-  );
+  const featureMap = new Map(features.map((feature) => [feature.name, feature]));
 
   lowLevel._onrequest = function patchedOnRequest(request, extra): void {
     if (!isModernRequest(request)) {
@@ -204,12 +194,7 @@ export function installTaskExtension(
       try {
         handleTaskMethod(lowLevel, manager, request, extra);
       } catch {
-        sendError(
-          lowLevel,
-          request,
-          INTERNAL_ERROR,
-          "Task store is unavailable",
-        );
+        sendError(lowLevel, request, INTERNAL_ERROR, "Task store is unavailable");
       }
       return;
     }
@@ -285,12 +270,7 @@ function handleTaskMethod(
 
   const inputResponses = params.inputResponses;
   if (!isRecord(inputResponses)) {
-    sendError(
-      server,
-      request,
-      INVALID_PARAMS,
-      "inputResponses must be an object",
-    );
+    sendError(server, request, INVALID_PARAMS, "inputResponses must be an object");
     return;
   }
   if (!manager.updateTask(taskId, inputResponses)) {
@@ -327,12 +307,7 @@ function handleTaskToolCall(
     } as unknown as JSONRPCMessage);
   } catch (error) {
     if (!(error instanceof z.ZodError)) {
-      sendError(
-        server,
-        request,
-        INTERNAL_ERROR,
-        "Task execution is not available",
-      );
+      sendError(server, request, INTERNAL_ERROR, "Task execution is not available");
       return;
     }
     sendError(server, request, INVALID_PARAMS, "Invalid tool arguments");

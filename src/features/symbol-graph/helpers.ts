@@ -45,10 +45,7 @@ export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-export function stringIndexAtByteOffset(
-  content: string,
-  byteOffset: number,
-): number {
+export function stringIndexAtByteOffset(content: string, byteOffset: number): number {
   if (byteOffset <= 0) {
     return 0;
   }
@@ -167,18 +164,13 @@ export function fallbackSymbols(content: string): Symbol[] {
       seen.add(key);
       const start = positionAt(content, match.index);
       const end = positionAt(content, declarationEnd(content, match.index));
-      const declaration = content.slice(
-        match.index,
-        declarationEnd(content, match.index),
-      );
+      const declaration = content.slice(match.index, declarationEnd(content, match.index));
       symbols.push({
         name,
         type: entry.type,
         start,
         end,
-        ...(entry.type === "function"
-          ? { signature: declaration.split("{")[0]?.trim() }
-          : {}),
+        ...(entry.type === "function" ? { signature: declaration.split("{")[0]?.trim() } : {}),
         ...(entry.type === "class" && /\bexport\b/u.test(declaration)
           ? { modifiers: ["export"] }
           : {}),
@@ -186,18 +178,14 @@ export function fallbackSymbols(content: string): Symbol[] {
     }
   }
   return symbols.sort(
-    (left, right) =>
-      left.start.offset - right.start.offset ||
-      left.name.localeCompare(right.name),
+    (left, right) => left.start.offset - right.start.offset || left.name.localeCompare(right.name),
   );
 }
 
 export function mergeSymbols(primary: Symbol[], fallback: Symbol[]): Symbol[] {
   const merged = [...primary];
   const seen = new Set(
-    primary.map(
-      (symbol) => `${symbol.type}:${symbol.name}:${String(symbol.start.line)}`,
-    ),
+    primary.map((symbol) => `${symbol.type}:${symbol.name}:${String(symbol.start.line)}`),
   );
   for (const symbol of fallback) {
     const key = `${symbol.type}:${symbol.name}:${String(symbol.start.line)}`;
@@ -209,8 +197,7 @@ export function mergeSymbols(primary: Symbol[], fallback: Symbol[]): Symbol[] {
   return merged
     .sort(
       (left, right) =>
-        left.start.offset - right.start.offset ||
-        left.name.localeCompare(right.name),
+        left.start.offset - right.start.offset || left.name.localeCompare(right.name),
     )
     .slice(0, 2_000);
 }
@@ -260,11 +247,7 @@ export function resolveImport(
   let base: string | undefined;
   for (const [alias, target] of Object.entries(aliases)) {
     if (source === alias || source.startsWith(`${alias}/`)) {
-      base = path.resolve(
-        root,
-        target,
-        source.slice(alias.length).replace(/^[/\\]/u, ""),
-      );
+      base = path.resolve(root, target, source.slice(alias.length).replace(/^[/\\]/u, ""));
       break;
     }
   }
@@ -277,9 +260,7 @@ export function resolveImport(
   const candidates = [
     base,
     ...sourceExtensions.map((extension) => `${base}${extension}`),
-    ...sourceExtensions.map((extension) =>
-      path.join(base, `index${extension}`),
-    ),
+    ...sourceExtensions.map((extension) => path.join(base, `index${extension}`)),
   ];
   for (const candidate of candidates) {
     const secure = resolveSecureFile(candidate, root);
@@ -333,20 +314,12 @@ export function findSymbol(
     )[0];
 }
 
-export function containingSymbol(
-  file: ParsedFile,
-  byteOffset: number,
-): Symbol | undefined {
+export function containingSymbol(file: ParsedFile, byteOffset: number): Symbol | undefined {
   return file.symbols
-    .filter(
-      (symbol) =>
-        byteOffset >= symbol.start.offset && byteOffset <= symbol.end.offset,
-    )
+    .filter((symbol) => byteOffset >= symbol.start.offset && byteOffset <= symbol.end.offset)
     .sort(
       (left, right) =>
-        left.end.offset -
-          left.start.offset -
-          (right.end.offset - right.start.offset) ||
+        left.end.offset - left.start.offset - (right.end.offset - right.start.offset) ||
         left.start.offset - right.start.offset,
     )[0];
 }
@@ -355,16 +328,11 @@ function nodeMatchesQuery(node: GraphNode, query: string): boolean {
   const normalizedQuery = normalizePath(query).toLowerCase();
   return [node.id, node.name, node.path].some((value) => {
     const normalized = normalizePath(value).toLowerCase();
-    return (
-      normalized === normalizedQuery || normalized.endsWith(normalizedQuery)
-    );
+    return normalized === normalizedQuery || normalized.endsWith(normalizedQuery);
   });
 }
 
-export function findMatchingNodeIds(
-  nodes: readonly GraphNode[],
-  query: string,
-): string[] {
+export function findMatchingNodeIds(nodes: readonly GraphNode[], query: string): string[] {
   const exact = nodes.filter((node) => nodeMatchesQuery(node, query));
   if (exact.length > 0) {
     return exact.map((node) => node.id);
@@ -426,14 +394,10 @@ export function walkPath(
         ? (adjacency.get(current.node) ?? [])
         : direction === "reverse"
           ? (reverse.get(current.node) ?? [])
-          : [
-              ...(adjacency.get(current.node) ?? []),
-              ...(reverse.get(current.node) ?? []),
-            ];
+          : [...(adjacency.get(current.node) ?? []), ...(reverse.get(current.node) ?? [])];
     for (const edge of outgoing) {
       const next =
-        direction === "reverse" ||
-        (direction === "both" && edge.to === current.node)
+        direction === "reverse" || (direction === "both" && edge.to === current.node)
           ? edge.from
           : edge.to;
       if (visited.has(next)) {

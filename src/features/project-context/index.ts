@@ -3,11 +3,7 @@ import * as path from "node:path";
 
 import { collectFiles, createIgnoreFilter } from "@core/files";
 import { getConfiguredLanguageFromPath } from "@core/parser/languages";
-import {
-  redactSourceText,
-  readSecureTextFile,
-  resolveSecureDirectory,
-} from "@core/security";
+import { redactSourceText, readSecureTextFile, resolveSecureDirectory } from "@core/security";
 import { readPathAliasesCached } from "@core/utils";
 import type { Feature, FeatureResult } from "@features/types";
 import {
@@ -37,12 +33,7 @@ import {
   projectContextSchema,
   type ProjectContextInput,
 } from "./schema";
-import type {
-  DiscoveredFile,
-  FrameworkInfo,
-  ManifestInfo,
-  ProjectContextOutput,
-} from "./types";
+import type { DiscoveredFile, FrameworkInfo, ManifestInfo, ProjectContextOutput } from "./types";
 
 export {
   projectContextOutputSchema,
@@ -62,25 +53,21 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
   const allSourceFiles = collectFiles(root, ignore, root).sort((left, right) =>
     left.localeCompare(right),
   );
-  const sourceFiles = allSourceFiles
-    .slice(0, input.max_files)
-    .map((absolutePath) => {
-      let sizeBytes = 0;
-      try {
-        sizeBytes = fs.statSync(absolutePath).size;
-      } catch {
-        // The read phase below will report a missing file if necessary.
-      }
-      return {
-        absolutePath,
-        relativePath: relativePath(root, absolutePath),
-        sizeBytes,
-      } satisfies DiscoveredFile;
-    });
+  const sourceFiles = allSourceFiles.slice(0, input.max_files).map((absolutePath) => {
+    let sizeBytes = 0;
+    try {
+      sizeBytes = fs.statSync(absolutePath).size;
+    } catch {
+      // The read phase below will report a missing file if necessary.
+    }
+    return {
+      absolutePath,
+      relativePath: relativePath(root, absolutePath),
+      sizeBytes,
+    } satisfies DiscoveredFile;
+  });
   const metadata = discoverMetadataFiles(root, input.max_manifests);
-  const knownMetadataPaths = new Set(
-    metadata.files.map((file) => file.relativePath),
-  );
+  const knownMetadataPaths = new Set(metadata.files.map((file) => file.relativePath));
   const errors: string[] = [];
   const manifestContents = new Map<string, string>();
   const manifests: ManifestInfo[] = [];
@@ -118,7 +105,9 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
         );
         const packageWorkspaces = collectWorkspacePatterns(parsed);
         manifest.workspaces = packageWorkspaces;
-        packageWorkspaces.forEach((workspace) => workspaces.add(workspace));
+        packageWorkspaces.forEach((workspace) => {
+          workspaces.add(workspace);
+        });
         if (
           input.include_scripts &&
           typeof parsed.scripts === "object" &&
@@ -151,9 +140,7 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
       manifest.project_name = extractTomlName(readResult.content, "package");
       detectTextFrameworks(frameworks, readResult.content, file.relativePath);
     } else if (basename === "go.mod") {
-      manifest.project_name = /^\s*module\s+(\S+)/mu.exec(
-        readResult.content,
-      )?.[1];
+      manifest.project_name = /^\s*module\s+(\S+)/mu.exec(readResult.content)?.[1];
       detectTextFrameworks(frameworks, readResult.content, file.relativePath);
     } else {
       detectTextFrameworks(frameworks, readResult.content, file.relativePath);
@@ -163,17 +150,14 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
 
   const languageCounts = new Map<string, { files: number; bytes: number }>();
   for (const file of sourceFiles) {
-    const language =
-      getConfiguredLanguageFromPath(file.absolutePath) ?? "unknown";
+    const language = getConfiguredLanguageFromPath(file.absolutePath) ?? "unknown";
     const current = languageCounts.get(language) ?? { files: 0, bytes: 0 };
     current.files += 1;
     current.bytes += file.sizeBytes;
     languageCounts.set(language, current);
   }
 
-  const knownSourcePaths = new Set(
-    sourceFiles.map((file) => file.relativePath),
-  );
+  const knownSourcePaths = new Set(sourceFiles.map((file) => file.relativePath));
   const entrypoints = new Set<string>();
   const testRoots = new Set<string>();
   const testFiles = new Set<string>();
@@ -201,20 +185,14 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
   }
   for (const manifest of manifests) {
     const content = manifestContents.get(manifest.path);
-    if (
-      content === undefined ||
-      path.basename(manifest.path).toLowerCase() !== "package.json"
-    ) {
+    if (content === undefined || path.basename(manifest.path).toLowerCase() !== "package.json") {
       continue;
     }
     const parsed = parseJsonObject(content);
     if (parsed === undefined) {
       continue;
     }
-    for (const candidate of [
-      stringValue(parsed.main),
-      stringValue(parsed.module),
-    ]) {
+    for (const candidate of [stringValue(parsed.main), stringValue(parsed.module)]) {
       addExistingPath(entrypoints, root, candidate, knownSourcePaths);
     }
     const bin = parsed.bin;
@@ -222,12 +200,7 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
       addExistingPath(entrypoints, root, bin, knownSourcePaths);
     } else if (typeof bin === "object" && bin !== null) {
       Object.values(bin).forEach((value) => {
-        addExistingPath(
-          entrypoints,
-          root,
-          stringValue(value),
-          knownSourcePaths,
-        );
+        addExistingPath(entrypoints, root, stringValue(value), knownSourcePaths);
       });
     }
   }
@@ -241,17 +214,12 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
     .map((file) => file.relativePath)
     .slice(0, MAX_RETURNED_PATHS);
   const documentationFiles = metadata.files
-    .filter((file) =>
-      DOCUMENTATION_EXTENSIONS.has(
-        path.extname(file.relativePath).toLowerCase(),
-      ),
-    )
+    .filter((file) => DOCUMENTATION_EXTENSIONS.has(path.extname(file.relativePath).toLowerCase()))
     .map((file) => file.relativePath)
     .slice(0, MAX_RETURNED_PATHS);
   const projectName = getProjectName(root, manifests, manifestContents);
   const hasWorkspaceSignals =
-    workspaces.size > 0 ||
-    manifests.some((manifest) => manifest.kind.includes("workspace"));
+    workspaces.size > 0 || manifests.some((manifest) => manifest.kind.includes("workspace"));
   const hasApplicationSignals =
     entrypoints.size > 0 ||
     frameworks.has("Next.js") ||
@@ -272,18 +240,13 @@ export function execute(rawInput: ProjectContextInput): FeatureResult {
     languages: [...languageCounts.entries()]
       .map(([language, counts]) => ({ language, ...counts }))
       .sort(
-        (left, right) =>
-          right.files - left.files ||
-          left.language.localeCompare(right.language),
+        (left, right) => right.files - left.files || left.language.localeCompare(right.language),
       ),
     frameworks: [...frameworks.values()].sort(
       (left, right) =>
-        left.category.localeCompare(right.category) ||
-        left.name.localeCompare(right.name),
+        left.category.localeCompare(right.category) || left.name.localeCompare(right.name),
     ),
-    manifests: manifests.sort((left, right) =>
-      left.path.localeCompare(right.path),
-    ),
+    manifests: manifests.sort((left, right) => left.path.localeCompare(right.path)),
     scripts: scripts.sort((left, right) => left.name.localeCompare(right.name)),
     workspaces: [...workspaces].sort().slice(0, MAX_RETURNED_PATHS),
     entrypoints: [...entrypoints].sort().slice(0, MAX_RETURNED_PATHS),

@@ -116,17 +116,13 @@ export function getLanguages(): Record<string, LanguageConfig> {
 }
 
 /** Get language configuration from file extension */
-export function getLanguageFromExtension(
-  extension: string,
-): LanguageConfig | undefined {
+export function getLanguageFromExtension(extension: string): LanguageConfig | undefined {
   const ext = extension.startsWith(".") ? extension : `.${extension}`;
   return buildExtensionMap()[ext.toLowerCase()];
 }
 
 /** Get language configuration from file path */
-export function getLanguageFromPath(
-  filePath: string,
-): LanguageConfig | undefined {
+export function getLanguageFromPath(filePath: string): LanguageConfig | undefined {
   const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
   return buildExtensionMap()[ext];
 }
@@ -143,9 +139,7 @@ export function getLanguageByName(name: string): LanguageConfig | undefined {
  * grammars. The shipped asset name, byte length, and SHA-256 digest are the
  * reproducible revision that actually ran.
  */
-export function getGrammarMetadata(
-  language: string,
-): GrammarMetadata | undefined {
+export function getGrammarMetadata(language: string): GrammarMetadata | undefined {
   const config = getLanguageByName(language);
   if (config === undefined) {
     return undefined;
@@ -199,9 +193,7 @@ function getConfiguredLanguageMap(): Record<string, string> {
   for (const [extension, config] of Object.entries(buildExtensionMap())) {
     configuredLanguageMapCache[extension.toLowerCase()] = config.name;
   }
-  for (const [extension, language] of Object.entries(
-    loadConfig().fallbackExtensions,
-  )) {
+  for (const [extension, language] of Object.entries(loadConfig().fallbackExtensions)) {
     configuredLanguageMapCache[extension.toLowerCase()] = language;
   }
   return configuredLanguageMapCache;
@@ -242,9 +234,7 @@ export function getIndexableSpecialFilenames(): string[] {
 }
 
 /** Resolve the configured Tree-sitter, fallback, or special-file language. */
-export function getConfiguredLanguageFromPath(
-  filePath: string,
-): string | undefined {
+export function getConfiguredLanguageFromPath(filePath: string): string | undefined {
   const filename = basename(filePath).toLowerCase();
   const specialLanguage = getSpecialFilenameMap()[filename];
   if (specialLanguage !== undefined) {
@@ -264,8 +254,7 @@ export function getConfiguredLanguageFromPath(
 export function isIndexableFile(filePath: string): boolean {
   const extension = extname(filePath).toLowerCase();
   return (
-    !getBinaryExtensions().has(extension) &&
-    getConfiguredLanguageFromPath(filePath) !== undefined
+    !getBinaryExtensions().has(extension) && getConfiguredLanguageFromPath(filePath) !== undefined
   );
 }
 

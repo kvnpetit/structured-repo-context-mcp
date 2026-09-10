@@ -30,15 +30,10 @@ describe("Diagnostics feature", () => {
   });
 
   test("reports provider, security, task and metric configuration", async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-diagnostics-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-diagnostics-"));
     directories.push(directory);
     EMBEDDING_CONFIG.embeddingProvider = "lexical";
-    vi.stubEnv(
-      "SRC_ALLOWED_ROOTS",
-      `${directory};${path.join(directory, "missing-root")}`,
-    );
+    vi.stubEnv("SRC_ALLOWED_ROOTS", `${directory};${path.join(directory, "missing-root")}`);
     vi.stubEnv("MCP_TASKS", "off");
     vi.stubEnv("MCP_TASK_TTL_MS", "none");
     vi.stubEnv("MCP_TASK_TOOLS", "index_codebase,update_index");

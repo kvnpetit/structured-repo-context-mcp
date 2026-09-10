@@ -71,9 +71,7 @@ describe("adversarial property checks", () => {
         ok: true,
         offset,
       });
-      expect(decodePaginationCursor(cursor, `${scope.slice(0, -1)}0`).ok).toBe(
-        false,
-      );
+      expect(decodePaginationCursor(cursor, `${scope.slice(0, -1)}0`).ok).toBe(false);
     }
   });
 

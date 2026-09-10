@@ -206,8 +206,9 @@ describe("Zod to Citty Parser", () => {
     expect(args.operation?.required).toBe(true);
     expect(args.id?.required).toBe(false);
     expect(args.limit?.default).toBe("10");
-    expect(normalizeCliArgs(schema, { operation: "list", limit: "5" })).toEqual(
-      { operation: "list", limit: 5 },
-    );
+    expect(normalizeCliArgs(schema, { operation: "list", limit: "5" })).toEqual({
+      operation: "list",
+      limit: 5,
+    });
   });
 });

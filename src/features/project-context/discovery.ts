@@ -27,12 +27,7 @@ const SKIPPED_DIRECTORIES = new Set([
   "obj",
 ]);
 
-const ALLOWED_HIDDEN_DIRECTORIES = new Set([
-  ".devcontainer",
-  ".github",
-  ".vscode",
-  ".husky",
-]);
+const ALLOWED_HIDDEN_DIRECTORIES = new Set([".devcontainer", ".github", ".vscode", ".husky"]);
 
 export const MANIFEST_KINDS = new Map<string, string>([
   ["package.json", "javascript-package"],
@@ -85,12 +80,7 @@ export const MANIFEST_KINDS = new Map<string, string>([
 export const CONFIG_FILE_PATTERN =
   /^(?:\.?[^/]+\.(?:config|conf|ini|toml|yaml|yml|json|xml)|Dockerfile(?:\..*)?|Makefile)$/iu;
 
-export const DOCUMENTATION_EXTENSIONS = new Set([
-  ".md",
-  ".markdown",
-  ".rst",
-  ".txt",
-]);
+export const DOCUMENTATION_EXTENSIONS = new Set([".md", ".markdown", ".rst", ".txt"]);
 
 const FRAMEWORK_SIGNALS: Record<string, { name: string; category: string }> = {
   react: { name: "React", category: "ui" },
@@ -217,9 +207,7 @@ export function discoverMetadataFiles(
         if (
           current.depth < 8 &&
           shouldTraverseDirectory(entry.name) &&
-          !ignore.ignores(
-            relativePath(root, path.join(current.directory, entry.name)),
-          )
+          !ignore.ignores(relativePath(root, path.join(current.directory, entry.name)))
         ) {
           stack.push({
             directory: path.join(current.directory, entry.name),
@@ -233,11 +221,7 @@ export function discoverMetadataFiles(
       }
       const absolutePath = path.join(current.directory, entry.name);
       const relative = relativePath(root, absolutePath);
-      if (
-        !isMetadataFile(absolutePath) ||
-        ignore.ignores(relative) ||
-        files.length >= maxEntries
-      ) {
+      if (!isMetadataFile(absolutePath) || ignore.ignores(relative) || files.length >= maxEntries) {
         continue;
       }
       try {
@@ -254,18 +238,12 @@ export function discoverMetadataFiles(
   }
 
   return {
-    files: files.sort((left, right) =>
-      left.relativePath.localeCompare(right.relativePath),
-    ),
-    truncated:
-      files.length >= maxEntries ||
-      visitedEntries >= HARD_MAX_DISCOVERED_ENTRIES,
+    files: files.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    truncated: files.length >= maxEntries || visitedEntries >= HARD_MAX_DISCOVERED_ENTRIES,
   };
 }
 
-export function parseJsonObject(
-  content: string,
-): Record<string, unknown> | undefined {
+export function parseJsonObject(content: string): Record<string, unknown> | undefined {
   try {
     const parsed: unknown = JSON.parse(content);
     return typeof parsed === "object" && parsed !== null
@@ -277,9 +255,7 @@ export function parseJsonObject(
 }
 
 export function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0
-    ? value.trim()
-    : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function stringArray(value: unknown): string[] {
@@ -293,9 +269,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-export function packageDependencies(
-  manifest: Record<string, unknown>,
-): string[] {
+export function packageDependencies(manifest: Record<string, unknown>): string[] {
   const names = new Set<string>();
   for (const field of [
     "dependencies",
@@ -381,20 +355,13 @@ export function detectTextFrameworks(
 ): void {
   const lower = content.toLowerCase();
   for (const dependency of Object.keys(FRAMEWORK_SIGNALS)) {
-    if (
-      new RegExp(
-        `(?:^|[\\s"'/:])${escapeRegExp(dependency)}(?:$|[\\s"'/:])`,
-        "u",
-      ).test(lower)
-    ) {
+    if (new RegExp(`(?:^|[\\s"'/:])${escapeRegExp(dependency)}(?:$|[\\s"'/:])`, "u").test(lower)) {
       addFrameworkSignal(signals, dependency, relativePathValue);
     }
   }
 }
 
-export function collectWorkspacePatterns(
-  manifest: Record<string, unknown>,
-): string[] {
+export function collectWorkspacePatterns(manifest: Record<string, unknown>): string[] {
   const workspaces = manifest.workspaces;
   if (Array.isArray(workspaces)) {
     return stringArray(workspaces).slice(0, MAX_RETURNED_PATHS);
@@ -435,18 +402,12 @@ export function getProjectName(
   manifestContents: ReadonlyMap<string, string>,
 ): string | undefined {
   for (const manifest of manifests) {
-    if (
-      manifest.project_name !== undefined &&
-      path.dirname(manifest.path) === "."
-    ) {
+    if (manifest.project_name !== undefined && path.dirname(manifest.path) === ".") {
       return manifest.project_name;
     }
   }
   const goModule = manifestContents.get("go.mod");
-  const goName =
-    goModule === undefined
-      ? undefined
-      : /^\s*module\s+(\S+)/mu.exec(goModule)?.[1];
+  const goName = goModule === undefined ? undefined : /^\s*module\s+(\S+)/mu.exec(goModule)?.[1];
   return goName ?? path.basename(root);
 }
 
@@ -466,9 +427,7 @@ export function hashProfileInputs(
     } catch {
       // A best-effort fingerprint is still useful when a file vanishes.
     }
-    hash.update(
-      `${file.relativePath}\0${String(file.sizeBytes)}\0${String(mtimeMs)}\n`,
-    );
+    hash.update(`${file.relativePath}\0${String(file.sizeBytes)}\0${String(mtimeMs)}\n`);
   }
   return hash.digest("hex");
 }

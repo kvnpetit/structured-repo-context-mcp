@@ -22,11 +22,7 @@ import { getTaskRuntimeConfig, TASKS_EXTENSION_ID } from "@core/tasks";
 import { getMaxResultBytes } from "@config";
 
 export const diagnosticsSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Project directory to diagnose"),
+  directory: z.string().optional().default(".").describe("Project directory to diagnose"),
 });
 
 export type DiagnosticsInput = z.infer<typeof diagnosticsSchema>;
@@ -87,9 +83,7 @@ const diagnosticsDataSchema = z
       .strict(),
     index: z.union([
       indexStatusDataSchema,
-      z
-        .object({ available: z.literal(false), error: z.string().optional() })
-        .strict(),
+      z.object({ available: z.literal(false), error: z.string().optional() }).strict(),
     ]),
     security: z
       .object({
@@ -128,9 +122,7 @@ const diagnosticsDataSchema = z
   })
   .strict();
 
-export const diagnosticsOutputSchema = createFeatureResultSchema(
-  diagnosticsDataSchema,
-);
+export const diagnosticsOutputSchema = createFeatureResultSchema(diagnosticsDataSchema);
 
 export async function execute(input: DiagnosticsInput): Promise<FeatureResult> {
   const secureDirectory = resolveSecureDirectory(input.directory);
@@ -158,9 +150,7 @@ export async function execute(input: DiagnosticsInput): Promise<FeatureResult> {
       healthy: health.ok,
       ...(health.error === undefined ? {} : { error: health.error }),
     },
-    index: indexResult.success
-      ? indexResult.data
-      : { available: false, error: indexResult.error },
+    index: indexResult.success ? indexResult.data : { available: false, error: indexResult.error },
     security: {
       allowedRootsConfigured: hasConfiguredAllowedRoots(),
       configuredRootCount: configuredRoots.length,

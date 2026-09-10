@@ -21,8 +21,7 @@ export function findSignals(content: string): SignalMatch[] {
     },
     {
       kind: "route",
-      pattern:
-        /@(?:Get|Post|Put|Patch|Delete|Options|Head|All)\s*\(\s*["'`]([^"'`]+)["'`]/gu,
+      pattern: /@(?:Get|Post|Put|Patch|Delete|Options|Head|All)\s*\(\s*["'`]([^"'`]+)["'`]/gu,
       nameGroup: 1,
     },
     {

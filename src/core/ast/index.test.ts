@@ -57,9 +57,7 @@ describe("AST Traversal", () => {
     });
 
     // Should stop after first lexical_declaration
-    const lexDecCount = visited.filter(
-      (t) => t === "lexical_declaration",
-    ).length;
+    const lexDecCount = visited.filter((t) => t === "lexical_declaration").length;
     expect(lexDecCount).toBe(1);
   });
 
@@ -110,10 +108,7 @@ describe("AST Finding", () => {
     const result = await parseCode(code, { language: "javascript" });
     const root = getASTRoot(result);
 
-    const nodes = findNodesByTypes(root, [
-      "lexical_declaration",
-      "function_declaration",
-    ]);
+    const nodes = findNodesByTypes(root, ["lexical_declaration", "function_declaration"]);
     expect(nodes.length).toBe(2);
   });
 
@@ -166,7 +161,6 @@ describe("AST Path", () => {
     const identifier = findFirstNode(root, (n) => n.text === "x");
     expect(identifier).toBeDefined();
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated with expect().toBeDefined()
     const path = getNodePath(root, identifier!);
     expect(path).toBeDefined();
     expect(path?.[0]?.type).toBe("program");
@@ -181,7 +175,6 @@ describe("AST Path", () => {
     const identifier = findFirstNode(root, (n) => n.text === "x");
     expect(identifier).toBeDefined();
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated with expect().toBeDefined()
     const types = getAncestorTypes(root, identifier!);
     expect(types).toContain("program");
     expect(types).toContain("function_declaration");
@@ -243,9 +236,7 @@ describe("AST Extraction", () => {
     });
 
     // Should not have function_declaration at top level children
-    const hasFunction = filtered.children?.some(
-      (c) => c.type === "function_declaration",
-    );
+    const hasFunction = filtered.children?.some((c) => c.type === "function_declaration");
     expect(hasFunction).toBeFalsy();
   });
 
@@ -258,9 +249,7 @@ describe("AST Extraction", () => {
     });
 
     // Should not have function_declaration
-    const hasFunction = filtered.children?.some(
-      (c) => c.type === "function_declaration",
-    );
+    const hasFunction = filtered.children?.some((c) => c.type === "function_declaration");
     expect(hasFunction).toBeFalsy();
   });
 });

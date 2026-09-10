@@ -9,10 +9,7 @@ interface RunnableCommand {
   run?: (context: { args: Record<string, unknown> }) => unknown;
 }
 
-async function runCommand(
-  feature: Feature,
-  args: Record<string, unknown>,
-): Promise<void> {
+async function runCommand(feature: Feature, args: Record<string, unknown>): Promise<void> {
   const command = featureToCittyCommand(feature) as RunnableCommand;
   await command.run?.({ args });
 }
@@ -83,10 +80,7 @@ describe("CLI Adapter", () => {
 
     await runCommand(feature, { value: "test", count: "5", _: [] });
 
-    expect(execute).toHaveBeenCalledWith(
-      { value: "test", count: 5 },
-      undefined,
-    );
+    expect(execute).toHaveBeenCalledWith({ value: "test", count: 5 }, undefined);
     expect(console.log).toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
@@ -143,9 +137,7 @@ describe("CLI Adapter", () => {
     await runCommand(feature, { count: "not-a-number" });
 
     expect(execute).not.toHaveBeenCalled();
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining("Invalid arguments"),
-    );
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("Invalid arguments"));
     expect(process.exitCode).toBe(1);
   });
 
@@ -190,7 +182,6 @@ describe("CLI Adapter", () => {
       name: "string_failure",
       description: "String failure test",
       schema,
-      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       execute: async () => Promise.reject("String failure"),
     };
 
@@ -209,9 +200,7 @@ describe("CLI Adapter", () => {
       name: "invalid_output",
       description: "Invalid output test",
       schema,
-      outputSchema: createFeatureResultSchema(
-        z.object({ value: z.string() }).strict(),
-      ),
+      outputSchema: createFeatureResultSchema(z.object({ value: z.string() }).strict()),
       execute: () => ({ success: true, data: { value: 42 } }),
     };
 

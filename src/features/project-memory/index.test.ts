@@ -152,9 +152,7 @@ describe("project memory", () => {
     });
     expect(second.success).toBe(true);
     if (second.success) {
-      expect(
-        (second.data as { records: { id: string }[] }).records,
-      ).toHaveLength(1);
+      expect((second.data as { records: { id: string }[] }).records).toHaveLength(1);
     }
 
     const mismatch = await executeGetProjectMemory({
@@ -175,10 +173,7 @@ describe("project memory", () => {
       expect((missing.data as { state: string }).state).toBe("missing");
     }
     fs.mkdirSync(path.join(directory, ".src-index"));
-    fs.writeFileSync(
-      path.join(directory, ".src-index", "project-memory.json"),
-      "not-json",
-    );
+    fs.writeFileSync(path.join(directory, ".src-index", "project-memory.json"), "not-json");
     const corrupt = await executeGetProjectMemory({ directory });
     expect(corrupt.success).toBe(false);
     expect(corrupt.error).toContain("corrupt");

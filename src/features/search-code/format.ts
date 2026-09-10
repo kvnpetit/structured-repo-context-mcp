@@ -1,10 +1,6 @@
 import * as path from "node:path";
 
-import {
-  mergeInstructionSignals,
-  redactSourceText,
-  scanInstructionSignals,
-} from "@core/security";
+import { mergeInstructionSignals, redactSourceText, scanInstructionSignals } from "@core/security";
 import { truncateUtf8WithStatus } from "@core/utils/utf8";
 
 import type { FormattedSearchResults, SearchCandidate } from "./types";
@@ -38,15 +34,10 @@ export function splitContentParts(content: string): {
     .filter((index) => index >= 0)
     .sort((left, right) => left - right)[0];
   const signature =
-    opening === undefined
-      ? codeLines[0]?.trim()
-      : firstCode.slice(0, opening).trim();
-  const body =
-    opening === undefined ? firstCode.trim() : firstCode.slice(opening).trim();
+    opening === undefined ? codeLines[0]?.trim() : firstCode.slice(0, opening).trim();
+  const body = opening === undefined ? firstCode.trim() : firstCode.slice(opening).trim();
   return {
-    ...(documentationLines.length === 0
-      ? {}
-      : { documentation: documentationLines.join("\n") }),
+    ...(documentationLines.length === 0 ? {} : { documentation: documentationLines.join("\n") }),
     ...(signature === undefined || signature.length === 0 ? {} : { signature }),
     body,
   };
@@ -69,12 +60,8 @@ export function formatResults(
     const bounded = truncateUtf8WithStatus(source.text, maxContentBytes);
     redacted ||= source.redacted;
     contentTruncatedCount += bounded.truncated ? 1 : 0;
-    const filePath = normalizeProjectPath(
-      path.relative(baseDir, result.chunk.filePath),
-    );
-    instructionScans.push(
-      scanInstructionSignals(result.chunk.content, { source: filePath }),
-    );
+    const filePath = normalizeProjectPath(path.relative(baseDir, result.chunk.filePath));
+    instructionScans.push(scanInstructionSignals(result.chunk.content, { source: filePath }));
     return {
       filePath,
       language: result.chunk.language,
@@ -87,9 +74,7 @@ export function formatResults(
       ...(result.isNeighbor
         ? {
             is_neighbor: true,
-            ...(result.neighborOf === undefined
-              ? {}
-              : { neighbor_of: result.neighborOf }),
+            ...(result.neighborOf === undefined ? {} : { neighbor_of: result.neighborOf }),
             ...(result.neighborDistance === undefined
               ? {}
               : { neighbor_distance: result.neighborDistance }),

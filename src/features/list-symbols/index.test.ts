@@ -182,9 +182,7 @@ class MyClass:
       };
 
       // Should have only function or class symbols
-      expect(
-        data.symbols.every((s) => s.type === "function" || s.type === "class"),
-      ).toBe(true);
+      expect(data.symbols.every((s) => s.type === "function" || s.type === "class")).toBe(true);
     });
 
     test("bounds returned symbols and reports truncation", async () => {

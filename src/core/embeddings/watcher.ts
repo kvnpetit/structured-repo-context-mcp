@@ -111,10 +111,7 @@ export class IndexWatcher {
   /**
    * Check if file content has changed by comparing hashes
    */
-  private getChangedContentHash(
-    filePath: string,
-    content: string,
-  ): string | undefined {
+  private getChangedContentHash(filePath: string, content: string): string | undefined {
     return this.hashCache.changedHash(filePath, content);
   }
 
@@ -142,10 +139,7 @@ export class IndexWatcher {
   /**
    * Schedule a file change with debouncing
    */
-  private scheduleChange(
-    type: "add" | "change" | "unlink",
-    filePath: string,
-  ): void {
+  private scheduleChange(type: "add" | "change" | "unlink", filePath: string): void {
     if (this.stopRequested) {
       return;
     }
@@ -156,25 +150,20 @@ export class IndexWatcher {
 
     const timer = setTimeout(() => {
       this.pendingChanges.delete(filePath);
-      void this.queueOperation(async () =>
-        this.processChange(type, filePath),
-      ).catch(() => undefined);
+      void this.queueOperation(async () => this.processChange(type, filePath)).catch(
+        () => undefined,
+      );
     }, this.debounceMs);
 
     this.pendingChanges.set(filePath, { type, filePath, timer });
 
-    logger.debug(
-      `Scheduled ${type}: ${path.basename(filePath)} (${String(this.debounceMs)}ms)`,
-    );
+    logger.debug(`Scheduled ${type}: ${path.basename(filePath)} (${String(this.debounceMs)}ms)`);
   }
 
   /**
    * Process a file change after debounce
    */
-  private async processChange(
-    type: "add" | "change" | "unlink",
-    filePath: string,
-  ): Promise<void> {
+  private async processChange(type: "add" | "change" | "unlink", filePath: string): Promise<void> {
     if (type === "unlink") {
       await this.removeFile(filePath);
     } else {
@@ -193,9 +182,7 @@ export class IndexWatcher {
     try {
       const readResult = readSecureTextFile(filePath, this.directory);
       if (!readResult.ok || readResult.content === undefined) {
-        const readError = readResult.ok
-          ? "File cannot be read"
-          : readResult.error;
+        const readError = readResult.ok ? "File cannot be read" : readResult.error;
         throw new Error(readError);
       }
       const content = readResult.content;
@@ -286,14 +273,10 @@ export class IndexWatcher {
    */
   private async fullIndex(): Promise<void> {
     logger.info("Reconciling index...");
-    const files = (await this.collectFilesWithGlob()).map((file) =>
-      path.resolve(file),
-    );
+    const files = (await this.collectFilesWithGlob()).map((file) => path.resolve(file));
     const currentFiles = new Set(files);
     const indexedFiles = new Set(
-      (await this.vectorStore.getIndexedFiles()).map((file) =>
-        path.resolve(file),
-      ),
+      (await this.vectorStore.getIndexedFiles()).map((file) => path.resolve(file)),
     );
     for (const filePath of indexedFiles) {
       if (!currentFiles.has(path.resolve(filePath))) {
@@ -367,9 +350,7 @@ export class IndexWatcher {
 
     this.watcher = watch(this.directory, {
       ignored: (filePath: string) => {
-        const relativePath = path
-          .relative(this.directory, filePath)
-          .replace(/\\/g, "/");
+        const relativePath = path.relative(this.directory, filePath).replace(/\\/g, "/");
         // Skip empty paths or root directory
         if (!relativePath) {
           return false;
@@ -429,9 +410,7 @@ export class IndexWatcher {
 
   private notifyReady(): void {
     if (!this.stopRequested) {
-      logger.info(
-        `Watching: ${this.directory} (${String(this.debounceMs)}ms debounce)`,
-      );
+      logger.info(`Watching: ${this.directory} (${String(this.debounceMs)}ms debounce)`);
       this.onReady?.();
     }
   }

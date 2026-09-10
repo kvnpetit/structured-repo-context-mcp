@@ -31,7 +31,5 @@ export function isTaskOwnerAlive(owner: TaskOwner | undefined): boolean {
   if (owner === undefined) {
     return false;
   }
-  return owner.pid === process.pid
-    ? localOwners.has(owner.instanceId)
-    : isProcessAlive(owner.pid);
+  return owner.pid === process.pid ? localOwners.has(owner.instanceId) : isProcessAlive(owner.pid);
 }

@@ -39,9 +39,7 @@ export class OllamaClient implements EmbeddingClient {
   private readonly client: Ollama;
   private readonly model: string;
 
-  constructor(
-    config: Pick<EmbeddingConfig, "ollamaBaseUrl" | "embeddingModel">,
-  ) {
+  constructor(config: Pick<EmbeddingConfig, "ollamaBaseUrl" | "embeddingModel">) {
     this.client = new Ollama({ host: config.ollamaBaseUrl });
     this.model = config.embeddingModel;
   }
@@ -136,9 +134,7 @@ export class LexicalEmbeddingClient implements EmbeddingClient {
       vector[signSlot] = (vector[signSlot] ?? 0) - 0.25;
     }
 
-    const norm = Math.sqrt(
-      vector.reduce((sum, value) => sum + value * value, 0),
-    );
+    const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
     if (norm > 0) {
       for (let index = 0; index < vector.length; index++) {
         vector[index] = (vector[index] ?? 0) / norm;
@@ -170,8 +166,6 @@ export function createOllamaClient(
   return new OllamaClient(config);
 }
 
-export function createLexicalEmbeddingClient(
-  dimensions: number,
-): LexicalEmbeddingClient {
+export function createLexicalEmbeddingClient(dimensions: number): LexicalEmbeddingClient {
   return new LexicalEmbeddingClient(dimensions);
 }

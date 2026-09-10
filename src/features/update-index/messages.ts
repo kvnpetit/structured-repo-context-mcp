@@ -25,11 +25,7 @@ function appendFiles(
 }
 
 export function buildDryRunMessage(result: UpdateSummary): string {
-  if (
-    result.added.length === 0 &&
-    result.modified.length === 0 &&
-    result.removed.length === 0
-  ) {
+  if (result.added.length === 0 && result.modified.length === 0 && result.removed.length === 0) {
     return "Index is up to date - no changes detected.";
   }
   const lines: string[] = ["Dry run - changes detected:"];
@@ -42,8 +38,7 @@ export function buildDryRunMessage(result: UpdateSummary): string {
 }
 
 export function buildResultMessage(result: UpdateSummary): string {
-  const changes =
-    result.added.length + result.modified.length + result.removed.length;
+  const changes = result.added.length + result.modified.length + result.removed.length;
   if (changes === 0) {
     return "Index is up to date - no changes needed.";
   }

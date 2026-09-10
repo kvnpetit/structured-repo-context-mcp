@@ -369,11 +369,7 @@ function findCommonDirectory(paths: string[]): string {
   const commonDir = commonSegments.join(path.sep);
 
   // If the common path is a file, return its directory
-  if (
-    commonDir &&
-    fs.existsSync(commonDir) &&
-    fs.statSync(commonDir).isFile()
-  ) {
+  if (commonDir && fs.existsSync(commonDir) && fs.statSync(commonDir).isFile()) {
     return path.dirname(commonDir);
   }
 

@@ -27,11 +27,7 @@ import {
 import { createFeatureResultSchema, positionSchema } from "@features/utils";
 
 export const getCallGraphSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Path to the directory to analyze"),
+  directory: z.string().optional().default(".").describe("Path to the directory to analyze"),
   functionName: z
     .string()
     .optional()
@@ -39,9 +35,7 @@ export const getCallGraphSchema = z.object({
   filePath: z
     .string()
     .optional()
-    .describe(
-      "Optional: file path to narrow down function search (used with functionName)",
-    ),
+    .describe("Optional: file path to narrow down function search (used with functionName)"),
   maxDepth: z
     .number()
     .int()
@@ -156,8 +150,7 @@ const callGraphDataSchema = z
   })
   .strict();
 
-export const getCallGraphOutputSchema =
-  createFeatureResultSchema(callGraphDataSchema);
+export const getCallGraphOutputSchema = createFeatureResultSchema(callGraphDataSchema);
 
 function publicFilePath(root: string, filePath: string): string {
   return path.relative(root, filePath).replace(/\\/g, "/");
@@ -216,28 +209,16 @@ function boundQueryRelations(
 /**
  * Execute the get_call_graph feature
  */
-export async function execute(
-  rawInput: GetCallGraphInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: GetCallGraphInput): Promise<FeatureResult> {
   const input = getCallGraphSchema.parse(rawInput);
-  const {
-    directory,
-    functionName,
-    filePath,
-    maxDepth,
-    maxNodes,
-    maxFiles,
-    exclude,
-  } = input;
+  const { directory, functionName, filePath, maxDepth, maxNodes, maxFiles, exclude } = input;
 
   const secureDirectory = resolveSecureDirectory(directory);
   if (!secureDirectory.ok) {
     return {
       success: false,
       error:
-        secureDirectory.error === "Path not found"
-          ? "Directory not found"
-          : secureDirectory.error,
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
@@ -248,8 +229,8 @@ export async function execute(
     const ig = createIgnoreFilter(absoluteDir, exclude);
 
     // Collect files
-    const allFiles = collectFiles(absoluteDir, ig, absoluteDir).sort(
-      (left, right) => left.localeCompare(right),
+    const allFiles = collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) =>
+      left.localeCompare(right),
     );
     const files = allFiles.slice(0, maxFiles);
     const filesTruncated = files.length < allFiles.length;
@@ -314,8 +295,7 @@ export async function execute(
         };
       }
 
-      const targetPath =
-        targetFilePath?.ok === true ? targetFilePath.path : undefined;
+      const targetPath = targetFilePath?.ok === true ? targetFilePath.path : undefined;
 
       const callContext = getCallContext(graph, targetPath ?? "", functionName);
 
@@ -338,27 +318,15 @@ export async function execute(
         }
 
         if (foundContext) {
-          const bounded = boundQueryRelations(
-            foundContext.callers,
-            foundContext.callees,
-            maxNodes,
-          );
+          const bounded = boundQueryRelations(foundContext.callers, foundContext.callees, maxNodes);
           result.truncated = result.truncated || bounded.truncated;
           result.query = {
             functionName,
             filePath: publicFilePath(absoluteDir, foundFilePath),
-            callers: bounded.callers.map((node) =>
-              publicNode(absoluteDir, node),
-            ),
-            callees: bounded.callees.map((node) =>
-              publicNode(absoluteDir, node),
-            ),
+            callers: bounded.callers.map((node) => publicNode(absoluteDir, node)),
+            callees: bounded.callees.map((node) => publicNode(absoluteDir, node)),
             truncated: bounded.truncated,
-            formattedContext: formatCallContext(
-              bounded.callers,
-              bounded.callees,
-              maxDepth,
-            ),
+            formattedContext: formatCallContext(bounded.callers, bounded.callees, maxDepth),
           };
         } else {
           return {
@@ -367,25 +335,15 @@ export async function execute(
           };
         }
       } else {
-        const bounded = boundQueryRelations(
-          callContext.callers,
-          callContext.callees,
-          maxNodes,
-        );
+        const bounded = boundQueryRelations(callContext.callers, callContext.callees, maxNodes);
         result.truncated = result.truncated || bounded.truncated;
         result.query = {
           functionName,
-          filePath: targetPath
-            ? publicFilePath(absoluteDir, targetPath)
-            : undefined,
+          filePath: targetPath ? publicFilePath(absoluteDir, targetPath) : undefined,
           callers: bounded.callers.map((node) => publicNode(absoluteDir, node)),
           callees: bounded.callees.map((node) => publicNode(absoluteDir, node)),
           truncated: bounded.truncated,
-          formattedContext: formatCallContext(
-            bounded.callers,
-            bounded.callees,
-            maxDepth,
-          ),
+          formattedContext: formatCallContext(bounded.callers, bounded.callees, maxDepth),
         };
       }
 
@@ -417,20 +375,14 @@ export async function execute(
       .slice(0, 10)
       .map(([name, calledByCount]) => ({ name, calledByCount }));
 
-    const rankedNodes = Array.from(graph.nodes.entries()).sort(
-      ([, left], [, right]) => {
-        const leftDegree = left.calls.length + left.calledBy.length;
-        const rightDegree = right.calls.length + right.calledBy.length;
-        return (
-          rightDegree - leftDegree ||
-          left.qualifiedName.localeCompare(right.qualifiedName)
-        );
-      },
-    );
+    const rankedNodes = Array.from(graph.nodes.entries()).sort(([, left], [, right]) => {
+      const leftDegree = left.calls.length + left.calledBy.length;
+      const rightDegree = right.calls.length + right.calledBy.length;
+      return rightDegree - leftDegree || left.qualifiedName.localeCompare(right.qualifiedName);
+    });
     const selectedEntries = rankedNodes.slice(0, maxNodes);
     const selectedKeys = new Set(selectedEntries.map(([name]) => name));
-    result.truncated =
-      result.truncated || selectedEntries.length < rankedNodes.length;
+    result.truncated = result.truncated || selectedEntries.length < rankedNodes.length;
 
     result.graph = {
       nodes: Object.fromEntries(
@@ -439,9 +391,7 @@ export async function execute(
           publicNode(absoluteDir, {
             ...node,
             calls: node.calls.filter((callee) => selectedKeys.has(callee)),
-            calledBy: node.calledBy.filter((caller) =>
-              selectedKeys.has(caller),
-            ),
+            calledBy: node.calledBy.filter((caller) => selectedKeys.has(caller)),
           }),
         ]),
       ),
@@ -454,9 +404,7 @@ export async function execute(
       .map((c) => `  - ${c.name}: ${String(c.callCount)} calls`)
       .join("\n");
     const topCalleesStr = topCallees
-      .map(
-        (c) => `  - ${c.name}: called by ${String(c.calledByCount)} functions`,
-      )
+      .map((c) => `  - ${c.name}: called by ${String(c.calledByCount)} functions`)
       .join("\n");
 
     const message = `Call graph analysis complete:

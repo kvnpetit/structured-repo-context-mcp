@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  getGrammarMetadata,
-  getSupportedLanguages,
-} from "@core/parser/languages";
+import { getGrammarMetadata, getSupportedLanguages } from "@core/parser/languages";
 import {
   canParse,
   detectLanguage,
@@ -1211,11 +1208,9 @@ class MyClass {
     const symbols = extractSymbols({ ...result, filePath: "test.js" });
 
     expect(symbols.method).toBe("tree-sitter");
-    expect(
-      symbols.functions.some(
-        (f) => f.name.includes("Function") || f.name === "method",
-      ),
-    ).toBe(true);
+    expect(symbols.functions.some((f) => f.name.includes("Function") || f.name === "method")).toBe(
+      true,
+    );
     expect(symbols.classes.some((c) => c.name === "MyClass")).toBe(true);
   });
 

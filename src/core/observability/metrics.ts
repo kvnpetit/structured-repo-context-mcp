@@ -30,10 +30,7 @@ function percentile(values: readonly number[], fraction: number): number {
     return 0;
   }
   const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil(sorted.length * fraction) - 1),
-  );
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
   return sorted[index] ?? 0;
 }
 
@@ -47,10 +44,7 @@ export class MetricsRegistry {
     if (boundedToolName.length === 0) {
       return;
     }
-    if (
-      !this.tools.has(boundedToolName) &&
-      this.tools.size >= MAX_TRACKED_TOOLS
-    ) {
+    if (!this.tools.has(boundedToolName) && this.tools.size >= MAX_TRACKED_TOOLS) {
       return;
     }
     const metric = this.tools.get(boundedToolName) ?? {

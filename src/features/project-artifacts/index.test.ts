@@ -26,9 +26,7 @@ describe("get_project_artifacts", () => {
   });
 
   test("classifies, searches, and redacts project documentation", () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), "src-mcp-project-artifacts-"),
-    );
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-project-artifacts-"));
     temporaryDirectories.push(directory);
     fs.mkdirSync(path.join(directory, "docs"));
     fs.writeFileSync(
@@ -67,10 +65,8 @@ describe("get_project_artifacts", () => {
       kind: "architecture",
     });
     expect(data.artifacts[0]?.content).not.toContain("secret-value");
-    expect(
-      data.artifacts.some((artifact) =>
-        artifact.links.includes("docs/architecture.md"),
-      ),
-    ).toBe(true);
+    expect(data.artifacts.some((artifact) => artifact.links.includes("docs/architecture.md"))).toBe(
+      true,
+    );
   });
 });

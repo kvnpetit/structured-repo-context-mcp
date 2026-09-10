@@ -29,15 +29,11 @@ export const listSymbolsSchema = z
     file_path: z
       .string()
       .optional()
-      .describe(
-        "Path to the file to analyze (either file_path or content required)",
-      ),
+      .describe("Path to the file to analyze (either file_path or content required)"),
     content: z
       .string()
       .optional()
-      .describe(
-        "Code content to analyze directly (either file_path or content required)",
-      ),
+      .describe("Code content to analyze directly (either file_path or content required)"),
     language: z
       .string()
       .optional()
@@ -89,19 +85,11 @@ const listSymbolsDataSchema = z
   })
   .strict();
 
-export const listSymbolsOutputSchema = createFeatureResultSchema(
-  listSymbolsDataSchema,
-);
+export const listSymbolsOutputSchema = createFeatureResultSchema(listSymbolsDataSchema);
 
 export async function execute(input: ListSymbolsInput): Promise<FeatureResult> {
   const parsedInput = listSymbolsSchema.parse(input);
-  const {
-    file_path,
-    content: inputContent,
-    language,
-    types,
-    max_symbols,
-  } = parsedInput;
+  const { file_path, content: inputContent, language, types, max_symbols } = parsedInput;
 
   // Get content using shared helper
   const contentResult = readContent(file_path, inputContent);

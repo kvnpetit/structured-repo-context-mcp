@@ -3,11 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 
-import {
-  hashCachePath,
-  readHashCache,
-  writeHashCache,
-} from "@core/embeddings/hash-cache";
+import { hashCachePath, readHashCache, writeHashCache } from "@core/embeddings/hash-cache";
 
 const directories: string[] = [];
 
@@ -18,9 +14,7 @@ afterEach(() => {
 });
 
 function makeDirectory(): string {
-  const directory = fs.mkdtempSync(
-    path.join(os.tmpdir(), "src-mcp-hash-cache-"),
-  );
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-hash-cache-"));
   directories.push(directory);
   return directory;
 }
@@ -42,9 +36,9 @@ describe("incremental hash cache", () => {
     const loaded = readHashCache(directory);
     expect(loaded).toMatchObject({ exists: true, valid: true });
     expect(loaded.cache).toEqual({ [path.resolve(source)]: "a".repeat(64) });
-    expect(
-      JSON.parse(fs.readFileSync(hashCachePath(directory), "utf8")),
-    ).toEqual({ [path.resolve(source)]: "a".repeat(64) });
+    expect(JSON.parse(fs.readFileSync(hashCachePath(directory), "utf8"))).toEqual({
+      [path.resolve(source)]: "a".repeat(64),
+    });
   });
 
   test("marks tampered entries invalid without trusting them", () => {

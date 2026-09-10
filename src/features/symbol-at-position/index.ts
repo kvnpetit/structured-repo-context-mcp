@@ -89,57 +89,36 @@ const symbolAtPositionDataSchema = z
   })
   .strict();
 
-export const symbolAtPositionOutputSchema = createFeatureResultSchema(
-  symbolAtPositionDataSchema,
-);
+export const symbolAtPositionOutputSchema = createFeatureResultSchema(symbolAtPositionDataSchema);
 
-function byteOffsetAtPosition(
-  content: string,
-  line: number,
-  column: number,
-): number | undefined {
+function byteOffsetAtPosition(content: string, line: number, column: number): number | undefined {
   const lines = content.split("\n");
   const lineText = lines[line - 1];
   if (lineText === undefined) {
     return undefined;
   }
-  const withoutCarriageReturn = lineText.endsWith("\r")
-    ? lineText.slice(0, -1)
-    : lineText;
+  const withoutCarriageReturn = lineText.endsWith("\r") ? lineText.slice(0, -1) : lineText;
   const characters = Array.from(withoutCarriageReturn);
   if (column > characters.length) {
     return undefined;
   }
-  const before = lines
-    .slice(0, line - 1)
-    .reduce((total, value) => total + value.length + 1, 0);
-  const prefix = withoutCarriageReturn.slice(
-    0,
-    characters.slice(0, column).join("").length,
-  );
-  return (
-    Buffer.byteLength(content.slice(0, before), "utf8") +
-    Buffer.byteLength(prefix, "utf8")
-  );
+  const before = lines.slice(0, line - 1).reduce((total, value) => total + value.length + 1, 0);
+  const prefix = withoutCarriageReturn.slice(0, characters.slice(0, column).join("").length);
+  return Buffer.byteLength(content.slice(0, before), "utf8") + Buffer.byteLength(prefix, "utf8");
 }
 
 function relativePath(root: string, filePath: string): string {
   return path.relative(root, filePath).replace(/\\/gu, "/");
 }
 
-export async function execute(
-  rawInput: SymbolAtPositionInput,
-): Promise<FeatureResult> {
+export async function execute(rawInput: SymbolAtPositionInput): Promise<FeatureResult> {
   const input = symbolAtPositionSchema.parse(rawInput);
   const secureDirectory = resolveSecureDirectory(input.directory);
   if (!secureDirectory.ok) {
     return { success: false, error: secureDirectory.error };
   }
   const root = secureDirectory.path;
-  const secureFile = resolveSecureFile(
-    path.resolve(root, input.file_path),
-    root,
-  );
+  const secureFile = resolveSecureFile(path.resolve(root, input.file_path), root);
   if (!secureFile.ok) {
     return { success: false, error: secureFile.error };
   }
@@ -151,11 +130,7 @@ export async function execute(
     };
   }
 
-  const offset = byteOffsetAtPosition(
-    readResult.content,
-    input.line,
-    input.column,
-  );
+  const offset = byteOffsetAtPosition(readResult.content, input.line, input.column);
   if (offset === undefined) {
     return { success: false, error: "Position is outside the file" };
   }
@@ -164,24 +139,17 @@ export async function execute(
     const parsed = await parseCode(readResult.content, {
       filePath: secureFile.path,
     });
-    const info = extractCodeInfo(
-      parsed.tree,
-      parsed.languageInstance,
-      parsed.language,
-    );
+    const info = extractCodeInfo(parsed.tree, parsed.languageInstance, parsed.language);
     const containing = info.symbols.symbols
       .filter(
         (symbol) =>
           symbol.start.offset <= offset &&
           (offset < symbol.end.offset ||
-            (offset === symbol.end.offset &&
-              symbol.start.offset < symbol.end.offset)),
+            (offset === symbol.end.offset && symbol.start.offset < symbol.end.offset)),
       )
       .sort(
         (left, right) =>
-          left.end.offset -
-            left.start.offset -
-            (right.end.offset - right.start.offset) ||
+          left.end.offset - left.start.offset - (right.end.offset - right.start.offset) ||
           left.start.offset - right.start.offset,
       );
     const selected = containing[0];
@@ -204,25 +172,15 @@ export async function execute(
             type: selected.type,
             start: selected.start,
             end: selected.end,
-            ...(selected.signature === undefined
-              ? {}
-              : { signature: selected.signature }),
-            ...(selected.modifiers === undefined
-              ? {}
-              : { modifiers: selected.modifiers }),
+            ...(selected.signature === undefined ? {} : { signature: selected.signature }),
+            ...(selected.modifiers === undefined ? {} : { modifiers: selected.modifiers }),
             ...(selected.documentation === undefined
               ? {}
               : { documentation: selected.documentation }),
             ...(input.include_source
               ? (() => {
-                  const start = stringIndexAtByteOffset(
-                    readResult.content,
-                    selected.start.offset,
-                  );
-                  const end = stringIndexAtByteOffset(
-                    readResult.content,
-                    selected.end.offset,
-                  );
+                  const start = stringIndexAtByteOffset(readResult.content, selected.start.offset);
+                  const end = stringIndexAtByteOffset(readResult.content, selected.end.offset);
                   const rawSource = readResult.content.slice(start, end);
                   const sourceBytes = Buffer.byteLength(rawSource, "utf8");
                   const boundedSource = rawSource.slice(
@@ -235,9 +193,7 @@ export async function execute(
                   secretsRedacted ||= source.redacted;
                   return {
                     source: source.text,
-                    ...(sourceBytes > input.max_source_bytes
-                      ? { source_truncated: true }
-                      : {}),
+                    ...(sourceBytes > input.max_source_bytes ? { source_truncated: true } : {}),
                   };
                 })()
               : {}),

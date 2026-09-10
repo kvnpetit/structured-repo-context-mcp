@@ -3,12 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import {
-  collectFiles,
-  createIgnoreFilter,
-  isHidden,
-  isSensitiveFileName,
-} from "./index";
+import { collectFiles, createIgnoreFilter, isHidden, isSensitiveFileName } from "./index";
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "src-mcp-files-test-"));
@@ -97,9 +92,7 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) =>
-        path.relative(dir, f).replace(/\\/g, "/"),
-      );
+      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
       expect(relative).toContain("src/index.ts");
       expect(relative).toContain("src/utils.ts");
       expect(relative).toContain("README.md");
@@ -145,9 +138,7 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) =>
-        path.relative(dir, f).replace(/\\/g, "/"),
-      );
+      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
       expect(relative).not.toContain(".hidden/secret.ts");
       expect(relative).toContain("visible.ts");
     } finally {
@@ -178,9 +169,7 @@ describe("collectFiles", () => {
       const ig = createIgnoreFilter(dir);
       const files = collectFiles(dir, ig, dir);
 
-      const relative = files.map((f) =>
-        path.relative(dir, f).replace(/\\/g, "/"),
-      );
+      const relative = files.map((f) => path.relative(dir, f).replace(/\\/g, "/"));
       expect(relative.some((f) => f.startsWith("node_modules"))).toBe(false);
       expect(relative).toContain("app.ts");
     } finally {

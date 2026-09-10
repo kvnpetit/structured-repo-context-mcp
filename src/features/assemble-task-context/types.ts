@@ -1,7 +1,6 @@
 import type { scanInstructionSignals } from "@core/security";
 
-export type LayerKey =
-  "project" | "memory" | "artifacts" | "git" | "repository_map" | "search";
+export type LayerKey = "project" | "memory" | "artifacts" | "git" | "repository_map" | "search";
 export type ContextDepth = "minimal" | "standard" | "deep";
 
 export interface SearchResultData {
