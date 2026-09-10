@@ -14,6 +14,8 @@
 ### Security
 
 * harden workspace containment, local tool launch restrictions, response bounds, HTTP host, origin, bearer, body, and concurrency controls, and untrusted-source instruction signals
+* isolate local Git and SCIP helper processes from credentials and implicit network or editor prompts
+* pin privileged release actions, disable checkout credential persistence, and keep the npm publication toolchain fixed
 * pin the patched `sharp` dependency
 
 ### Tooling

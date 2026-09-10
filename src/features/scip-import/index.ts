@@ -12,6 +12,7 @@ import {
 } from "@core/navigation/scip";
 import { withLocalStateLock } from "@core/local-state";
 import {
+  createSafeLocalToolEnvironment,
   readSecureTextFile,
   resolveSecureDirectory,
   resolveSecureFile,
@@ -82,6 +83,7 @@ async function readViaScipCli(filePath: string, root: string, timeoutMs: number)
       shell: false,
       timeout: timeoutMs,
       maxBuffer: MAX_INPUT_BYTES,
+      env: createSafeLocalToolEnvironment(),
     });
     return result.stdout;
   } catch (error) {

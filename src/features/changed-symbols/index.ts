@@ -7,6 +7,7 @@ import type { Symbol } from "@core/ast/types";
 import { parseCode } from "@core/parser";
 import { extractCodeInfo } from "@core/symbols";
 import {
+  createSafeLocalToolEnvironment,
   readSecureTextFile,
   resolveSecureDirectory,
   resolveSecureFile,
@@ -183,6 +184,17 @@ async function git(directory: string, args: string[]): Promise<{ stdout: string;
     maxBuffer: 8 * 1024 * 1024,
     shell: false,
     timeout: 15_000,
+    env: {
+      ...createSafeLocalToolEnvironment(),
+      // This analysis is read-only: never wait for credentials, a pager, or
+      // an editor, and never let a partial clone trigger an implicit fetch.
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_PAGER: "cat",
+      GIT_EDITOR: "true",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_OPTIONAL_LOCKS: "0",
+      GIT_NO_LAZY_FETCH: "1",
+    },
   });
   return {
     stdout: result.stdout,
