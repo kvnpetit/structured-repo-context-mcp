@@ -37,6 +37,7 @@
     "conformance:smoke": "tsx scripts/conformance.ts",
     "conformance:local": "tsx scripts/conformance-local.ts",
     "mutation:smoke": "tsx scripts/mutation-smoke.ts",
+    "changelog:check": "tsx scripts/validate-changelog.ts",
     "contract:verify": "tsx scripts/verify-contract-surface.ts",
     "pack:verify": "tsx scripts/verify-package.ts",
     "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
@@ -44,7 +45,7 @@
     "lint:fix": "biome lint --write src scripts",
     "format": "biome format --write src scripts",
     "format:check": "biome format src scripts",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run contract:verify"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run contract:verify && npm run changelog:check"
   },
   "overrides": {
     "micromatch": {
