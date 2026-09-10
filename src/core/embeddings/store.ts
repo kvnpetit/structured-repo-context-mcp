@@ -130,6 +130,8 @@ export class VectorStore {
    * Close the database connection
    */
   close(): void {
+    this.table?.close();
+    this.db?.close();
     this.db = null;
     this.table = null;
   }
@@ -184,6 +186,7 @@ export class VectorStore {
     try {
       await this.table.createIndex("content", {
         config: lancedb.Index.fts(),
+        replace: false,
       });
       this.ftsIndexCreated = true;
       logger.debug("FTS index created on content column");
@@ -468,9 +471,12 @@ export class VectorStore {
     );
   }
 
-  /**
-   * Get all indexed file paths
-   */
+  /** Revision of the table snapshot used by this store's queries. */
+  async getRevision(): Promise<number | undefined> {
+    return this.table?.version();
+  }
+
+  /** Get all indexed file paths. */
   async getIndexedFiles(): Promise<string[]> {
     return readIndexedFiles(this.table);
   }

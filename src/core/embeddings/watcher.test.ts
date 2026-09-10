@@ -11,6 +11,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import fg from "fast-glob";
 import { IndexWatcher, createIndexWatcher } from "@core/embeddings/watcher";
 import type { EmbeddingConfig } from "@core/embeddings/types";
 import { watch } from "chokidar";
@@ -61,6 +62,23 @@ vi.mock("fast-glob", () => ({
   default: vi.fn().mockResolvedValue([]),
 }));
 
+beforeEach(() => {
+  vi.mocked(fg).mockResolvedValue([]);
+});
+
+// Chokidar emits its initial baseline asynchronously after listeners attach.
+function readyWatcher(
+  mockOn: Mock,
+): (event: string, handler: (...args: never[]) => void) => void {
+  return (event, handler) => {
+    mockOn(event, handler);
+    if (event === "ready") {
+      void Promise.resolve().then(() => {
+        handler();
+      });
+    }
+  };
+}
 // Module-level instance tracker for VectorStore (used across describe blocks)
 let lastVectorStoreInstance: VectorStore | undefined;
 
@@ -93,7 +111,7 @@ describe("IndexWatcher", () => {
     mockClose = vi.fn().mockResolvedValue(undefined);
 
     (watch as Mock).mockReturnValue({
-      on: mockOn,
+      on: readyWatcher(mockOn),
       close: mockClose,
     });
 
@@ -114,6 +132,8 @@ describe("IndexWatcher", () => {
       const instance = {
         exists: vi.fn().mockReturnValue(true),
         connect: vi.fn().mockResolvedValue(undefined),
+        getIndexedFiles: vi.fn().mockResolvedValue([]),
+        assertMetadataCompatible: vi.fn(),
         close: vi.fn(),
         addChunks: vi.fn().mockResolvedValue(undefined),
         replaceFileChunks: vi.fn().mockResolvedValue(undefined),
@@ -389,6 +409,8 @@ describe("IndexWatcher", () => {
       const instance = {
         exists: vi.fn().mockReturnValue(false),
         connect: vi.fn().mockResolvedValue(undefined),
+        getIndexedFiles: vi.fn().mockResolvedValue([]),
+        assertMetadataCompatible: vi.fn(),
         close: vi.fn(),
         addChunks: vi.fn().mockResolvedValue(undefined),
         replaceFileChunks: vi.fn().mockResolvedValue(undefined),
@@ -408,7 +430,7 @@ describe("IndexWatcher", () => {
     // Full index should have been triggered
     const storeInstance = lastVectorStoreInstance;
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(storeInstance?.exists).toHaveBeenCalled();
+    expect(storeInstance?.getIndexedFiles).toHaveBeenCalled();
   });
 
   test("handles file add event", async () => {
@@ -605,7 +627,7 @@ describe("IndexWatcher", () => {
       (_paths: unknown, options?: { ignored?: (path: string) => boolean }) => {
         ignoredCallback = options?.ignored;
         return {
-          on: mockOn,
+          on: readyWatcher(mockOn),
           close: mockClose,
         };
       },
@@ -700,7 +722,7 @@ describe("IndexWatcher - debounced operations", () => {
     mockClose = vi.fn().mockResolvedValue(undefined);
 
     (watch as Mock).mockReturnValue({
-      on: mockOn,
+      on: readyWatcher(mockOn),
       close: mockClose,
     });
 
@@ -718,6 +740,8 @@ describe("IndexWatcher - debounced operations", () => {
     vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
+      this.getIndexedFiles = vi.fn().mockResolvedValue([]);
+      this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn().mockResolvedValue(undefined);
       this.replaceFileChunks = vi.fn().mockResolvedValue(undefined);
@@ -915,7 +939,7 @@ describe("IndexWatcher - full index", () => {
     mockClose = vi.fn().mockResolvedValue(undefined);
 
     (watch as Mock).mockReturnValue({
-      on: mockOn,
+      on: readyWatcher(mockOn),
       close: mockClose,
     });
 
@@ -934,6 +958,8 @@ describe("IndexWatcher - full index", () => {
       const instance = {
         exists: vi.fn().mockReturnValue(false),
         connect: vi.fn().mockResolvedValue(undefined),
+        getIndexedFiles: vi.fn().mockResolvedValue([]),
+        assertMetadataCompatible: vi.fn(),
         close: vi.fn(),
         addChunks: vi.fn().mockResolvedValue(undefined),
         replaceFileChunks: vi.fn().mockResolvedValue(undefined),
@@ -1093,7 +1119,7 @@ describe("IndexWatcher - shouldIndex", () => {
     mockClose = vi.fn().mockResolvedValue(undefined);
 
     (watch as Mock).mockReturnValue({
-      on: mockOn,
+      on: readyWatcher(mockOn),
       close: mockClose,
     });
 
@@ -1107,6 +1133,8 @@ describe("IndexWatcher - shouldIndex", () => {
     vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
+      this.getIndexedFiles = vi.fn().mockResolvedValue([]);
+      this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn();
       this.replaceFileChunks = vi.fn();
@@ -1126,7 +1154,7 @@ describe("IndexWatcher - shouldIndex", () => {
       (_paths: unknown, options?: { ignored?: (path: string) => boolean }) => {
         ignoredCallback = options?.ignored;
         return {
-          on: mockOn,
+          on: readyWatcher(mockOn),
           close: mockClose,
         };
       },
@@ -1155,7 +1183,7 @@ describe("IndexWatcher - shouldIndex", () => {
       (_paths: unknown, options?: { ignored?: (path: string) => boolean }) => {
         ignoredCallback = options?.ignored;
         return {
-          on: mockOn,
+          on: readyWatcher(mockOn),
           close: mockClose,
         };
       },
@@ -1212,7 +1240,7 @@ describe("IndexWatcher - error handling", () => {
     mockClose = vi.fn().mockResolvedValue(undefined);
 
     (watch as Mock).mockReturnValue({
-      on: mockOn,
+      on: readyWatcher(mockOn),
       close: mockClose,
     });
 
@@ -1228,6 +1256,8 @@ describe("IndexWatcher - error handling", () => {
     vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
+      this.getIndexedFiles = vi.fn().mockResolvedValue([]);
+      this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn().mockResolvedValue(undefined);
       this.replaceFileChunks = vi
@@ -1413,6 +1443,8 @@ describe("IndexWatcher - error handling", () => {
     vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
+      this.getIndexedFiles = vi.fn().mockResolvedValue([]);
+      this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn().mockRejectedValue("string error");
       this.replaceFileChunks = vi.fn().mockRejectedValue("string error");
@@ -1471,6 +1503,8 @@ describe("createIndexWatcher", () => {
     vi.mocked(VectorStore).mockImplementation(function (this: VectorStore) {
       this.exists = vi.fn().mockReturnValue(true);
       this.connect = vi.fn().mockResolvedValue(undefined);
+      this.getIndexedFiles = vi.fn().mockResolvedValue([]);
+      this.assertMetadataCompatible = vi.fn();
       this.close = vi.fn();
       this.addChunks = vi.fn();
       this.replaceFileChunks = vi.fn();

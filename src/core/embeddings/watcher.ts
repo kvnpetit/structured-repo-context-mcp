@@ -60,10 +60,13 @@ export class IndexWatcher {
   private readonly enrichmentOptions: EnrichmentOptions;
   private watcher: FSWatcher | null = null;
   private ig: Ignore;
-  private isProcessing = false;
   private readonly hashCache: WatcherHashCache;
   private pendingChanges = new Map<string, PendingChange>();
-  private operationQueue: (() => Promise<void>)[] = [];
+  private operations: Promise<void> = Promise.resolve();
+  private starting: Promise<void> | null = null;
+  private stopping: Promise<void> | null = null;
+  private stopRequested = false;
+  private releaseStartup: (() => void) | undefined;
 
   private readonly onReady?: () => void;
   private readonly onError?: (error: Error) => void;
@@ -143,6 +146,9 @@ export class IndexWatcher {
     type: "add" | "change" | "unlink",
     filePath: string,
   ): void {
+    if (this.stopRequested) {
+      return;
+    }
     const existing = this.pendingChanges.get(filePath);
     if (existing) {
       clearTimeout(existing.timer);
@@ -150,7 +156,9 @@ export class IndexWatcher {
 
     const timer = setTimeout(() => {
       this.pendingChanges.delete(filePath);
-      this.queueOperation(async () => this.processChange(type, filePath));
+      void this.queueOperation(async () =>
+        this.processChange(type, filePath),
+      ).catch(() => undefined);
     }, this.debounceMs);
 
     this.pendingChanges.set(filePath, { type, filePath, timer });
@@ -177,7 +185,7 @@ export class IndexWatcher {
   /**
    * Index a single file
    */
-  private async indexFile(filePath: string): Promise<void> {
+  private async indexFile(filePath: string, persist = true): Promise<void> {
     if (!this.shouldIndex(filePath)) {
       return;
     }
@@ -206,19 +214,11 @@ export class IndexWatcher {
         this.embeddingClient,
         this.enrichmentOptions,
       );
-      if (embeddedChunks.length === 0) {
-        await this.vectorStore.replaceFileChunks(filePath, []);
-        this.hashCache.set(filePath, newHash);
-        await this.hashCache.save();
-        logger.debug(`Removed stale chunks: ${path.basename(filePath)}`);
-        this.onIndexed?.(filePath);
-        return;
-      }
-
       await this.vectorStore.replaceFileChunks(filePath, embeddedChunks);
-
       this.hashCache.set(filePath, newHash);
-      await this.hashCache.save();
+      if (persist) {
+        await this.hashCache.save();
+      }
 
       logger.debug(`Indexed: ${path.relative(this.directory, filePath)}`);
       this.onIndexed?.(filePath);
@@ -234,11 +234,13 @@ export class IndexWatcher {
   /**
    * Remove a file from the index
    */
-  private async removeFile(filePath: string): Promise<void> {
+  private async removeFile(filePath: string, persist = true): Promise<void> {
     try {
       await this.vectorStore.deleteByFilePath(filePath);
       this.removeFromHashCache(filePath);
-      await this.hashCache.save();
+      if (persist) {
+        await this.hashCache.save();
+      }
 
       logger.debug(`Removed: ${path.relative(this.directory, filePath)}`);
       this.onRemoved?.(filePath);
@@ -254,117 +256,114 @@ export class IndexWatcher {
   /**
    * Queue an operation to prevent concurrent modifications
    */
-  private queueOperation(operation: () => Promise<void>): void {
-    this.operationQueue.push(operation);
-    void this.processQueue();
+  private async queueOperation(operation: () => Promise<void>): Promise<void> {
+    const next = this.operations.then(operation);
+    this.operations = next.catch((err: unknown) => {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error(`Operation failed: ${error.message}`);
+    });
+    return next;
   }
 
-  /**
-   * Process queued operations sequentially
-   */
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing) {
-      return;
+  /** Move debounced changes into the serialized queue without waiting. */
+  private flushPendingChanges(): void {
+    for (const pending of this.pendingChanges.values()) {
+      clearTimeout(pending.timer);
+      void this.queueOperation(async () =>
+        this.processChange(pending.type, pending.filePath),
+      ).catch(() => undefined);
     }
-
-    this.isProcessing = true;
-
-    while (this.operationQueue.length > 0) {
-      const operation = this.operationQueue.shift();
-      if (operation) {
-        try {
-          await operation();
-        } catch (err) {
-          const error = err instanceof Error ? err : new Error(String(err));
-          logger.error(`Operation failed: ${error.message}`);
-        }
-      }
-    }
-
-    this.isProcessing = false;
+    this.pendingChanges.clear();
   }
 
-  /**
-   * Collect files using fast-glob
-   */
+  /** Collect files using fast-glob. */
   private async collectFilesWithGlob(): Promise<string[]> {
     return collectIndexableFiles(this.directory, this.ig);
   }
 
   /**
-   * Perform full initial indexing
+   * Reconcile current files with persisted rows, including changes while offline.
    */
   private async fullIndex(): Promise<void> {
-    logger.info("Starting full index...");
-
-    const files = await this.collectFilesWithGlob();
-    let indexed = 0;
-    let skipped = 0;
-
-    for (const filePath of files) {
-      try {
-        const readResult = readSecureTextFile(filePath, this.directory);
-        if (!readResult.ok || readResult.content === undefined) {
-          const readError = readResult.ok
-            ? "File cannot be read"
-            : readResult.error;
-          throw new Error(readError);
-        }
-        const content = readResult.content;
-
-        const newHash = this.getChangedContentHash(filePath, content);
-        if (newHash === undefined) {
-          skipped++;
-          continue;
-        }
-
-        const embeddedChunks = await embedFileContent(
-          filePath,
-          content,
-          this.config,
-          this.embeddingClient,
-          this.enrichmentOptions,
-        );
-        if (embeddedChunks.length === 0) {
-          await this.vectorStore.replaceFileChunks(filePath, []);
-          this.hashCache.set(filePath, newHash);
-          continue;
-        }
-
-        await this.vectorStore.replaceFileChunks(filePath, embeddedChunks);
-        this.hashCache.set(filePath, newHash);
-        indexed++;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const relativePath = path.relative(this.directory, filePath);
-        logger.debug(`Error indexing ${relativePath}: ${message}`);
+    logger.info("Reconciling index...");
+    const files = (await this.collectFilesWithGlob()).map((file) =>
+      path.resolve(file),
+    );
+    const currentFiles = new Set(files);
+    const indexedFiles = new Set(
+      (await this.vectorStore.getIndexedFiles()).map((file) =>
+        path.resolve(file),
+      ),
+    );
+    for (const filePath of indexedFiles) {
+      if (!currentFiles.has(path.resolve(filePath))) {
+        await this.removeFile(filePath, false);
       }
     }
-
+    for (const filePath of this.hashCache.paths()) {
+      if (!currentFiles.has(path.resolve(filePath))) {
+        this.hashCache.remove(filePath);
+      }
+    }
+    for (const filePath of files) {
+      if (!indexedFiles.has(filePath)) {
+        this.hashCache.remove(filePath);
+      }
+      await this.indexFile(filePath, false);
+    }
     await this.hashCache.save();
-
-    logger.info(
-      `Full index: ${String(indexed)} indexed, ${String(skipped)} skipped`,
-    );
+    logger.info(`Index reconciled: ${String(files.length)} files checked`);
   }
 
   /**
    * Start watching for file changes
    */
   async start(): Promise<void> {
+    if (this.stopping) {
+      await this.stopping;
+    }
+    if (this.starting) {
+      return this.starting;
+    }
+    this.stopRequested = false;
+    this.starting = this.startWatching();
+    try {
+      await this.starting;
+    } catch (error) {
+      await this.watcher?.close();
+      this.releaseStartup?.();
+      await this.operations;
+      this.watcher = null;
+      this.vectorStore.close();
+      this.starting = null;
+      throw error;
+    }
+  }
+
+  private async startWatching(): Promise<void> {
     const health = await this.embeddingClient.healthCheck();
     if (!health.ok) {
       throw new Error(health.error ?? "Ollama is not available");
     }
 
-    // Check if index exists BEFORE connect (connect creates the directory)
-    const needsFullIndex = !this.vectorStore.exists();
-
     await this.vectorStore.connect();
-
-    if (needsFullIndex) {
-      await this.fullIndex();
+    this.vectorStore.assertMetadataCompatible();
+    if (this.stopRequested) {
+      return;
     }
+    this.ig = this.createIgnoreFilter();
+    this.hashCache.reload();
+    let rejectReady!: (error: Error) => void;
+    const ready = new Promise<void>((resolve, reject) => {
+      this.releaseStartup = resolve;
+      rejectReady = reject;
+    });
+    // Reserve the first queue entry before events can arrive. Waiting for
+    // chokidar's baseline closes the gap between scanning and watching.
+    const reconciliation = this.queueOperation(async () => {
+      await ready;
+      await this.fullIndex();
+    });
 
     this.watcher = watch(this.directory, {
       ignored: (filePath: string) => {
@@ -413,42 +412,65 @@ export class IndexWatcher {
       }
     });
 
-    this.watcher.on("ready", () => {
+    this.watcher.on("ready", () => this.releaseStartup?.());
+
+    this.watcher.on("error", (err: unknown) => {
+      const error = err instanceof Error ? err : new Error(String(err));
+      rejectReady(error);
+      logger.error(`Watcher error: ${error.message}`);
+      this.onError?.(error);
+    });
+    await reconciliation;
+    this.releaseStartup = undefined;
+    this.flushPendingChanges();
+    await this.operations;
+    this.notifyReady();
+  }
+
+  private notifyReady(): void {
+    if (!this.stopRequested) {
       logger.info(
         `Watching: ${this.directory} (${String(this.debounceMs)}ms debounce)`,
       );
       this.onReady?.();
-    });
-
-    this.watcher.on("error", (err: unknown) => {
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.error(`Watcher error: ${error.message}`);
-      this.onError?.(error);
-    });
+    }
   }
 
   /**
    * Stop watching and cleanup
    */
   async stop(): Promise<void> {
-    for (const pending of this.pendingChanges.values()) {
-      clearTimeout(pending.timer);
+    if (this.stopping) {
+      return this.stopping;
     }
-    this.pendingChanges.clear();
+    this.stopRequested = true;
+    this.stopping = this.stopWatching();
+    try {
+      await this.stopping;
+    } finally {
+      this.stopping = null;
+      this.starting = null;
+    }
+  }
 
-    await this.hashCache.save();
-
+  private async stopWatching(): Promise<void> {
+    await this.watcher?.close();
+    this.releaseStartup?.();
+    await this.starting?.catch(() => undefined);
+    this.flushPendingChanges();
+    await this.operations;
     if (this.watcher) {
-      await this.watcher.close();
-      this.watcher = null;
+      // Closing chokidar can cancel its own awaitWriteFinish events. A final
+      // scan accounts for those writes as well as our flushed debounce queue.
+      await this.fullIndex();
     }
+    await this.hashCache.save();
     this.vectorStore.close();
+    this.watcher = null;
     logger.info("Watcher stopped");
   }
 
-  /**
-   * Check if watcher is running
-   */
+  /** Check if watcher is running. */
   isRunning(): boolean {
     return this.watcher !== null;
   }
@@ -461,9 +483,7 @@ export class IndexWatcher {
     logger.info("Hash cache cleared");
   }
 
-  /**
-   * Get cache statistics
-   */
+  /** Get cache statistics. */
   getCacheStats(): { cachedFiles: number; cacheSize: number } {
     return this.hashCache.stats();
   }

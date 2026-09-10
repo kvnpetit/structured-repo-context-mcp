@@ -18,7 +18,12 @@ export class WatcherHashCache {
     private readonly directory: string,
     private readonly onPersist: (sourceFingerprint: string) => void,
   ) {
-    const loaded = readHashCache(directory);
+    this.reload();
+  }
+
+  reload(): void {
+    this.entries = {};
+    const loaded = readHashCache(this.directory);
     if (!loaded.exists) {
       return;
     }
@@ -31,6 +36,10 @@ export class WatcherHashCache {
     logger.debug(
       `Loaded ${String(Object.keys(this.entries).length)} cached hashes`,
     );
+  }
+
+  paths(): string[] {
+    return Object.keys(this.entries);
   }
 
   changedHash(filePath: string, content: string): string | undefined {

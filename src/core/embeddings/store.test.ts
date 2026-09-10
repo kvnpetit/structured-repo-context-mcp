@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as lancedb from "@lancedb/lancedb";
 import {
   VectorStore,
   computeSourceFingerprint,
@@ -73,6 +74,30 @@ describe("VectorStore", () => {
         "Database not connected",
       );
     });
+  });
+
+  test("close releases native handles immediately and the same store can reopen", async () => {
+    await store.addChunks([createMockChunk("lifecycle", "/test/lifecycle.ts")]);
+    const handles = store as unknown as {
+      db: lancedb.Connection;
+      table: lancedb.Table;
+    };
+    const connection = handles.db;
+    const table = handles.table;
+    expect(connection.isOpen()).toBe(true);
+    expect(table.isOpen()).toBe(true);
+    store.close();
+    expect(connection.isOpen()).toBe(false);
+    expect(table.isOpen()).toBe(false);
+    expect(() => {
+      store.close();
+    }).not.toThrow();
+
+    await store.connect();
+    expect((await store.getStatus(tempDir)).totalChunks).toBe(1);
+    expect((await store.searchLexical("lifecycle", 1))[0]?.chunk.id).toBe(
+      "lifecycle",
+    );
   });
 
   describe("search", () => {
@@ -742,5 +767,26 @@ describe("VectorStore hybrid search", () => {
     // Should not throw
     await store.createFtsIndex();
     store.close();
+  });
+
+  test("reopening FTS preserves the persisted index and searches appended rows", async () => {
+    const first = new VectorStore(tempDir, mockConfig);
+    await first.connect();
+    await first.addChunks([createMockChunk("old", "original apple", "/a.ts")]);
+    await first.createFtsIndex();
+    await first.addChunks([createMockChunk("new", "unique banana", "/b.ts")]);
+    first.close();
+    const db = await lancedb.connect(getIndexPath(tempDir));
+    const table = await db.openTable("code_chunks");
+    const version = await table.version();
+
+    const reopened = new VectorStore(tempDir, mockConfig);
+    await reopened.connect();
+    const matches = await reopened.searchFts("banana", 10);
+    expect(matches.some((match) => match.chunk.id === "new")).toBe(true);
+    reopened.close();
+    await table.checkoutLatest();
+    expect(await table.version()).toBe(version);
+    db.close();
   });
 });

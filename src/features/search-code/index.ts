@@ -44,17 +44,17 @@ import {
   type SearchCodeInput,
 } from "./schema";
 import {
-  MAX_NEIGHBOR_RESULTS,
   classifyQuery,
   confidenceForResult,
   deduplicateResults,
   expandNeighborResults,
-  hasSearchFilters,
   matchesSearchFilters,
   rerankResults,
 } from "./retrieval";
 import { formatResults } from "./format";
 import type { SearchCandidate, SearchOutput } from "./types";
+
+const MAX_SEARCH_CANDIDATES = 500;
 
 export {
   searchCodeOutputSchema,
@@ -99,26 +99,6 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
   }
 
   const absoluteDir = secureDirectory.path;
-  const paginationScope = createPaginationScope({
-    directory: absoluteDir,
-    query,
-    mode,
-    vectorWeight,
-    rerank,
-    language: language ?? null,
-    path_prefix: path_prefix ?? null,
-    symbol_type: symbol_type ?? null,
-    include_tests,
-    min_confidence,
-    max_content_bytes,
-    neighbor_window,
-  });
-  const cursorResult = decodePaginationCursor(cursor, paginationScope);
-  if (!cursorResult.ok) {
-    return { success: false, error: cursorResult.error };
-  }
-  const cursorOffset = cursorResult.offset;
-
   // Initialize components
   const ollamaClient = createOllamaClient(EMBEDDING_CONFIG);
   const embeddingClient =
@@ -157,6 +137,15 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     await vectorStore.connect();
     vectorStore.assertMetadataCompatible();
 
+    const getMetadata = (
+      vectorStore as unknown as {
+        getMetadata?: () => IndexMetadata | undefined;
+      }
+    ).getMetadata;
+    const indexMetadata =
+      typeof getMetadata === "function"
+        ? getMetadata.call(vectorStore)
+        : undefined;
     // Generate query embedding
     const queryVector =
       effectiveMode === "fts" ? [] : await embeddingClient.embed(query);
@@ -168,30 +157,66 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       ...(symbol_type === undefined ? {} : { symbol_type }),
       include_tests,
     };
-    const neighborhoodBudget =
-      neighbor_window === 0
-        ? 0
-        : Math.min(MAX_NEIGHBOR_RESULTS, limit * neighbor_window * 2);
-    const requestedCandidateLimit = Math.max(
-      cursorOffset + limit + 1,
-      limit + neighborhoodBudget,
-    );
-    const candidateLimit = hasSearchFilters(filters)
-      ? Math.min(500, Math.max(requestedCandidateLimit, limit * 10, 50))
-      : cursor === undefined
-        ? neighbor_window === 0
-          ? limit
-          : Math.min(500, Math.max(limit, requestedCandidateLimit))
-        : Math.min(500, Math.max(requestedCandidateLimit, 50));
+    // Rank the same bounded pool on every page. Growing the pool with the
+    // offset or page size changes reranking/confidence and can skip results.
+    // One extra candidate detects exhaustion without an unbounded query.
     let results: SearchCandidate[] = await vectorStore.searchHybrid(
       queryVector,
       query,
-      candidateLimit,
+      MAX_SEARCH_CANDIDATES + 1,
       {
         mode: effectiveMode,
         vectorWeight,
       },
     );
+    // FTS may create its persisted index on the first query. Bind the cursor
+    // afterwards, to the actual table snapshot rather than the metadata file,
+    // which can lag a data commit or remain unchanged after a deletion.
+    const getRevision = (
+      vectorStore as unknown as {
+        getRevision?: () => Promise<number | undefined>;
+      }
+    ).getRevision;
+    const tableRevision = await getRevision?.call(vectorStore);
+    const paginationScope = createPaginationScope({
+      directory: absoluteDir,
+      query,
+      mode,
+      vectorWeight,
+      rerank,
+      threshold: threshold ?? null,
+      language: language ?? null,
+      path_prefix: path_prefix ?? null,
+      symbol_type: symbol_type ?? null,
+      include_tests,
+      min_confidence,
+      max_content_bytes,
+      neighbor_window,
+      index_revision: indexMetadata ?? null,
+      table_revision: tableRevision ?? null,
+    });
+    const cursorResult = decodePaginationCursor(cursor, paginationScope);
+    if (!cursorResult.ok) {
+      vectorStore.close();
+      return { success: false, error: cursorResult.error };
+    }
+    const cursorOffset = cursorResult.offset;
+    const candidatesTruncated = results.length > MAX_SEARCH_CANDIDATES;
+    results = results.slice(0, MAX_SEARCH_CANDIDATES).sort((left, right) => {
+      const scoreOrder =
+        effectiveMode === "vector"
+          ? left.score - right.score
+          : right.score - left.score;
+      return (
+        scoreOrder ||
+        left.chunk.filePath.localeCompare(right.chunk.filePath) ||
+        left.chunk.startLine - right.chunk.startLine ||
+        left.chunk.id.localeCompare(right.chunk.id)
+      );
+    });
+    const boundsMessage = candidatesTruncated
+      ? " Search is limited to the first 500 retrieval candidates; refine the query or filters for broader coverage."
+      : "";
 
     // Apply threshold filter if specified (only for vector mode where lower = better)
     // For hybrid/fts modes, RRF scores are higher = better, so threshold is ignored
@@ -232,24 +257,16 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       cursorOffset,
       cursorOffset + limit,
     );
-    const truncated =
+    const hasNextPage =
       cursorOffset + pageResults.length < confidentResults.length;
-    const nextCursor = truncated
+    const truncated = hasNextPage || candidatesTruncated || expanded.truncated;
+    const nextCursor = hasNextPage
       ? createPaginationCursor(
           paginationScope,
           cursorOffset + pageResults.length,
         )
       : undefined;
 
-    const getMetadata = (
-      vectorStore as unknown as {
-        getMetadata?: () => IndexMetadata | undefined;
-      }
-    ).getMetadata;
-    const indexMetadata =
-      typeof getMetadata === "function"
-        ? getMetadata.call(vectorStore)
-        : undefined;
     const index = indexMetadata
       ? {
           schema_version: indexMetadata.schemaVersion,
@@ -346,9 +363,10 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
     if (formattedResults.length === 0) {
       return {
         success: true,
-        message: abstained
-          ? (abstentionReason ?? "No sufficiently confident code found")
-          : "No matching code found",
+        message:
+          (abstained
+            ? (abstentionReason ?? "No sufficiently confident code found")
+            : "No matching code found") + boundsMessage,
         data: output,
       };
     }
@@ -379,7 +397,7 @@ export async function execute(input: SearchCodeInput): Promise<FeatureResult> {
       return `${String(i + 1)}. [${r.language}] ${location}${symbol}\n   ${preview}...${callInfo}`;
     });
 
-    const message = `Found ${String(formattedResults.length)} results for "${query}":\n\n${resultLines.join("\n\n")}`;
+    const message = `Found ${String(formattedResults.length)} results for "${query}":\n\n${resultLines.join("\n\n")}${boundsMessage}`;
 
     return {
       success: true,

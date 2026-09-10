@@ -567,7 +567,7 @@ describe("execute", () => {
     expect(mockSearchHybrid).toHaveBeenCalledWith(
       expect.any(Array),
       "service",
-      100,
+      501,
       { mode: "fts", vectorWeight: 0.5 },
     );
   });
@@ -585,7 +585,7 @@ describe("execute", () => {
     expect(mockSearchHybrid).toHaveBeenCalledWith(
       expect.any(Array),
       "test query",
-      10,
+      501,
       { mode: "fts", vectorWeight: 0.5 },
     );
   });
@@ -603,7 +603,7 @@ describe("execute", () => {
     expect(mockSearchHybrid).toHaveBeenCalledWith(
       expect.any(Array),
       "test query",
-      10,
+      501,
       { mode: "vector", vectorWeight: 0.5 },
     );
   });
