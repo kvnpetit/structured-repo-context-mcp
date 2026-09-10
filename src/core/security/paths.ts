@@ -114,9 +114,9 @@ export function isSecureStateDirectory(root: string, stateDirectory: string): bo
 
   let rootRealPath: string;
   try {
-    rootRealPath = realPath(rootPath);
+    rootRealPath = fs.existsSync(rootPath) ? realPath(rootPath) : resolveExistingPath(rootPath);
   } catch {
-    rootRealPath = rootPath;
+    rootRealPath = resolveExistingPath(rootPath);
   }
 
   try {
