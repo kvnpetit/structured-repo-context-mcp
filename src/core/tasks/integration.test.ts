@@ -321,4 +321,75 @@ describe("Tasks extension transport integration", () => {
       await handler.close();
     }
   }, 20_000);
+
+  test("accepts flat union inputs when a tool is enabled for tasks", async () => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "tasks-union-http-"),
+    );
+    directories.push(directory);
+    vi.stubEnv("MCP_TASK_STORE_DIR", directory);
+    vi.stubEnv("MCP_TASK_TOOLS", "run_static_analysis");
+    vi.stubEnv("SRC_STATIC_ANALYSIS_ENABLED", "false");
+    const manager = createTaskManager();
+    const handler = createMcpHandler(() => createServer(manager), {
+      legacy: "reject",
+      responseMode: "json",
+    });
+    try {
+      const response = await handler.fetch(
+        new Request("http://localhost/mcp", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "mcp-protocol-version": protocolVersion,
+            "mcp-method": "tools/call",
+            "mcp-name": "run_static_analysis",
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: {
+              name: "run_static_analysis",
+              arguments: {
+                backend: "ast-grep",
+                pattern: "console.log($A)",
+                language: "typescript",
+              },
+              _meta: {
+                ["io.modelcontextprotocol/protocolVersion"]: protocolVersion,
+                ["io.modelcontextprotocol/clientCapabilities"]: {
+                  extensions: { [tasksExtension]: {} },
+                },
+              },
+            },
+          }),
+        }),
+      );
+      const body = (await response.json()) as {
+        result?: { taskId?: string; resultType?: string };
+      };
+      expect(body.result?.resultType).toBe("task");
+      const taskId = body.result?.taskId;
+      expect(taskId).toBeTypeOf("string");
+      if (taskId === undefined) {
+        throw new Error("No task handle");
+      }
+      await vi.waitFor(() => {
+        expect(manager.getTask(taskId)).toMatchObject({
+          status: "completed",
+          result: {
+            structuredContent: {
+              success: true,
+              schema_version: 1,
+              message: "Static analysis is disabled",
+            },
+          },
+        });
+      });
+    } finally {
+      manager.close();
+      await handler.close();
+    }
+  }, 20_000);
 });

@@ -8,7 +8,8 @@ import {
 } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import { executeFeature, formatFeatureResult } from "@tools/adapter";
+import { executeFeature, finalizeFeatureResult } from "@features/runtime";
+import { usesFlatMcpInput } from "@tools/contracts";
 import type { Feature } from "@features/types";
 
 import type { TaskManager } from "@core/tasks/manager";
@@ -153,7 +154,7 @@ function sendError(
 }
 
 function featureInput(feature: Feature, args: unknown): unknown {
-  if (feature.schema instanceof z.ZodObject) {
+  if (usesFlatMcpInput(feature.schema)) {
     return feature.schema.parse(args ?? {});
   }
   return feature.schema.parse(isRecord(args) ? args.input : undefined);
@@ -200,7 +201,16 @@ export function installTaskExtension(
       request.method === "tasks/update" ||
       request.method === "tasks/cancel"
     ) {
-      handleTaskMethod(lowLevel, manager, request, extra);
+      try {
+        handleTaskMethod(lowLevel, manager, request, extra);
+      } catch {
+        sendError(
+          lowLevel,
+          request,
+          INTERNAL_ERROR,
+          "Task store is unavailable",
+        );
+      }
       return;
     }
 
@@ -308,7 +318,7 @@ function handleTaskToolCall(
         signal: context.signal,
         reportProgress: context.reportProgress,
       });
-      return formatFeatureResult(result);
+      return finalizeFeatureResult(feature, result);
     });
     send(server, {
       jsonrpc: "2.0",
@@ -316,10 +326,7 @@ function handleTaskToolCall(
       result: task,
     } as unknown as JSONRPCMessage);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "Task execution is not available"
-    ) {
+    if (!(error instanceof z.ZodError)) {
       sendError(
         server,
         request,

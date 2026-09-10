@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { DurableTaskStore } from "@core/tasks/store";
+import { createTaskManager } from "@core/tasks/manager";
 
 describe("durable task store", () => {
   const directories: string[] = [];
@@ -75,12 +76,19 @@ describe("durable task store", () => {
     });
   });
 
-  test("rejects malformed snapshots without preventing startup", () => {
+  test("preserves malformed snapshots and disables tasks without preventing server startup", () => {
     const storePath = filePath("tasks-corrupt-");
     fs.writeFileSync(storePath, "not-json", "utf8");
 
-    const store = new DurableTaskStore({ filePath: storePath, ttlMs: null });
-    expect(store.create("test_tool").status).toBe("working");
+    expect(
+      () => new DurableTaskStore({ filePath: storePath, ttlMs: null }),
+    ).toThrow();
+    vi.stubEnv("MCP_TASK_STORE_DIR", path.dirname(storePath));
+    expect(createTaskManager().getStatus()).toMatchObject({
+      enabled: false,
+      reason: "Task store is unavailable",
+    });
+    expect(fs.readFileSync(storePath, "utf8")).toBe("not-json");
   });
 
   test("loads only valid task records and fails unfinished records safely", () => {
@@ -138,6 +146,16 @@ describe("durable task store", () => {
       "utf8",
     );
 
+    expect(
+      () => new DurableTaskStore({ filePath: storePath, ttlMs: null }),
+    ).toThrow("corrupt task record");
+    const snapshot = JSON.parse(fs.readFileSync(storePath, "utf8")) as {
+      tasks: Record<string, unknown>;
+    };
+    delete snapshot.tasks.invalid;
+    delete snapshot.tasks.mismatch;
+    delete snapshot.tasks.nullEntry;
+    fs.writeFileSync(storePath, JSON.stringify(snapshot));
     const store = new DurableTaskStore({ filePath: storePath, ttlMs: null });
 
     expect(store.get("working")?.status).toBe("working");
@@ -179,7 +197,7 @@ describe("durable task store", () => {
     expect(store.markWorking(task.taskId)?.status).toBe("completed");
   });
 
-  test("uses defensive environment defaults and preserves invalid timestamps", () => {
+  test("uses defensive environment defaults and rejects invalid timestamps", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-env-"));
     directories.push(directory);
     vi.stubEnv("MCP_TASK_STORE_DIR", directory);
@@ -205,10 +223,12 @@ describe("durable task store", () => {
       JSON.stringify({ version: 1, tasks: { [task.taskId]: task } }),
       "utf8",
     );
-    const reloaded = new DurableTaskStore({
-      filePath: invalidTimestampPath,
-      ttlMs: 1,
-    });
-    expect(reloaded.get(task.taskId)?.status).toBe("completed");
+    expect(
+      () =>
+        new DurableTaskStore({
+          filePath: invalidTimestampPath,
+          ttlMs: 1,
+        }),
+    ).toThrow("corrupt task record");
   });
 });

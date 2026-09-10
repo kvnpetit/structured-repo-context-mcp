@@ -1,7 +1,14 @@
+import {
+  boundResult,
+  toCreateTaskResult,
+  toDetailedTask,
+  toPublicTask,
+} from "./results";
 import * as os from "node:os";
 import * as path from "node:path";
 
 import type { FeatureExecutionContext } from "@features/types";
+import { createTaskOwner, releaseTaskOwner, type TaskOwner } from "./ownership";
 
 import {
   DurableTaskStore,
@@ -11,8 +18,6 @@ import {
 import type {
   CreateTaskResult,
   DetailedTask,
-  PublicTask,
-  StoredTask,
   TaskError,
   TaskRuntimeConfig,
 } from "@core/tasks/types";
@@ -119,6 +124,13 @@ export class TaskManager {
   readonly toolNames: ReadonlySet<string>;
   private readonly store: DurableTaskStore | undefined;
   private readonly active = new Map<string, AbortController>();
+  private readonly owner: TaskOwner | undefined;
+  private readonly recoverUnfinished: boolean;
+  private readonly failedInMemory = new Map<string, DetailedTask>();
+  private readonly pendingFailures = new Set<string>();
+  private cancellationTimer: ReturnType<typeof setInterval> | undefined;
+  private storageUnavailable = false;
+  private closed = false;
 
   constructor(options: TaskManagerOptions = {}) {
     const runtime = getTaskRuntimeConfig();
@@ -127,14 +139,22 @@ export class TaskManager {
     this.maxResultBytes = options.maxResultBytes ?? runtime.maxResultBytes;
     this.maxActiveTasks = options.maxActiveTasks ?? runtime.maxActiveTasks;
     this.toolNames = new Set(options.toolNames ?? runtime.toolNames);
+    this.recoverUnfinished = options.recoverUnfinished !== false;
     if (this.enabled) {
-      this.store = new DurableTaskStore({
-        filePath: options.filePath ?? runtime.storeFilePath,
-        ttlMs: options.ttlMs !== undefined ? options.ttlMs : runtime.ttlMs,
-        pollIntervalMs: options.pollIntervalMs ?? runtime.pollIntervalMs,
-      });
-      if (options.recoverUnfinished !== false) {
-        this.store.markUnfinishedAsFailed();
+      this.owner = createTaskOwner();
+      try {
+        this.store = new DurableTaskStore({
+          filePath: options.filePath ?? runtime.storeFilePath,
+          ttlMs: options.ttlMs !== undefined ? options.ttlMs : runtime.ttlMs,
+          pollIntervalMs: options.pollIntervalMs ?? runtime.pollIntervalMs,
+          owner: this.owner,
+        });
+        if (options.recoverUnfinished !== false) {
+          this.store.markUnfinishedAsFailed();
+        }
+      } catch (error) {
+        releaseTaskOwner(this.owner);
+        throw error;
       }
     }
   }
@@ -142,6 +162,8 @@ export class TaskManager {
   canCreateTask(toolName: string): boolean {
     return (
       this.enabled &&
+      !this.closed &&
+      !this.storageUnavailable &&
       this.store !== undefined &&
       this.toolNames.has(toolName) &&
       this.active.size < this.maxActiveTasks
@@ -156,13 +178,32 @@ export class TaskManager {
     const stored = this.store.create(toolName);
     const controller = new AbortController();
     this.active.set(stored.taskId, controller);
-    void this.run(stored.taskId, controller, runner);
+    this.cancellationTimer ??= setInterval(() => {
+      this.pollCancellation();
+    }, 500).unref();
+    void this.run(stored.taskId, controller, runner).catch(() => {
+      this.degradeStorage();
+    });
     return toCreateTaskResult(stored);
   }
 
   getTask(taskId: string): DetailedTask | undefined {
-    const task = this.store?.get(taskId);
-    return task === undefined ? undefined : toDetailedTask(task);
+    this.flushFailures();
+    const failed = this.failedInMemory.get(taskId);
+    if (failed !== undefined) {
+      return failed;
+    }
+    try {
+      const task = this.store?.get(taskId, this.recoverUnfinished);
+      return task === undefined ? undefined : toDetailedTask(task);
+    } catch (error) {
+      this.degradeStorage();
+      const localFailure = this.failedInMemory.get(taskId);
+      if (localFailure !== undefined) {
+        return localFailure;
+      }
+      throw error;
+    }
   }
 
   updateTask(taskId: string, inputResponses: Record<string, unknown>): boolean {
@@ -190,34 +231,124 @@ export class TaskManager {
     if (task === undefined) {
       return false;
     }
-    this.store?.cancel(taskId);
-    this.active.get(taskId)?.abort();
+    try {
+      this.store?.cancel(taskId);
+    } finally {
+      this.active.get(taskId)?.abort();
+    }
     return true;
   }
 
   /** Stop active runners when an owning server/HTTP listener is shutting down. */
   close(): void {
+    this.closed = true;
+    clearInterval(this.cancellationTimer);
+    this.cancellationTimer = undefined;
     for (const [taskId, controller] of this.active) {
-      this.store?.cancel(taskId, "Task cancelled because the server stopped");
+      try {
+        this.store?.cancel(taskId, "Task cancelled because the server stopped");
+      } catch {
+        this.degradeStorage();
+      }
       controller.abort();
+    }
+    if (this.owner !== undefined) {
+      releaseTaskOwner(this.owner);
     }
   }
 
   getStatus(): TaskManagerStatus {
+    this.flushFailures();
+    let counts: ReturnType<DurableTaskStore["counts"]> | undefined;
+    try {
+      counts = this.store?.counts();
+    } catch {
+      this.degradeStorage();
+    }
+    const reason = this.storageUnavailable
+      ? "Task store is unavailable"
+      : this.reason;
     return {
       enabled: this.enabled,
-      ...(this.reason === undefined ? {} : { reason: this.reason }),
+      ...(reason === undefined ? {} : { reason }),
       activeTasks: this.active.size,
       maxActiveTasks: this.maxActiveTasks,
       configuredTools: [...this.toolNames],
-      counts: this.store?.counts() ?? {
-        working: 0,
-        input_required: 0,
-        completed: 0,
-        failed: 0,
-        cancelled: 0,
-      },
+      counts: counts ??
+        this.store?.counts(false) ?? {
+          working: 0,
+          input_required: 0,
+          completed: 0,
+          failed: 0,
+          cancelled: 0,
+        },
     };
+  }
+
+  private degradeStorage(): void {
+    this.storageUnavailable = true;
+    if (this.owner !== undefined) {
+      releaseTaskOwner(this.owner);
+    }
+    for (const [taskId, controller] of this.active) {
+      const task = this.store?.cached(taskId);
+      if (task !== undefined) {
+        this.failedInMemory.set(taskId, {
+          ...toPublicTask(task),
+          status: "failed",
+          error: { code: -32603, message: "Task store is unavailable" },
+          statusMessage: "Task store is unavailable",
+        });
+        this.pendingFailures.add(taskId);
+      }
+      controller.abort();
+    }
+  }
+
+  private pollCancellation(): void {
+    if (this.storageUnavailable) {
+      this.flushFailures();
+      return;
+    }
+    try {
+      for (const [taskId, controller] of this.active) {
+        const task = this.store?.get(taskId);
+        if (
+          task === undefined ||
+          task.status === "cancelled" ||
+          task.status === "failed"
+        ) {
+          controller.abort();
+        }
+      }
+    } catch {
+      this.degradeStorage();
+    }
+  }
+
+  private flushFailures(): void {
+    if (this.store === undefined || this.pendingFailures.size === 0) {
+      return;
+    }
+    try {
+      for (const taskId of this.pendingFailures) {
+        const persisted = this.store.fail(taskId, {
+          code: -32603,
+          message: "Task store is unavailable",
+        });
+        if (persisted !== undefined) {
+          this.failedInMemory.set(taskId, toDetailedTask(persisted));
+        }
+        this.pendingFailures.delete(taskId);
+      }
+      if (this.active.size === 0) {
+        clearInterval(this.cancellationTimer);
+        this.cancellationTimer = undefined;
+      }
+    } catch {
+      // Retry pending terminal states on the next existing cancellation poll
+      // or request. Never restart runners after persistence recovers.
+    }
   }
 
   private async run(
@@ -254,17 +385,25 @@ export class TaskManager {
         this.store.complete(taskId, bounded);
       }
     } catch {
-      if (
-        !controller.signal.aborted &&
-        this.store.get(taskId)?.status !== "cancelled"
-      ) {
-        this.store.fail(taskId, {
-          code: -32603,
-          message: "Task execution failed",
-        });
+      try {
+        if (
+          !controller.signal.aborted &&
+          this.store.get(taskId)?.status !== "cancelled"
+        ) {
+          this.store.fail(taskId, {
+            code: -32603,
+            message: "Task execution failed",
+          });
+        }
+      } catch {
+        this.degradeStorage();
       }
     } finally {
       this.active.delete(taskId);
+      if (this.active.size === 0 && this.pendingFailures.size === 0) {
+        clearInterval(this.cancellationTimer);
+        this.cancellationTimer = undefined;
+      }
     }
   }
 }
@@ -287,81 +426,9 @@ export function createTaskManager(): TaskManager {
   } catch {
     return new TaskManager({
       enabled: false,
-      reason: "Task store is not writable",
+      reason: "Task store is unavailable",
     });
   }
-}
-
-function toPublicTask(task: StoredTask): PublicTask {
-  return {
-    taskId: task.taskId,
-    status: task.status,
-    ...(task.statusMessage === undefined
-      ? {}
-      : { statusMessage: task.statusMessage }),
-    createdAt: task.createdAt,
-    lastUpdatedAt: task.lastUpdatedAt,
-    ttlMs: task.ttlMs,
-    ...(task.pollIntervalMs === undefined
-      ? {}
-      : { pollIntervalMs: task.pollIntervalMs }),
-  };
-}
-
-function toCreateTaskResult(task: StoredTask): CreateTaskResult {
-  return { resultType: "task", ...toPublicTask(task) };
-}
-
-function toDetailedTask(task: StoredTask): DetailedTask {
-  const base = toPublicTask(task);
-  if (task.status === "input_required") {
-    return {
-      ...base,
-      status: "input_required",
-      inputRequests: task.inputRequests ?? {},
-    };
-  }
-  if (task.status === "completed") {
-    return { ...base, status: "completed", result: task.result ?? {} };
-  }
-  if (task.status === "failed") {
-    return {
-      ...base,
-      status: "failed",
-      error: task.error ?? { code: -32603, message: "Task execution failed" },
-    };
-  }
-  if (task.status === "cancelled") {
-    return { ...base, status: "cancelled" };
-  }
-  return { ...base, status: "working" };
-}
-
-function boundResult(
-  result: Record<string, unknown>,
-  maxBytes: number,
-): Record<string, unknown> {
-  let serialized: string;
-  try {
-    serialized = JSON.stringify(result);
-  } catch {
-    return {
-      content: [{ type: "text", text: "Task result could not be serialized" }],
-      isError: true,
-    };
-  }
-  if (Buffer.byteLength(serialized, "utf8") <= maxBytes) {
-    return result;
-  }
-  return {
-    content: [
-      {
-        type: "text",
-        text: "Task result exceeded the configured storage limit and was rejected",
-      },
-    ],
-    isError: true,
-  };
 }
 
 export type { TaskError };

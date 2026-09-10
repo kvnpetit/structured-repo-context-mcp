@@ -1,3 +1,5 @@
+import type { TaskOwner } from "./ownership";
+
 export const TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks" as const;
 
 export type TaskStatus =
@@ -10,6 +12,7 @@ export interface TaskError {
 }
 
 export interface StoredTask {
+  owner?: TaskOwner;
   taskId: string;
   toolName: string;
   status: TaskStatus;
