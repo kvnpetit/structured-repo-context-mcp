@@ -8,28 +8,29 @@
  * - fast-glob for efficient file scanning
  */
 
+import * as fs from "node:fs";
 import * as path from "node:path";
-import { watch, type FSWatcher } from "chokidar";
-import type { Ignore } from "ignore";
-import type { EmbeddingConfig } from "@core/embeddings/types";
+import { shouldIndexFile } from "@core/embeddings/chunker";
 import {
-  OllamaClient,
   createLexicalEmbeddingClient,
   type EmbeddingClient,
+  OllamaClient,
 } from "@core/embeddings/client";
-import { VectorStore } from "@core/embeddings/store";
-import { shouldIndexFile } from "@core/embeddings/chunker";
 import type { EnrichmentOptions } from "@core/embeddings/enricher";
+import { VectorStore } from "@core/embeddings/store";
+import type { EmbeddingConfig } from "@core/embeddings/types";
+import { WatcherHashCache } from "@core/embeddings/watcher-cache";
 import {
   collectIndexableFiles,
   embedFileContent,
   shouldIndexPath,
 } from "@core/embeddings/watcher-indexing";
-import { WatcherHashCache } from "@core/embeddings/watcher-cache";
 import { createIgnoreFilter } from "@core/files";
-import { readPathAliasesCached } from "@core/utils";
 import { readSecureTextFile, resolveSecureDirectory } from "@core/security";
+import { readPathAliasesCached } from "@core/utils";
 import { logger } from "@utils";
+import { type FSWatcher, watch } from "chokidar";
+import type { Ignore } from "ignore";
 
 /** Default debounce delay in milliseconds */
 const DEFAULT_DEBOUNCE_MS = 5000;
@@ -78,7 +79,16 @@ export class IndexWatcher {
     if (!secureDirectory.ok) {
       throw new Error(secureDirectory.error);
     }
-    this.directory = secureDirectory.path;
+    // chokidar ultimately delegates to Node's native fs.watch on Windows.
+    // Resolve any short-path or symlink alias before opening that watcher so
+    // libuv receives one canonical directory spelling throughout its lifetime.
+    try {
+      this.directory = fs.realpathSync.native(secureDirectory.path);
+    } catch {
+      // The secure resolver already confirmed that the directory exists. Keep
+      // its resolved path if native canonicalization is unavailable.
+      this.directory = secureDirectory.path;
+    }
     this.config = options.config;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
     this.embeddingClient =
