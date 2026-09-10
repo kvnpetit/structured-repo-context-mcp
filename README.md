@@ -13,7 +13,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/src-mcp.svg)](https://www.npmjs.com/package/src-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-blue.svg)](https://modelcontextprotocol.io)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-blue.svg)](https://www.typescriptlang.org/)
 [![Ollama](https://img.shields.io/badge/Ollama-Optional-orange.svg)](https://ollama.com)
 
 ---
@@ -138,7 +138,8 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 ```
 
 The server indexes the current directory when requested and can watch for file
-changes. `EMBEDDING_PROVIDER=lexical` removes the Ollama dependency entirely.
+changes. `EMBEDDING_PROVIDER=lexical` removes the requirement for a running
+Ollama service.
 
 Then in your AI assistant:
 
@@ -202,8 +203,8 @@ npx -y src-mcp search_code --query "authentication"
 ```bash
 git clone https://github.com/kvnpetit/structured-repo-context-mcp.git
 cd structured-repo-context-mcp
-npm install
-npm run dev
+bun install --frozen-lockfile
+bun run dev
 ```
 
 ---
@@ -1081,7 +1082,7 @@ HTTP body limits are capped at 16 MiB and concurrent requests at 256 even when
 environment variables are misconfigured.
 
 Ollama is used only through its local endpoint by default. The lexical provider
-is fully in-process and removes that optional local dependency. SRC does not
+is fully in-process and does not require the optional local Ollama service. SRC does not
 install, fetch, or invoke a remote service as part of indexing or analysis.
 
 **Example:**
@@ -1350,7 +1351,7 @@ the JSON report.
 Before publishing, validate the built package from a clean temporary install:
 
 ```bash
-npm run pack:verify
+bun run pack:verify
 bun run conformance:local
 ```
 
@@ -1407,12 +1408,10 @@ that those adapters have exhaustive branch coverage.
 
 ### Dependency audit
 
-`bun.lock` is the dependency lockfile of record. `npm audit` cannot audit this
-workspace without creating a separate `package-lock.json`, and
-`bun pm scan` currently reports that no security scanner is configured. No
-unverified scanner or second lockfile is added implicitly; configure an
-approved local/CI scanner against `bun.lock` before publishing and record its
-report alongside the release artifacts.
+`bun.lock` is the dependency lockfile of record. CI runs `bun audit
+--production` against the installed production dependency graph before build
+and publication. Keep that check green when updating dependencies; `npm audit`
+would require a separate `package-lock.json` for this Bun-managed workspace.
 
 ---
 
@@ -1556,6 +1555,7 @@ Error: Index already exists. Use force=true to re-index.
 - [Report Issues](https://github.com/kvnpetit/structured-repo-context-mcp/issues)
 - [Changelog](./CHANGELOG.md)
 - [Architecture Guide](./ARCHITECTURE.md)
+- [Contributing Guide](./CONTRIBUTING.md)
 
 ### External
 

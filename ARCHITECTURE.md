@@ -27,12 +27,14 @@ This document covers the internal architecture, project structure, and developme
 src/
 ├── index.ts              # MCP stdio entry point
 ├── bin.ts                # CLI entry point
+├── public.ts             # Side-effect-free package API entry point
 ├── server.ts             # MCP v2 server configuration + stdio
 ├── http.ts               # Optional Streamable HTTP adapter/auth/limits
 │
 ├── features/             # Business logic (exposed as MCP tools + CLI)
 │   ├── index.ts          # Feature registry
 │   ├── types.ts          # Feature and FeatureResult interfaces
+│   ├── runtime.ts        # Shared execution, validation, audit, and envelopes
 │   ├── utils/            # Shared feature utilities
 │   │
 │   ├── info/             # get_server_info
@@ -132,6 +134,11 @@ assets/                   # Runtime assets
 ├── queries/              # SCM query files per language
 └── languages.json        # Language configuration
 
+bunfig.toml               # Bun install policy and isolated linker
+biome.json                # Formatter and linter configuration
+tsconfig.json              # Strict TypeScript project configuration
+tsdown.config.ts          # Node 22 ESM bundle and declaration configuration
+
 .src-index/               # Generated per project (gitignored)
 ├── code_chunks.lance/    # LanceDB table data and manifests
 ├── call-graph.json       # Call graph cache
@@ -151,7 +158,8 @@ assets/                   # Runtime assets
 1. **Feature-first** — Business logic lives in `features/`, adapters expose it
 2. **Single source of truth** — Define once, use everywhere (MCP + CLI)
 3. **Colocated tests** — `index.test.ts` next to `index.ts`
-4. **Flat structure** — Maximum 3 levels of nesting
+4. **Modular structure** — Feature folders colocate implementation and tests;
+   shared internals may be nested when that keeps responsibilities isolated
 
 ### High-Level Diagram
 
@@ -839,11 +847,12 @@ Located in `assets/languages.json`:
     "supported": ["markdown", "latex", ...]
   },
   "fallbackExtensions": {
-    ".dockerfile": "dockerfile"
+    ".json": "json",
+    ".md": "markdown"
   },
   "specialFilenames": {
-    "Dockerfile": "dockerfile",
-    "Makefile": "makefile"
+    "dockerfile": "dockerfile",
+    "makefile": "makefile"
   },
   "binaryExtensions": [".exe", ".dll", ".png", ...]
 }
@@ -856,16 +865,16 @@ Located in `assets/languages.json`:
 ### Framework
 
 - **Runner:** Vitest
-- **Command:** `npm test` (uses Vitest)
+- **Command:** `bun run test` (uses Vitest)
 - **Location:** Colocated with source (`index.test.ts`)
 
 ### Running Tests
 
 ```bash
-npm test              # Run all tests
-npm test:watch        # Watch mode
-npm test:coverage     # With coverage
-npm test:ui           # Vitest UI
+bun run test              # Run all tests
+bun run test:watch        # Watch mode
+bun run test:coverage     # With coverage
+bun run test:ui           # Vitest UI
 ```
 
 ### Test Structure
@@ -912,24 +921,24 @@ vi.mocked(embeddings.createOllamaClient).mockReturnValue({
 
 ```bash
 # Development
-npm run dev              # Watch mode with auto-reload
-npm run cli help         # Test CLI
+bun run dev              # Watch mode with auto-reload
+bun run cli help         # Test CLI
 
 # Quality checks
-npm run check            # Typecheck + lint + format + contract baseline
-npm run contract:verify  # MCP/CLI/prompts/resources/exports/config parity
-npm run typecheck        # TypeScript only
-npm run lint             # Biome lint only
-npm run lint:fix         # Auto-fix lint issues
-npm run format           # Biome format
-npm run format:check     # Check formatting
+bun run check            # Typecheck + lint + format + contract baseline
+bun run contract:verify  # MCP/CLI/prompts/resources/exports/config parity
+bun run typecheck        # TypeScript only
+bun run lint             # Biome lint only
+bun run lint:fix         # Auto-fix lint issues
+bun run format           # Biome format
+bun run format:check     # Check formatting
 
 # Build
-npm run build            # Compile TypeScript
-npm run pack:verify      # Pack, install, import, and exercise the CLI
-npm run conformance:local # Local stdio/HTTP × legacy/modern matrix (no download)
-npm run mutation:smoke    # Kill curated pagination mutants in temp copies
-npm run conformance:smoke # Official MCP compatibility smoke scenarios
+bun run build            # Build ESM bundle and declarations with tsdown
+bun run pack:verify      # Pack, install, import, and exercise the CLI
+bun run conformance:local # Local stdio/HTTP × legacy/modern matrix (no download)
+bun run mutation:smoke    # Kill curated pagination mutants in temp copies
+bun run conformance:smoke # Official MCP compatibility smoke scenarios
 ```
 
 Biome applies the repository formatter and lint rules. Public refactors must
@@ -939,7 +948,8 @@ surfaces, prompts, resources, package exports, and default configuration.
 
 ### Import Aliases
 
-Always use path aliases (never relative imports):
+Use path aliases across top-level module boundaries. Relative imports are fine
+within a module or feature folder:
 
 | Alias         | Path             |
 | ------------- | ---------------- |
@@ -989,6 +999,9 @@ git push origin main
 3. Generates CHANGELOG.md from conventional commits
 4. Commits changelog to main when it changed
 5. Creates the GitHub Release and publishes to npm with provenance
+
+The `bun run changelog` script uses the Conventional Commits preset directly
+from the project so generation also works with Bun's isolated dependency linker.
 
 ### Conventional Commits
 
@@ -1105,6 +1118,7 @@ export const ENRICHMENT_CONFIG = getEnrichmentConfig();
 ## Links
 
 - [README](./README.md) — User documentation
+- [Contributing Guide](./CONTRIBUTING.md) — Development and pull request workflow
 - [Changelog](./CHANGELOG.md) — Version history
 - [Report Issues](https://github.com/kvnpetit/structured-repo-context-mcp/issues)
 - [MCP Specification](https://modelcontextprotocol.io/specification)
