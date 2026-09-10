@@ -29,6 +29,7 @@ Closes #(issue number)
 ## Checklist
 
 - [ ] My code follows the project's style guidelines
+- [ ] My commit messages follow Conventional Commits (`type(scope): summary`)
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code where necessary
 - [ ] I have updated the documentation if needed

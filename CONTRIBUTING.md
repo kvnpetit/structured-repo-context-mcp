@@ -35,9 +35,11 @@ verification. Keep generated output such as `dist/`, `coverage/`, and
 
 ## Changes and pull requests
 
-Use a clear, imperative commit subject and keep changes focused. Update the
-relevant documentation and include tests for behavior changes. The pull
-request template lists the checks reviewers expect.
+Use a [Conventional Commit](https://www.conventionalcommits.org/) subject in
+the `type(scope): summary` form, for example
+`feat(search): add symbol filtering` or `fix(cli): report invalid arguments`.
+Keep changes focused, update the relevant documentation, and include tests for
+behavior changes. The pull request template lists the checks reviewers expect.
 
 Before a release, ask the AI to review the changes since the last tag and
 update the next version section in `CHANGELOG.md` manually. Check the result

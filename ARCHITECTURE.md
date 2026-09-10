@@ -980,15 +980,17 @@ Releases run only after the `CI` workflow succeeds on `main` and the tested
 commit message contains the explicit `[release]` marker.
 
 ```bash
-# 1. Update version
-npm version minor  # or patch, major
+# 1. Update version without creating an automatic commit or tag
+npm version minor --no-git-tag-version  # or patch, major
 
-# 2. Push to dev
+# 2. Review the changelog with the AI and commit the release preparation
+git add package.json CHANGELOG.md
+git commit -m "chore(release): prepare v1.2.0"
 git push origin dev
 
 # 3. Merge to main with the release marker
 git checkout main
-git merge dev -m "Release v1.2.0 [release]"
+git merge dev -m "chore(release): publish v1.2.0 [release]"
 git push origin main
 ```
 
