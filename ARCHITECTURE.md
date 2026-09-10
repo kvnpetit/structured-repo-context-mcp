@@ -983,7 +983,9 @@ commit message contains the explicit `[release]` marker.
 # 1. Update version without creating an automatic commit or tag
 npm version major --no-git-tag-version  # or minor, patch
 
-# 2. Review the changelog with the AI and commit the release preparation
+# 2. Review the Unreleased changelog with the AI, promote it, and commit release preparation
+#    Rename `## [Unreleased]` to `## [2.0.0] - YYYY-MM-DD` and add a fresh
+#    empty `## [Unreleased]` section before committing.
 git add package.json src/config/index.ts README.md CHANGELOG.md
 git commit -m "chore(release): prepare v2.0.0"
 git push origin dev
@@ -1004,12 +1006,15 @@ git push origin main
 
 ### AI-assisted changelog
 
-`CHANGELOG.md` is maintained manually. Before merging a release, ask the AI to
-review the commits and user-visible changes since the previous tag, propose a
-concise categorized entry, and update the file. Review the generated text for
-accuracy, links, security-sensitive details, and breaking changes. The release
-workflow only validates and publishes the reviewed entry; it never infers
-release notes from commit prefixes.
+`CHANGELOG.md` is maintained manually as a curated Keep a Changelog record.
+During development, record notable work under `## [Unreleased]` using only the
+`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, and `Security` categories.
+Before merging a release, ask the AI to review the commits and user-visible
+changes since the previous tag, promote the section to the package version with
+an ISO date, and add a fresh `Unreleased` section. Review the generated text for
+accuracy, links, security-sensitive details, and breaking changes, then run
+`bun run changelog:check`. The release workflow validates and publishes the
+reviewed entry; it never infers release notes from commit prefixes.
 
 ---
 

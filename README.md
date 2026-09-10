@@ -1359,10 +1359,13 @@ bun run pack:verify
 bun run conformance:local
 ```
 
-Update the `CHANGELOG.md` entry for the package version before merging the
-release commit. The notes are maintained manually with AI assistance and are
-reviewed as project documentation; release automation validates the entry but
-does not generate or commit it.
+Maintain the `CHANGELOG.md` `Unreleased` section while developing. Before
+merging the release commit, rename it to the package version with its
+`YYYY-MM-DD` date and add a fresh `Unreleased` section. The notes follow the six
+Keep a Changelog categories (`Added`, `Changed`, `Deprecated`, `Removed`,
+`Fixed`, and `Security`), are maintained manually with AI assistance, and are
+reviewed as project documentation. `bun run changelog:check` and the release
+workflow validate the structure; neither generates or commits release notes.
 
 `conformance:local` checks the exact tool/resource/prompt surface and the
 stdio/HTTP × legacy/modern lifecycle matrix without contacting a remote MCP
