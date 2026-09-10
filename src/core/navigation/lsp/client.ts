@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createSafeLocalToolEnvironment } from "@core/security";
+import { resolveLspCommand } from "./launcher";
 
 import {
   isRecord,
@@ -35,6 +36,9 @@ export class JsonRpcClient {
 
   constructor(child: ChildProcessWithoutNullStreams) {
     this.child = child;
+    child.stdin.on("error", (error: Error) => {
+      this.fail(error);
+    });
     this.closePromise = new Promise((resolve) => {
       child.once("close", () => {
         this.closed = true;
@@ -183,11 +187,13 @@ export class JsonRpcClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        signal?.removeEventListener("abort", abort);
         reject(new Error(`Language server request timed out: ${method}`));
       }, timeoutMs);
       const abort = (): void => {
         clearTimeout(timer);
         this.pending.delete(id);
+        signal?.removeEventListener("abort", abort);
         reject(new Error("Language server request cancelled"));
       };
       if (signal?.aborted) {
@@ -248,12 +254,14 @@ export async function startClient(
   descriptor: { command: string; args: string[] },
   timeoutMs: number,
 ): Promise<JsonRpcClient> {
-  const child = spawn(descriptor.command, descriptor.args, {
+  const environment = createSafeLocalToolEnvironment();
+  const command = resolveLspCommand(descriptor, environment);
+  const child = spawn(command.command, command.args, {
     cwd: root,
     shell: false,
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
-    env: createSafeLocalToolEnvironment(),
+    env: environment,
   });
   const spawned = new Promise<void>((resolve, reject) => {
     child.once("spawn", resolve);

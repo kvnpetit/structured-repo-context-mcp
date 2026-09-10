@@ -141,19 +141,16 @@ export function resolveSecurePath(
     }
   }
 
-  const roots = [
-    ...configuredRoots(),
-    ...(options.root ? [path.resolve(options.root)] : []),
-  ];
-  for (const root of roots) {
-    if (checkContainment(absolutePath, root)) {
-      return { ok: true, path: absolutePath };
-    }
-  }
-
-  // A non-empty but malformed allow-list (for example `";"`) must not widen
-  // access back to the current process directory. Treat it as fail-closed.
-  if (roots.length > 0 || hasConfiguredAllowedRoots()) {
+  const roots = configuredRoots();
+  // Deployment roots are alternatives; a project root is an additional
+  // restriction, never another way to bypass the deployment allow-list.
+  const outsideDeployment =
+    hasConfiguredAllowedRoots() &&
+    !roots.some((root) => checkContainment(absolutePath, root));
+  const outsideProject =
+    options.root !== undefined &&
+    !checkContainment(absolutePath, path.resolve(options.root));
+  if (outsideDeployment || outsideProject) {
     return { ok: false, error: "Path is outside the allowed workspace" };
   }
 

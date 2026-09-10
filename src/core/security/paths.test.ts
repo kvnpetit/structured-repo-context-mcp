@@ -27,6 +27,37 @@ afterEach(() => {
 });
 
 describe("path containment", () => {
+  test("project containment narrows a broader deployment root", () => {
+    const root = makeTempDir();
+    try {
+      const project = path.join(root, "project");
+      fs.mkdirSync(project);
+      const sibling = path.join(root, "sibling.ts");
+      fs.writeFileSync(sibling, "harmless outside-project marker");
+      process.env.SRC_ALLOWED_ROOTS = root;
+      expect(resolveSecureFile(sibling, project).ok).toBe(false);
+      expect(readSecureTextFile(sibling, project).ok).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a supplied project cannot bypass deployment roots", () => {
+    const root = makeTempDir();
+    const outside = makeTempDir();
+    try {
+      const file = path.join(outside, "marker.ts");
+      fs.writeFileSync(file, "harmless marker");
+      for (const roots of [root, ";,"]) {
+        process.env.SRC_ALLOWED_ROOTS = roots;
+        expect(resolveSecureFile(file, outside).ok).toBe(false);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   test("does not confuse sibling prefixes with descendants", () => {
     expect(isPathWithin("C:\\workspace\\repo", "C:\\workspace\\repo2")).toBe(
       process.platform !== "win32",
