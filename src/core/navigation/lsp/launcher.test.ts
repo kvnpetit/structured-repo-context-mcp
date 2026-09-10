@@ -63,9 +63,10 @@ describe("local npm language server launcher", () => {
         { PATH: bin },
         "win32",
       );
+      const server = fs.realpathSync(path.join(packageRoot, "server.cjs"));
       expect(command).toEqual({
         command: process.execPath,
-        args: [path.join(packageRoot, "server.cjs"), "--stdio"],
+        args: [server, "--stdio"],
       });
     },
   );
