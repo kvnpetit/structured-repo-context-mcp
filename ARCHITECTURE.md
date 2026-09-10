@@ -1055,6 +1055,7 @@ release notes from commit prefixes.
 | `ENRICHMENT_MAX_SYMBOLS_PER_IMPORT` | `5`                      | Maximum symbols included per resolved import                |
 | `LOG_LEVEL`                         | `info`                   | Log verbosity                                               |
 | `SRC_ALLOWED_ROOTS`                 | unset                    | Allowed roots (`;`/`,` separated); required for remote HTTP |
+| `MCP_HTTP_ALLOW_INSECURE_REMOTE`    | `false`                  | Explicit opt-in for non-loopback HTTP behind a trusted TLS proxy |
 | `SRC_MAX_FILE_BYTES`                | `10485760`               | Maximum source file size (hard max 128 MiB)                 |
 | `SRC_MAX_RESULT_BYTES`              | `2097152`                | Maximum serialized MCP result                               |
 | `SRC_TOOL_ALLOWLIST`                | unset                    | MCP tool names (`;`/`,` separated)                          |

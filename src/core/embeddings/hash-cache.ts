@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 
+import { assertSecureStateDirectory } from "@core/security";
 import { withProcessFileLock, writeJsonAtomically } from "@core/utils";
 
 export const HASH_CACHE_FILE = ".src-index-hashes.json";
@@ -66,6 +67,7 @@ function safeCacheEntry(
 export function readHashCache(root: string): HashCacheReadResult {
   const filePath = hashCachePath(root);
   try {
+    assertSecureStateDirectory(root, path.dirname(filePath));
     const stats = fs.lstatSync(filePath);
     if (stats.isSymbolicLink() || !stats.isFile()) {
       return {
@@ -133,6 +135,11 @@ export async function writeHashCache(
   cache: HashCache,
   afterWrite?: () => void,
 ): Promise<void> {
+  assertSecureStateDirectory(root, path.dirname(hashCachePath(root)));
+  if (!fs.existsSync(path.dirname(hashCachePath(root)))) {
+    fs.mkdirSync(path.dirname(hashCachePath(root)), { recursive: true });
+  }
+  assertSecureStateDirectory(root, path.dirname(hashCachePath(root)));
   const sanitized = Object.fromEntries(
     Object.entries(cache)
       .map(([filePath, hash]) => safeCacheEntry(root, filePath, hash))

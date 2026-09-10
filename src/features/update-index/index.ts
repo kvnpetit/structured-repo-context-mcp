@@ -235,7 +235,9 @@ export async function execute(
     // Collect current files
     const ig = createIgnoreFilter(absoluteDir);
     const currentFiles = new Set(
-      collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) => left.localeCompare(right)),
+      collectFiles(absoluteDir, ig, absoluteDir, { signal: context?.signal }).sort((left, right) =>
+        left.localeCompare(right),
+      ),
     );
     const newHashCache: HashCache = {};
     for (const [cachedFile, hash] of Object.entries(hashCache)) {

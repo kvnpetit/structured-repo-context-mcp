@@ -208,8 +208,8 @@ export async function execute(
     const ig = createIgnoreFilter(absoluteDir, exclude);
 
     // Collect files
-    const files = collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) =>
-      left.localeCompare(right),
+    const files = collectFiles(absoluteDir, ig, absoluteDir, { signal: context?.signal }).sort(
+      (left, right) => left.localeCompare(right),
     );
 
     if (files.length === 0) {

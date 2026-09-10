@@ -976,7 +976,9 @@ src-mcp serve --no-watch        # Disable file watcher
 
 # Optional local Streamable HTTP transport
 src-mcp serve --transport http --port 3000
-# For a remote bind, also set MCP_HTTP_BEARER_TOKEN and MCP_HTTP_ALLOWED_HOSTS.
+# For a remote bind behind a trusted TLS proxy, also set
+# MCP_HTTP_BEARER_TOKEN, MCP_HTTP_ALLOWED_HOSTS, SRC_ALLOWED_ROOTS, and
+# MCP_HTTP_ALLOW_INSECURE_REMOTE=true.
 
 # Index a codebase manually
 src-mcp index_codebase
@@ -1060,6 +1062,7 @@ HTTP is opt-in; stdio remains the default and the safest local integration.
 | `MCP_HTTP_PORT`           | Bind port                                                           | `3000`      |
 | `MCP_HTTP_BEARER_TOKEN`   | Static bearer token; required for non-loopback                      | unset       |
 | `MCP_HTTP_ALLOWED_HOSTS`  | Hostnames allowed for remote Host/Origin checks                     | bind host   |
+| `MCP_HTTP_ALLOW_INSECURE_REMOTE` | Explicit opt-in for a non-loopback HTTP listener behind a trusted TLS proxy | `false` |
 | `MCP_HTTP_MAX_BODY_BYTES` | Maximum HTTP request body, including chunked data (hard max 16 MiB) | `2097152`   |
 | `MCP_HTTP_MAX_CONCURRENT` | Maximum concurrent HTTP requests (hard max 256)                     | `16`        |
 | `MCP_HTTP_LEGACY`         | `stateless` compatibility or `reject` modern-only                   | `stateless` |
@@ -1073,7 +1076,8 @@ Authorization: Bearer <MCP_HTTP_BEARER_TOKEN>
 ```
 
 The server validates localhost Host/Origin headers, refuses unauthenticated
-remote binds, requires `SRC_ALLOWED_ROOTS` for any non-loopback bind, caps
+remote binds, requires `SRC_ALLOWED_ROOTS` and explicit TLS termination for any
+non-loopback bind, caps
 request size/concurrency, and never logs the bearer token.
 Every serialized tool response is also bounded by `SRC_MAX_RESULT_BYTES`
 (default 2 MiB, hard maximum 16 MiB); oversized or unserializable results fail

@@ -7,6 +7,7 @@ import type {
   CallGraphNode,
   SerializedCallGraph,
 } from "@core/embeddings/callgraph-types";
+import { assertSecureStateDirectory } from "@core/security";
 import { logger } from "@utils";
 
 export function computeCallGraphHash(content: string): string {
@@ -25,9 +26,11 @@ export function saveCallGraphCache(
   try {
     const cachePath = getCachePath(directory);
     const cacheDir = path.dirname(cachePath);
+    assertSecureStateDirectory(directory, cacheDir);
     if (!fs.existsSync(cacheDir)) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
+    assertSecureStateDirectory(directory, cacheDir);
 
     const serialized: SerializedCallGraph = {
       nodes: Object.fromEntries(graph.nodes),
@@ -49,6 +52,11 @@ export function loadCallGraphCache(
   currentHashes: Record<string, string>,
 ): CallGraph | null {
   const cachePath = getCachePath(directory);
+  try {
+    assertSecureStateDirectory(directory, path.dirname(cachePath));
+  } catch {
+    return null;
+  }
   if (!fs.existsSync(cachePath)) {
     return null;
   }

@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { EmbeddedChunk } from "@core/embeddings/types";
+import { assertSecureStateDirectory } from "@core/security";
 import { withProcessFileLock } from "@core/utils";
 
 import type { LanceDBRow } from "./store-types";
@@ -27,6 +28,7 @@ export async function withIndexWriteLock<T>(
   indexPath: string,
   operation: () => Promise<T>,
 ): Promise<T> {
+  assertSecureStateDirectory(path.dirname(indexPath), indexPath);
   const key = normalizeFilePath(indexPath);
   const previous = indexWriteLocks.get(key) ?? Promise.resolve();
   let release!: () => void;
@@ -80,7 +82,26 @@ export function normalizeFilePath(filePath: string): string {
 }
 
 export function hasIndexData(directory: string): boolean {
-  return fs.existsSync(path.join(directory, INDEX_DIR_NAME, INDEX_TABLE_DIR_NAME));
+  const indexPath = path.join(directory, INDEX_DIR_NAME);
+  if (!isIndexPathSafe(directory, indexPath)) {
+    return false;
+  }
+  const tablePath = path.join(indexPath, INDEX_TABLE_DIR_NAME);
+  try {
+    const stats = fs.lstatSync(tablePath);
+    return stats.isDirectory() && !stats.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function isIndexPathSafe(directory: string, indexPath: string): boolean {
+  try {
+    assertSecureStateDirectory(directory, indexPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function chunkIdPredicate(chunkIds: string[]): string {

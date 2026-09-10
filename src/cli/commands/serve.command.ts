@@ -89,9 +89,13 @@ export const serveCommand = defineCommand({
 
     try {
       if (transport === "http") {
+        const configuredHostnames = process.env.MCP_HTTP_ALLOWED_HOSTS?.split(/[;,]/u)
+          .map((hostname) => hostname.trim())
+          .filter((hostname) => hostname.length > 0);
         runningHttpServer = await startHttpServer({
           host: args.host,
           port: Number(args.port),
+          ...(configuredHostnames === undefined ? {} : { allowedHostnames: configuredHostnames }),
         });
         return;
       }

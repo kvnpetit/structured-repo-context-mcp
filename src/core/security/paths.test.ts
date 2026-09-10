@@ -6,6 +6,7 @@ import {
   isPathWithin,
   hasConfiguredAllowedRoots,
   getMaxFileBytes,
+  isSecureStateDirectory,
   readSecureTextFile,
   resolveSecureDirectory,
   resolveSecureFile,
@@ -171,6 +172,23 @@ describe("path containment", () => {
       }
       const result = resolveSecureFile(link, root);
       expect(result.ok).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects a project state directory symlink", () => {
+    const root = makeTempDir();
+    const outside = makeTempDir();
+    try {
+      const state = path.join(root, ".src-index");
+      try {
+        fs.symlinkSync(outside, state, "junction");
+      } catch {
+        return;
+      }
+      expect(isSecureStateDirectory(root, state)).toBe(false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
       fs.rmSync(outside, { recursive: true, force: true });

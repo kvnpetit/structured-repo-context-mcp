@@ -19,6 +19,8 @@ import {
   successResult,
 } from "@features/utils";
 
+const MAX_QUERY_CONTENT_BYTES = 2 * 1024 * 1024;
+
 const presetValues = [
   "functions",
   "classes",
@@ -112,6 +114,12 @@ export async function execute(rawInput: QueryCodeInput): Promise<FeatureResult> 
   const contentResult = readContent(file_path, inputContent);
   if (!contentResult.success) {
     return { success: false, error: contentResult.error };
+  }
+  if (Buffer.byteLength(contentResult.content, "utf8") > MAX_QUERY_CONTENT_BYTES) {
+    return {
+      success: false,
+      error: `Query content exceeds the ${String(MAX_QUERY_CONTENT_BYTES)}-byte safety limit`,
+    };
   }
 
   try {

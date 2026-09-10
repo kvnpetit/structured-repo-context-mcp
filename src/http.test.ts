@@ -104,6 +104,27 @@ describe("HTTP transport", () => {
     }
   });
 
+  test("requires an explicit TLS proxy opt-in for remote binds", async () => {
+    const originalRoots = process.env.SRC_ALLOWED_ROOTS;
+    process.env.SRC_ALLOWED_ROOTS = process.cwd();
+    try {
+      await expect(
+        startHttpServer({
+          host: "0.0.0.0",
+          port: 0,
+          bearerToken: "test-token",
+          allowedHostnames: ["localhost"],
+        }),
+      ).rejects.toThrow("requires TLS termination");
+    } finally {
+      if (originalRoots === undefined) {
+        delete process.env.SRC_ALLOWED_ROOTS;
+      } else {
+        process.env.SRC_ALLOWED_ROOTS = originalRoots;
+      }
+    }
+  });
+
   test("serves the MCP protocol over authenticated Streamable HTTP", async () => {
     const running = await startHttpServer({
       host: "127.0.0.1",

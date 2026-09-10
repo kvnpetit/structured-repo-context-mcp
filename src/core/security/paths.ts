@@ -101,6 +101,46 @@ function checkContainment(target: string, root: string): boolean {
 }
 
 /**
+ * Validate a project-local state directory before a native store or cache
+ * opens it. State directories are created by the application, so an existing
+ * link or junction is always rejected instead of being followed.
+ */
+export function isSecureStateDirectory(root: string, stateDirectory: string): boolean {
+  const rootPath = path.resolve(root);
+  const statePath = path.resolve(stateDirectory);
+  if (!isPathWithin(rootPath, statePath)) {
+    return false;
+  }
+
+  let rootRealPath: string;
+  try {
+    rootRealPath = realPath(rootPath);
+  } catch {
+    rootRealPath = rootPath;
+  }
+
+  try {
+    if (!fs.existsSync(statePath)) {
+      return isPathWithin(rootRealPath, resolveExistingPath(statePath));
+    }
+    const stats = fs.lstatSync(statePath);
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      return false;
+    }
+    return isPathWithin(rootRealPath, realPath(statePath));
+  } catch {
+    return false;
+  }
+}
+
+/** Throw a stable error when project-local state is not safely usable. */
+export function assertSecureStateDirectory(root: string, stateDirectory: string): void {
+  if (!isSecureStateDirectory(root, stateDirectory)) {
+    throw new Error("Project state directory is not a regular in-project directory");
+  }
+}
+
+/**
  * Resolve and validate a path before any filesystem access.
  *
  * `SRC_ALLOWED_ROOTS` is an optional semicolon/comma-separated allow-list for
@@ -158,8 +198,8 @@ export function resolveSecureFile(inputPath: string, root?: string): SecurePathR
   return resolveSecurePath(inputPath, { kind: "file", root });
 }
 
-export function resolveSecureDirectory(inputPath: string): SecurePathResult {
-  return resolveSecurePath(inputPath, { kind: "directory" });
+export function resolveSecureDirectory(inputPath: string, root?: string): SecurePathResult {
+  return resolveSecurePath(inputPath, { kind: "directory", root });
 }
 
 export function getMaxFileBytes(): number {
@@ -196,7 +236,14 @@ export function readSecureTextFile(
     // Open once and inspect/read through the descriptor. This closes the
     // common check-then-read race where a file is replaced after containment
     // validation; the descriptor continues to reference the opened file.
-    descriptor = fs.openSync(resolved.path, fs.constants.O_RDONLY);
+    const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+    descriptor = fs.openSync(resolved.path, fs.constants.O_RDONLY | noFollow);
+    // O_NOFOLLOW is unavailable on some Windows runtimes. Re-check the
+    // pathname after opening so a raced replacement by a link is discarded.
+    const openedPath = fs.lstatSync(resolved.path);
+    if (openedPath.isSymbolicLink() || !openedPath.isFile()) {
+      return { ok: false, error: "Path is not a regular file" };
+    }
     const stats = fs.fstatSync(descriptor);
     if (!stats.isFile()) {
       return { ok: false, error: "Path is not a regular file" };

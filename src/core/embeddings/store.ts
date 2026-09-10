@@ -1,6 +1,7 @@
 /** LanceDB-backed vector, lexical, and hybrid code search store. */
 
 import * as lancedb from "@lancedb/lancedb";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
   EmbeddedChunk,
@@ -9,6 +10,7 @@ import type {
   SearchResult,
 } from "@core/embeddings/types";
 import { logger } from "@utils";
+import { assertSecureStateDirectory } from "@core/security";
 import { IndexMetadataStore } from "./store-metadata";
 import {
   getAdjacentChunks as findAdjacentChunks,
@@ -52,6 +54,7 @@ export class VectorStore {
   private db: lancedb.Connection | null = null;
   private table: lancedb.Table | null = null;
   private readonly indexPath: string;
+  private readonly directory: string;
   private readonly metadataStore: IndexMetadataStore;
   private ftsIndexCreated = false;
 
@@ -101,7 +104,8 @@ export class VectorStore {
   }
 
   constructor(directory: string, config: VectorStoreConfig) {
-    this.indexPath = path.join(directory, INDEX_DIR_NAME);
+    this.directory = path.resolve(directory);
+    this.indexPath = path.join(this.directory, INDEX_DIR_NAME);
     this.metadataStore = new IndexMetadataStore(this.indexPath, config);
   }
 
@@ -109,7 +113,18 @@ export class VectorStore {
    * Initialize the database connection
    */
   async connect(): Promise<void> {
+    assertSecureStateDirectory(this.directory, this.indexPath);
+    fs.mkdirSync(this.indexPath, { recursive: true });
+    assertSecureStateDirectory(this.directory, this.indexPath);
     this.db = await lancedb.connect(this.indexPath);
+
+    try {
+      assertSecureStateDirectory(this.directory, this.indexPath);
+    } catch (error) {
+      this.db.close();
+      this.db = null;
+      throw error;
+    }
 
     const tableNames = await this.db.tableNames();
     if (tableNames.includes(TABLE_NAME)) {

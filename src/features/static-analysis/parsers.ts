@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { isSafeGitRelativePath } from "@core/git";
@@ -217,7 +218,19 @@ export function safeCodeqlPath(
     return undefined;
   }
   const absolute = path.resolve(root, value);
+  if (kind === "directory") {
+    try {
+      const stats = fs.lstatSync(absolute);
+      if (stats.isSymbolicLink() || !stats.isDirectory()) {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+  }
   const resolved =
-    kind === "directory" ? resolveSecureDirectory(absolute) : resolveSecureFile(absolute, root);
+    kind === "directory"
+      ? resolveSecureDirectory(absolute, root)
+      : resolveSecureFile(absolute, root);
   return resolved.ok ? resolved.path : undefined;
 }

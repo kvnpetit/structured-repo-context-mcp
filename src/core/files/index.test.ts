@@ -176,4 +176,41 @@ describe("collectFiles", () => {
       cleanup(dir);
     }
   });
+
+  test("enforces aggregate file, byte, and depth budgets", () => {
+    const dir = makeTempDir();
+    try {
+      fs.mkdirSync(path.join(dir, "nested"));
+      fs.writeFileSync(path.join(dir, "a.ts"), "1234");
+      fs.writeFileSync(path.join(dir, "b.ts"), "5678");
+
+      const ig = createIgnoreFilter(dir);
+      expect(() => collectFiles(dir, ig, dir, { maxFiles: 1 })).toThrow(
+        "File collection exceeded the 1-file limit",
+      );
+      expect(() => collectFiles(dir, ig, dir, { maxBytes: 7 })).toThrow(
+        "File collection exceeded the 7-byte limit",
+      );
+      fs.writeFileSync(path.join(dir, "nested", "deep.ts"), "x");
+      expect(() => collectFiles(dir, ig, dir, { maxDepth: 0 })).toThrow(
+        "File collection exceeded the 0-level depth limit",
+      );
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  test("stops before filesystem traversal when cancelled", () => {
+    const dir = makeTempDir();
+    try {
+      fs.writeFileSync(path.join(dir, "file.ts"), "content");
+      const controller = new AbortController();
+      controller.abort();
+      expect(() =>
+        collectFiles(dir, createIgnoreFilter(dir), dir, { signal: controller.signal }),
+      ).toThrow("File collection cancelled");
+    } finally {
+      cleanup(dir);
+    }
+  });
 });

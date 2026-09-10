@@ -41,6 +41,8 @@ export interface HttpServerOptions {
   maxConcurrentRequests?: number;
   legacy?: "stateless" | "reject";
   responseMode?: PerRequestResponseMode;
+  /** Allow a non-loopback listener without application-level TLS (for a trusted TLS proxy). */
+  allowInsecureRemote?: boolean;
 }
 
 export interface RunningHttpServer {
@@ -61,6 +63,7 @@ interface ResolvedHttpOptions {
   maxConcurrentRequests: number;
   legacy: "stateless" | "reject";
   responseMode: PerRequestResponseMode;
+  allowInsecureRemote: boolean;
 }
 
 function parsePositiveInteger(
@@ -116,6 +119,7 @@ export function getDefaultHttpOptions(): ResolvedHttpOptions {
   const configuredHost = process.env.MCP_HTTP_HOST?.trim();
   const host = withFallback(configuredHost, DEFAULT_HTTP_HOST);
   const configuredToken = optionalValue(process.env.MCP_HTTP_BEARER_TOKEN?.trim());
+  const allowInsecureRemote = process.env.MCP_HTTP_ALLOW_INSECURE_REMOTE === "true";
   const allowedHostnames = parseAllowedHostnames(process.env.MCP_HTTP_ALLOWED_HOSTS);
   const effectiveAllowedHostnames =
     allowedHostnames.length > 0 ? allowedHostnames : isWildcardHost(host) ? [] : [host];
@@ -140,6 +144,7 @@ export function getDefaultHttpOptions(): ResolvedHttpOptions {
       process.env.MCP_HTTP_RESPONSE_MODE === "sse" || process.env.MCP_HTTP_RESPONSE_MODE === "json"
         ? process.env.MCP_HTTP_RESPONSE_MODE
         : "auto",
+    allowInsecureRemote,
   };
 }
 
@@ -155,6 +160,7 @@ function resolveHttpOptions(options: HttpServerOptions): ResolvedHttpOptions {
   const maxConcurrentRequests = options.maxConcurrentRequests ?? defaults.maxConcurrentRequests;
   const configuredToken = options.bearerToken?.trim();
   const bearerToken = configuredToken ?? defaults.bearerToken;
+  const allowInsecureRemote = options.allowInsecureRemote ?? defaults.allowInsecureRemote;
 
   if (!Number.isSafeInteger(port) || port < 0 || port > 65_535) {
     throw new Error("MCP HTTP port must be an integer between 0 and 65535");
@@ -186,6 +192,11 @@ function resolveHttpOptions(options: HttpServerOptions): ResolvedHttpOptions {
   if (!isLoopbackHost(host) && isWildcardHost(host) && allowedHostnames.length === 0) {
     throw new Error("MCP_HTTP_ALLOWED_HOSTS is required when MCP HTTP binds to a wildcard host");
   }
+  if (!isLoopbackHost(host) && !allowInsecureRemote) {
+    throw new Error(
+      "Non-loopback MCP HTTP requires TLS termination; set MCP_HTTP_ALLOW_INSECURE_REMOTE=true only behind a trusted TLS proxy",
+    );
+  }
 
   return {
     host,
@@ -196,6 +207,7 @@ function resolveHttpOptions(options: HttpServerOptions): ResolvedHttpOptions {
     maxConcurrentRequests,
     legacy: options.legacy ?? defaults.legacy,
     responseMode: options.responseMode ?? defaults.responseMode,
+    allowInsecureRemote,
   };
 }
 

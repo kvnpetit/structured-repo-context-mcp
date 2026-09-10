@@ -14,6 +14,21 @@ import { getMaxFileBytes } from "@core/security";
 
 export type { Ignore };
 
+export interface FileCollectionOptions {
+  /** Maximum number of files returned (default 100,000). */
+  maxFiles?: number;
+  /** Maximum aggregate bytes represented by returned files (default 512 MiB). */
+  maxBytes?: number;
+  /** Maximum directory depth below baseDir (default 128). */
+  maxDepth?: number;
+  /** Abort a traversal before another filesystem operation. */
+  signal?: AbortSignal;
+}
+
+const DEFAULT_MAX_COLLECTION_FILES = 100_000;
+const DEFAULT_MAX_COLLECTION_BYTES = 512 * 1024 * 1024;
+const DEFAULT_MAX_COLLECTION_DEPTH = 128;
+
 /** Patterns always excluded regardless of .gitignore */
 const DEFAULT_EXCLUSIONS = ["node_modules", ".git", "dist", "build", ".src-index"];
 
@@ -63,33 +78,76 @@ export function isHidden(name: string): boolean {
  * Recursively collect all indexable files from a directory,
  * respecting ignore rules and skipping hidden entries.
  */
-export function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name) && (entry.isDirectory() || !shouldIndexFile(entry.name))) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (
-      entry.isFile() &&
-      !isSensitiveFileName(entry.name) &&
-      shouldIndexFile(entry.name) &&
-      fs.statSync(fullPath).size <= getMaxFileBytes()
-    ) {
-      files.push(fullPath);
-    }
+export function collectFiles(
+  dir: string,
+  ig: Ignore,
+  baseDir: string,
+  options: FileCollectionOptions = {},
+): string[] {
+  const maxFiles = options.maxFiles ?? DEFAULT_MAX_COLLECTION_FILES;
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_COLLECTION_BYTES;
+  const maxDepth = options.maxDepth ?? DEFAULT_MAX_COLLECTION_DEPTH;
+  if (
+    !Number.isSafeInteger(maxFiles) ||
+    maxFiles <= 0 ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    !Number.isSafeInteger(maxDepth) ||
+    maxDepth < 0
+  ) {
+    throw new Error("Invalid file collection safety budget");
   }
 
+  const files: string[] = [];
+  let totalBytes = 0;
+
+  const visit = (current: string, depth: number): void => {
+    if (options.signal?.aborted) {
+      throw new Error("File collection cancelled");
+    }
+    if (depth > maxDepth) {
+      throw new Error(`File collection exceeded the ${String(maxDepth)}-level depth limit`);
+    }
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (options.signal?.aborted) {
+        throw new Error("File collection cancelled");
+      }
+
+      if (isHidden(entry.name) && (entry.isDirectory() || !shouldIndexFile(entry.name))) {
+        continue;
+      }
+
+      const fullPath = path.join(current, entry.name);
+      const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
+
+      if (ig.ignores(relativePath)) {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        visit(fullPath, depth + 1);
+        continue;
+      }
+      if (!entry.isFile() || isSensitiveFileName(entry.name) || !shouldIndexFile(entry.name)) {
+        continue;
+      }
+      const size = fs.statSync(fullPath).size;
+      if (size > getMaxFileBytes()) {
+        continue;
+      }
+      if (files.length >= maxFiles) {
+        throw new Error(`File collection exceeded the ${String(maxFiles)}-file limit`);
+      }
+      if (totalBytes > maxBytes - size) {
+        throw new Error(`File collection exceeded the ${String(maxBytes)}-byte limit`);
+      }
+      files.push(fullPath);
+      totalBytes += size;
+    }
+  };
+
+  visit(path.resolve(dir), 0);
   return files;
 }
