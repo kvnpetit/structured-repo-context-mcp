@@ -21,10 +21,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
       - name: Cache dependencies
         uses: actions/cache@v5
@@ -45,6 +50,12 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Verify MCP and CLI contracts
+        run: bun run contract:verify
+
+      - name: Audit production dependencies
+        run: bun audit --production
+
       - name: Local MCP conformance matrix
         run: bun run conformance:local
 
@@ -52,13 +63,16 @@ jobs:
         run: bun run mutation:smoke
 
       - name: Test with coverage
-        run: bun run test:coverage
+        run: node node_modules/vitest/vitest.mjs run --coverage --maxWorkers=4
 
       - name: Benchmark smoke test
         run: bun run benchmark -- --directory=src --iterations=1 --max-files=100 --dataset=benchmarks/retrieval.json --k=5
 
       - name: Multilingual retrieval quality gate
         run: bun run benchmark -- --directory=benchmarks/golden-multilang --iterations=1 --max-files=100 --dataset=benchmarks/golden-multilang.json --k=1 --min-precision-at-k=1 --min-recall-at-k=1 --min-mrr=1 --min-ndcg-at-k=1
+
+      - name: Native index and retrieval quality gate
+        run: bun run benchmark:retrieval -- --iterations=3 --k=5 --min-recall-at-k=1 --min-mrr=0.95 --min-ndcg-at-k=0.95
 
       - name: Build
         run: bun run build
@@ -77,3 +91,33 @@ jobs:
           files: ./coverage/lcov.info
           slug: kvnpetit/structured-repo-context-mcp
           fail_ci_if_error: false
+
+  runtime:
+    name: Runtime (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        node: ["22", "24"]
+        include:
+          - os: ubuntu-latest
+            node: "24"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Tests including native storage and local subprocesses
+        run: node node_modules/vitest/vitest.mjs run --maxWorkers=4
+      - name: Local MCP conformance matrix
+        run: bun run conformance:local
+      - name: Build
+        run: bun run build
+      - name: Verify package installation and assets
+        run: bun run pack:verify
