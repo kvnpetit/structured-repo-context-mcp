@@ -1,3 +1,26 @@
+## [2.0.0](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.3...v2.0.0) (2026-09-10)
+
+### Breaking Changes
+
+* migrate the MCP runtime to the v2 server and Node packages, and expose bounded `schema_version: 1` result envelopes across MCP and CLI adapters
+* make the package root side-effect-free; use `src-mcp serve` to start the executable server
+
+### Features
+
+* add project onboarding and context, repository maps, artifacts, catalog and memory, task context, symbol and dependency graphs, changed-symbol and impact analysis, diagnostics, observability, snapshots and maintenance, SCIP import, and semantic navigation
+* add HTTP transport, tool profiles and allow-lists, resource templates, prompts, durable task handles, pagination, redaction, provenance, freshness, and confidence signals
+* align MCP and CLI feature execution, validation, output formatting, and lifecycle handling
+
+### Security
+
+* harden workspace containment, local tool launch restrictions, response bounds, HTTP host, origin, bearer, body, and concurrency controls, and untrusted-source instruction signals
+* pin the patched `sharp` dependency
+
+### Tooling
+
+* migrate quality checks from ESLint and Prettier to Bun and Biome, and pin dependencies with Bun's isolated linker
+* add contract, conformance, mutation, package, and deterministic benchmark release gates
+
 ## [1.0.3](https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.2...v1.0.3) (2026-01-20)
 
 ### Bug Fixes

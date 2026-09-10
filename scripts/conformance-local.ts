@@ -6,6 +6,7 @@ import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/cli
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 import { startHttpServer } from "../src/http.ts";
+import { config } from "../src/config/index.ts";
 
 const projectRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const tsxCli = path.join(projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
@@ -58,7 +59,7 @@ interface ClientCase {
 
 async function runCase(testCase: ClientCase): Promise<void> {
   const client = new Client(
-    { name: `src-mcp-conformance-${testCase.name}`, version: "1.0.3" },
+    { name: `src-mcp-conformance-${testCase.name}`, version: config.version },
     testCase.expectedEra === "modern"
       ? { versionNegotiation: { mode: { pin: modernVersion } } }
       : undefined,

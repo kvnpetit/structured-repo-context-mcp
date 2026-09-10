@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createSafeLocalToolEnvironment } from "@core/security";
+import { config } from "@config";
 import { resolveLspCommand } from "./launcher";
 
 import { isRecord, jsonRpcMessage, MAX_LSP_BUFFER_BYTES, parseLspFrames } from "./protocol";
@@ -277,7 +278,7 @@ export async function startClient(
       "initialize",
       {
         processId: process.pid,
-        clientInfo: { name: "src-mcp", version: "1.0.3" },
+        clientInfo: { name: "src-mcp", version: config.version },
         rootUri,
         workspaceFolders: [{ uri: rootUri, name: path.basename(root) }],
         capabilities: {

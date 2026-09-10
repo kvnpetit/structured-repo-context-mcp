@@ -981,16 +981,16 @@ commit message contains the explicit `[release]` marker.
 
 ```bash
 # 1. Update version without creating an automatic commit or tag
-npm version minor --no-git-tag-version  # or patch, major
+npm version major --no-git-tag-version  # or minor, patch
 
 # 2. Review the changelog with the AI and commit the release preparation
-git add package.json CHANGELOG.md
-git commit -m "chore(release): prepare v1.2.0"
+git add package.json src/config/index.ts README.md CHANGELOG.md
+git commit -m "chore(release): prepare v2.0.0"
 git push origin dev
 
 # 3. Merge to main with the release marker
 git checkout main
-git merge dev -m "chore(release): publish v1.2.0 [release]"
+git merge dev -m "chore(release): publish v2.0.0 [release]"
 git push origin main
 ```
 

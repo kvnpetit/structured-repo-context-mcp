@@ -197,6 +197,6 @@ export const EXPECTED_CONTRACT_SURFACE: ContractSurfaceSnapshot = {
     digest: "90f3aa224f6742b2ca910ddb8613cf68b49111e7dfc0943328801007b692b07f",
   },
   defaults: {
-    digest: "b8e328db08ade489dc41af2f84aa58ed8d5c6f44b840953a587158ee59379688",
+    digest: "dd7c3e55ccd835310f5466a30c35e9ec2280134995300060d07a2dcc5571c07a",
   },
 };
