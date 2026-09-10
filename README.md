@@ -1355,6 +1355,11 @@ bun run pack:verify
 bun run conformance:local
 ```
 
+Update the `CHANGELOG.md` entry for the package version before merging the
+release commit. The notes are maintained manually with AI assistance and are
+reviewed as project documentation; release automation validates the entry but
+does not generate or commit it.
+
 `conformance:local` checks the exact tool/resource/prompt surface and the
 stdio/HTTP × legacy/modern lifecycle matrix without contacting a remote MCP
 service or downloading a test runner.

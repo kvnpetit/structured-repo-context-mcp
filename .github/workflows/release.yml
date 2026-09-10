@@ -29,12 +29,12 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if release commit
+      - name: Check release marker
         id: check
         run: |
           MESSAGE=$(git log -1 --pretty=%B)
           echo "Commit message: $MESSAGE"
-          if [[ "$MESSAGE" == *"[release]"* ]] || [[ "$MESSAGE" == *"chore(release)"* ]]; then
+          if [[ "$MESSAGE" == *"[release]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "✅ Release commit detected" >> $GITHUB_STEP_SUMMARY
           else
@@ -111,33 +111,23 @@ jobs:
         if: steps.check.outputs.should-release == 'true'
         run: bun run pack:verify
 
-      - name: Generate changelog
-        if: steps.check.outputs.should-release == 'true' && steps.published.outputs.github == 'false'
-        run: bun run changelog
-
-      - name: Commit and push changelog
-        if: steps.check.outputs.should-release == 'true' && steps.published.outputs.github == 'false'
-        id: changelog-commit
+      - name: Validate changelog entry
+        if: steps.check.outputs.should-release == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-
-          if git diff --staged --quiet; then
-            echo "pushed=false" >> $GITHUB_OUTPUT
-            echo "📝 No changelog changes to commit" >> $GITHUB_STEP_SUMMARY
-          else
-            git commit -m "docs: update changelog for v${{ steps.version.outputs.version }}"
-
-            # Try to push to main (non-blocking if it fails)
-            if git push origin HEAD:main 2>&1; then
-              echo "pushed=true" >> $GITHUB_OUTPUT
-              echo "📝 Changelog committed and pushed" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "pushed=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Could not push changelog (main may have moved). Release will continue." >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const version = process.env.RELEASE_VERSION;
+          if (!version) throw new Error('Release version is missing');
+          const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const heading = new RegExp(`^##\\s+(?:${escaped}|\\[${escaped}\\])(?:\\([^\\n]*\\))?(?:\\s|$)`, 'm');
+          const changelog = readFileSync('CHANGELOG.md', 'utf8');
+          if (!heading.test(changelog)) {
+            throw new Error(`CHANGELOG.md has no reviewed entry for v${version}. Ask the AI to update it before releasing.`);
+          }
+          console.log(`CHANGELOG.md contains the reviewed v${version} entry.`);
+          NODE
 
       - name: Extract release notes
         if: steps.check.outputs.should-release == 'true' && steps.published.outputs.github == 'false'

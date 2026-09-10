@@ -977,7 +977,7 @@ import { logger } from "../utils";
 ### Automatic Release
 
 Releases run only after the `CI` workflow succeeds on `main` and the tested
-commit message contains `[release]` or `chore(release)`.
+commit message contains the explicit `[release]` marker.
 
 ```bash
 # 1. Update version
@@ -986,33 +986,28 @@ npm version minor  # or patch, major
 # 2. Push to dev
 git push origin dev
 
-# 3. Merge to main with [release]
+# 3. Merge to main with the release marker
 git checkout main
-git merge dev -m "chore(release): v1.2.0 [release]"
+git merge dev -m "Release v1.2.0 [release]"
 git push origin main
 ```
 
 ### What Happens
 
 1. The successful `CI` workflow triggers the release workflow
-2. The workflow checks for `[release]` or `chore(release)` in the tested commit
-3. Generates CHANGELOG.md from conventional commits
-4. Commits changelog to main when it changed
+2. The workflow checks for the `[release]` marker in the tested commit
+3. Verifies that `CHANGELOG.md` contains the package version being released
+4. Extracts the reviewed release notes from that entry
 5. Creates the GitHub Release and publishes to npm with provenance
 
-The `bun run changelog` script uses the Conventional Commits preset directly
-from the project so generation also works with Bun's isolated dependency linker.
+### AI-assisted changelog
 
-### Conventional Commits
-
-| Prefix    | Changelog Section |
-| --------- | ----------------- |
-| `feat:`   | Features          |
-| `fix:`    | Bug Fixes         |
-| `perf:`   | Performance       |
-| `revert:` | Reverts           |
-
-Other prefixes (`docs:`, `chore:`, `test:`, etc.) are not included in changelog.
+`CHANGELOG.md` is maintained manually. Before merging a release, ask the AI to
+review the commits and user-visible changes since the previous tag, propose a
+concise categorized entry, and update the file. Review the generated text for
+accuracy, links, security-sensitive details, and breaking changes. The release
+workflow only validates and publishes the reviewed entry; it never infers
+release notes from commit prefixes.
 
 ---
 
