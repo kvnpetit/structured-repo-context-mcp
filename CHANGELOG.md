@@ -76,7 +76,7 @@ reference link to the matching release comparison, and add a fresh empty
 
 - Generated changelog dependencies were removed in favor of manually reviewed,
   workflow-validated release notes
-  ([e52e668](https://github.com/kvnpetit/structured-repo-context-mcp/commit/e52e6682afa406dd93cbf22a6f4507fa7d4eca8)),
+  ([e52e668](https://github.com/kvnpetit/structured-repo-context-mcp/commit/e52e6682afa406dd93cbf22a6f4507fa7d4eca8d)),
   ([d223989](https://github.com/kvnpetit/structured-repo-context-mcp/commit/d2239891df3b2dd54957c2f5ccd09a87e2e7329b)).
 - Obsolete Dependabot configuration was removed after dependency ownership was
   consolidated
@@ -192,7 +192,7 @@ This was the initial Git-only release; it was not published to npm.
 - Hybrid search, BM25/RRF fusion, call context, and configurable indexing
   parallelism were introduced
   ([25e08e5](https://github.com/kvnpetit/structured-repo-context-mcp/commit/25e08e5589fc47224badd7404156685bed7a6e2f)),
-  ([8d2aa9b](https://github.com/kvnpetit/structured-repo-context-mcp/commit/8d2aa9b62aa40ec510384a6f28603c86e1a482b)),
+  ([8d2aa9b](https://github.com/kvnpetit/structured-repo-context-mcp/commit/8d2aa9b62aa40ec510384a6f28603c86e1a482b1)),
   ([f7532d8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/f7532d80ef5459f244b2e78e6bead479b1b0c3cd)).
 
 ### Fixed
@@ -201,7 +201,7 @@ This was the initial Git-only release; it was not published to npm.
   and CI Trusted Publishing setup were handled
   ([986e9eb](https://github.com/kvnpetit/structured-repo-context-mcp/commit/986e9eb2b4cd3d0f3e2fe79b89e9ac62b73891c5)),
   ([1a978f8](https://github.com/kvnpetit/structured-repo-context-mcp/commit/1a978f83790cb8e4a17b9d8f468738d3b01655d4)),
-  ([4dc9468](https://github.com/kvnpetit/structured-repo-context-mcp/commit/4dc9468ac3309ec572067f93f6afbcf3fa32855)),
+  ([4dc9468](https://github.com/kvnpetit/structured-repo-context-mcp/commit/4dc94683ac3309ec572067f93f6afbcf3fa32855)),
   ([f9c4ce9](https://github.com/kvnpetit/structured-repo-context-mcp/commit/f9c4ce92c98693e4d092ec0416608f5cfe2d4a74)).
 - Lint and type-safety issues in the test suite were resolved
   ([276bc86](https://github.com/kvnpetit/structured-repo-context-mcp/commit/276bc86035ed541823879d21a29902d073ffba98)),
