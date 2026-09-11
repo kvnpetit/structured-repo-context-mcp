@@ -62,8 +62,12 @@ jobs:
         if: steps.check.outputs.should-release == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
+          # npm trusted publishing requires npm CLI >= 11.5.1.
+          node-version: "24"
+
+      - name: Configure npm registry for OIDC
+        if: steps.check.outputs.should-release == 'true'
+        run: echo "registry=https://registry.npmjs.org/" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
 
       - name: Read npm and GitHub publication state
         if: steps.check.outputs.should-release == 'true'
