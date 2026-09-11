@@ -992,7 +992,7 @@ git push origin dev
 
 # 3. Merge to main with the release marker
 git checkout main
-git merge dev -m "chore(release): publish v2.0.0 [release]"
+git merge --no-ff dev -m "chore(release): publish v2.0.0 [release]"
 git push origin main
 ```
 
