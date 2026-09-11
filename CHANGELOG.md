@@ -10,10 +10,11 @@ completeness, while `1.0.1` was the first version published to npm.
 
 ## [Unreleased]
 
-This section contains the reviewed `2.0.0` release candidate. Before merging
-the release commit, rename this heading to `## [2.0.0] - YYYY-MM-DD`, move its
-reference link to the matching release comparison, and add a fresh empty
-`[Unreleased]` section at the top.
+## [2.0.0] - 2026-09-11
+
+This release consolidates local code intelligence, bounded MCP and CLI
+contracts, project context, durable tasks, secure HTTP transport, quality gates,
+and cross-platform runtime support.
 
 ### Added
 
@@ -207,7 +208,8 @@ This was the initial Git-only release; it was not published to npm.
   ([276bc86](https://github.com/kvnpetit/structured-repo-context-mcp/commit/276bc86035ed541823879d21a29902d073ffba98)),
   ([161c4dd](https://github.com/kvnpetit/structured-repo-context-mcp/commit/161c4ddb25409c2409cc55209c3b444420ad28a6)).
 
-[Unreleased]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.3...v2.0.0
 [1.0.3]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.0...v1.0.1
