@@ -1,29 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { Mock } from "vitest";
 import type { CodeChunk } from "@core/embeddings/types";
 
-// Use vi.hoisted to define mocks before they're used in the hoisted vi.mock calls
-const {
-  mockExtractSymbols,
-  mockExtractImports,
-  mockExtractExports,
-  mockParseCode,
-} = vi.hoisted(() => ({
-  mockExtractSymbols: vi.fn(),
-  mockExtractImports: vi.fn(),
-  mockExtractExports: vi.fn(),
-  mockParseCode: vi.fn(),
-}));
-
-// Mock modules BEFORE importing the enricher
-vi.mock("@core/parser", () => ({
-  parseCode: mockParseCode,
-}));
-
-vi.mock("@core/symbols", () => ({
-  extractSymbols: mockExtractSymbols,
-  extractImports: mockExtractImports,
-  extractExports: mockExtractExports,
-}));
+// Import the modules so we can spy on them
+import * as parserModule from "@core/parser";
+import * as symbolsModule from "@core/symbols";
 
 // Now import the enricher (uses mocked modules)
 import {
@@ -102,19 +83,30 @@ const defaultExports = [
 ];
 
 function setupDefaultMocks(): void {
-  mockParseCode.mockResolvedValue({
+  (parserModule.parseCode as Mock).mockResolvedValue({
     tree: { rootNode: { type: "program" } },
     language: "typescript",
     parser: {},
     languageInstance: {},
   });
 
-  mockExtractSymbols.mockReturnValue(defaultSymbolsResult);
-  mockExtractImports.mockReturnValue(defaultImports);
-  mockExtractExports.mockReturnValue(defaultExports);
+  (symbolsModule.extractSymbols as Mock).mockReturnValue(defaultSymbolsResult);
+  (symbolsModule.extractImports as Mock).mockReturnValue(defaultImports);
+  (symbolsModule.extractExports as Mock).mockReturnValue(defaultExports);
 }
 
 beforeEach(() => {
+  vi.spyOn(parserModule, "parseCode").mockResolvedValue({
+    tree: { rootNode: { type: "program" } },
+    language: "typescript",
+    parser: {},
+    languageInstance: {},
+  } as unknown as Awaited<ReturnType<typeof parserModule.parseCode>>);
+  vi.spyOn(symbolsModule, "extractSymbols").mockReturnValue(
+    defaultSymbolsResult as ReturnType<typeof symbolsModule.extractSymbols>,
+  );
+  vi.spyOn(symbolsModule, "extractImports").mockReturnValue(defaultImports);
+  vi.spyOn(symbolsModule, "extractExports").mockReturnValue(defaultExports);
   clearASTCache();
   vi.clearAllMocks();
   setupDefaultMocks();
@@ -122,13 +114,13 @@ beforeEach(() => {
 
 afterEach(() => {
   clearASTCache();
+  vi.restoreAllMocks();
 });
 
 describe("enrichChunk", () => {
   const sampleChunk: CodeChunk = {
     id: "chunk_123",
-    content:
-      "export async function execute(input) { return { success: true }; }",
+    content: "export async function execute(input) { return { success: true }; }",
     filePath: "/src/features/search-code/index.ts",
     language: "typescript",
     startLine: 5,
@@ -164,9 +156,7 @@ export const searchCodeFeature = {
   test("includes file path in enriched content", async () => {
     const result = await enrichChunk(sampleChunk, sampleContent);
 
-    expect(result.enrichedContent).toContain(
-      "File: /src/features/search-code/index.ts",
-    );
+    expect(result.enrichedContent).toContain("File: /src/features/search-code/index.ts");
   });
 
   test("includes language in enriched content", async () => {
@@ -239,7 +229,7 @@ describe("enrichChunksFromFile", () => {
     });
 
     // Parser should only be called once (for efficiency)
-    expect(mockParseCode).toHaveBeenCalledTimes(1);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(1);
   });
 
   test("handles empty chunks array", async () => {
@@ -325,10 +315,7 @@ describe("enrichChunks", () => {
       // file-b.ts is missing
     ]);
 
-    const results = await enrichChunks(
-      chunksFromMultipleFiles,
-      partialContents,
-    );
+    const results = await enrichChunks(chunksFromMultipleFiles, partialContents);
 
     expect(results).toHaveLength(3);
     // file-a chunks should be enriched
@@ -425,7 +412,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles empty imports array", async () => {
-    mockExtractImports.mockReturnValue([]);
+    (symbolsModule.extractImports as Mock).mockReturnValue([]);
 
     const result = await enrichChunk(sampleChunk, "const x = 1;");
 
@@ -434,7 +421,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles empty exports array", async () => {
-    mockExtractExports.mockReturnValue([]);
+    (symbolsModule.extractExports as Mock).mockReturnValue([]);
 
     const result = await enrichChunk(sampleChunk, "const x = 1;");
 
@@ -443,7 +430,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles import with empty source", async () => {
-    mockExtractImports.mockReturnValue([
+    (symbolsModule.extractImports as Mock).mockReturnValue([
       {
         source: "",
         names: [],
@@ -460,7 +447,7 @@ describe("enrichChunk edge cases", () => {
   });
 
   test("handles export with 'default' name", async () => {
-    mockExtractExports.mockReturnValue([
+    (symbolsModule.extractExports as Mock).mockReturnValue([
       {
         name: "default",
         isDefault: true,
@@ -479,7 +466,7 @@ describe("enrichChunk edge cases", () => {
 
 describe("enrichChunk parser failure handling", () => {
   test("returns basic enrichment when parser fails", async () => {
-    mockParseCode.mockRejectedValue(new Error("Parser error"));
+    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parser error"));
 
     const chunk: CodeChunk = {
       id: "chunk_fail",
@@ -500,6 +487,28 @@ describe("enrichChunk parser failure handling", () => {
     expect(result.enrichedContent).toContain(chunk.content);
     expect(result.containedSymbols).toEqual([]);
   });
+
+  test("enrichChunksFromFile returns basic enrichment when parser fails", async () => {
+    (parserModule.parseCode as Mock).mockRejectedValue(new Error("Parse failure"));
+
+    const chunks: CodeChunk[] = [
+      {
+        id: "chunk_from_file",
+        content: "const x = 1;",
+        filePath: "/src/fail.ts",
+        language: "typescript",
+        startLine: 1,
+        endLine: 1,
+      },
+    ];
+
+    const results = await enrichChunksFromFile(chunks, "const x = 1;");
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.wasEnriched).toBe(false);
+    expect(results[0]?.enrichedContent).toContain("File: /src/fail.ts");
+    expect(results[0]?.containedSymbols).toEqual([]);
+  });
 });
 
 describe("enrichChunks edge cases", () => {
@@ -515,10 +524,7 @@ describe("enrichChunks edge cases", () => {
       },
     ];
 
-    const results = await enrichChunks(
-      chunks,
-      new Map([["/src/file.ts", "orphan"]]),
-    );
+    const results = await enrichChunks(chunks, new Map([["/src/file.ts", "orphan"]]));
 
     expect(results).toHaveLength(1);
     expect(results[0]?.id).toBe("orphan_chunk");
@@ -559,9 +565,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, so it overlaps with chunk at 10-12
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("detects symbol that starts inside chunk but ends after", async () => {
@@ -577,9 +581,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, so it overlaps with chunk at 3-8
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("detects symbol fully contained in chunk", async () => {
@@ -595,9 +597,7 @@ describe("symbol range detection", () => {
     // Symbol execute is at lines 5-15, fully inside chunk at 3-18
     const result = await enrichChunk(chunk, "code");
 
-    expect(result.containedSymbols).toContainEqual(
-      expect.objectContaining({ name: "execute" }),
-    );
+    expect(result.containedSymbols).toContainEqual(expect.objectContaining({ name: "execute" }));
   });
 
   test("does not detect symbol completely outside chunk", async () => {
@@ -637,11 +637,28 @@ describe("AST cache behavior", () => {
       endLine: 5,
     };
 
-    await enrichChunk(chunk1, "const a = 1;");
-    await enrichChunk(chunk2, "const b = 2;");
+    const content = "const a = 1;\n\n\n\nconst b = 2;";
+    await enrichChunk(chunk1, content);
+    await enrichChunk(chunk2, content);
 
     // Parser should only be called once due to caching
-    expect(mockParseCode).toHaveBeenCalledTimes(1);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(1);
+  });
+
+  test("invalidates cached analysis when file content changes", async () => {
+    const chunk: CodeChunk = {
+      id: "chunk",
+      content: "const value = 1;",
+      filePath: "/src/changing-file.ts",
+      language: "typescript",
+      startLine: 1,
+      endLine: 1,
+    };
+
+    await enrichChunk(chunk, "const oldName = 1;");
+    await enrichChunk(chunk, "const newName = 2;");
+
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(2);
   });
 
   test("parses different files separately", async () => {
@@ -667,6 +684,6 @@ describe("AST cache behavior", () => {
     await enrichChunk(chunk2, "const b = 2;");
 
     // Parser should be called twice (once per file)
-    expect(mockParseCode).toHaveBeenCalledTimes(2);
+    expect(parserModule.parseCode as Mock).toHaveBeenCalledTimes(2);
   });
 });

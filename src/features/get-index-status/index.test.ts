@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -6,7 +6,11 @@ import { execute, getIndexStatusSchema } from "@features/get-index-status";
 import * as embeddings from "@core/embeddings";
 
 // Mock the embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  createVectorStore: vi.fn(),
+  getIndexPath: vi.fn(),
+  hasIndexData: vi.fn(),
+}));
 
 describe("getIndexStatusSchema", () => {
   test("applies default directory", () => {
@@ -35,8 +39,10 @@ describe("execute", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "status-test-"));
     vi.clearAllMocks();
 
+    (embeddings.hasIndexData as Mock).mockReturnValue(false);
+
     // Setup mocks
-    vi.mocked(embeddings.createVectorStore).mockReturnValue({
+    (embeddings.createVectorStore as Mock).mockReturnValue({
       exists: vi.fn().mockReturnValue(true),
       connect: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
@@ -52,9 +58,9 @@ describe("execute", () => {
           python: 10,
         },
       }),
-    } as unknown as embeddings.VectorStore);
+    });
 
-    vi.mocked(embeddings.getIndexPath).mockImplementation((dir: string) =>
+    (embeddings.getIndexPath as Mock).mockImplementation((dir: string) =>
       path.join(dir, ".src-index"),
     );
   });
@@ -91,6 +97,7 @@ describe("execute", () => {
     // Create mock index directory
     const indexDir = path.join(tempDir, ".src-index");
     fs.mkdirSync(indexDir);
+    (embeddings.hasIndexData as Mock).mockReturnValue(true);
 
     const result = await execute({
       directory: tempDir,
@@ -106,6 +113,7 @@ describe("execute", () => {
     // Create mock index directory
     const indexDir = path.join(tempDir, ".src-index");
     fs.mkdirSync(indexDir);
+    (embeddings.hasIndexData as Mock).mockReturnValue(true);
 
     const result = await execute({
       directory: tempDir,
@@ -121,15 +129,16 @@ describe("execute", () => {
     // Create mock index directory
     const indexDir = path.join(tempDir, ".src-index");
     fs.mkdirSync(indexDir);
+    (embeddings.hasIndexData as Mock).mockReturnValue(true);
 
     // Override mock to throw error
     const { createVectorStore } = await import("@core/embeddings");
-    vi.mocked(createVectorStore).mockReturnValueOnce({
+    (createVectorStore as Mock).mockReturnValueOnce({
       exists: vi.fn().mockReturnValue(true),
       connect: vi.fn().mockRejectedValue(new Error("Connection failed")),
       close: vi.fn(),
       getStatus: vi.fn(),
-    } as unknown as ReturnType<typeof createVectorStore>);
+    });
 
     const result = await execute({
       directory: tempDir,
@@ -143,14 +152,15 @@ describe("execute", () => {
   test("handles non-Error exceptions", async () => {
     const indexDir = path.join(tempDir, ".src-index");
     fs.mkdirSync(indexDir);
+    (embeddings.hasIndexData as Mock).mockReturnValue(true);
 
     const { createVectorStore } = await import("@core/embeddings");
-    vi.mocked(createVectorStore).mockReturnValueOnce({
+    (createVectorStore as Mock).mockReturnValueOnce({
       exists: vi.fn().mockReturnValue(true),
       connect: vi.fn().mockRejectedValue("string error"),
       close: vi.fn(),
       getStatus: vi.fn(),
-    } as unknown as ReturnType<typeof createVectorStore>);
+    });
 
     const result = await execute({
       directory: tempDir,

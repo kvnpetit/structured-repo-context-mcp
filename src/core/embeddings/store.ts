@@ -1,148 +1,170 @@
-/**
- * LanceDB vector store for code embeddings
- *
- * Supports:
- * - Vector similarity search (embeddings)
- * - Full-text search (BM25)
- * - Hybrid search with RRF (Reciprocal Rank Fusion)
- */
+/** LanceDB-backed vector, lexical, and hybrid code search store. */
 
 import * as lancedb from "@lancedb/lancedb";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
   EmbeddedChunk,
-  EmbeddingConfig,
+  IndexMetadata,
   IndexStatus,
   SearchResult,
 } from "@core/embeddings/types";
 import { logger } from "@utils";
+import { assertSecureStateDirectory } from "@core/security";
+import { IndexMetadataStore } from "./store-metadata";
+import {
+  getAdjacentChunks as findAdjacentChunks,
+  searchFts as findFts,
+  searchHybrid as findHybrid,
+  searchLexical as findLexical,
+  searchVector,
+} from "./store-search";
+import { readIndexedFiles, readIndexStatus, readMaintenanceStatus } from "./store-status";
+import type {
+  AdjacentChunks,
+  HybridSearchOptions,
+  IndexMaintenanceStatus,
+  IndexOptimizationStats,
+  LanceDBRow,
+  VectorStoreConfig,
+} from "./store-types";
+import {
+  chunkIdPredicate,
+  hasIndexData,
+  INDEX_DIR_NAME,
+  nonNegativeInteger,
+  normalizeFilePath,
+  TABLE_NAME,
+  toLanceRecords,
+  validateAbsoluteFilePath,
+  withIndexWriteLock,
+} from "./store-utils";
 
-const TABLE_NAME = "code_chunks";
-const INDEX_DIR_NAME = ".src-index";
+export { computeSourceFingerprint, hasIndexData } from "./store-utils";
+export type {
+  AdjacentChunkResult,
+  AdjacentChunks,
+  HybridSearchOptions,
+  IndexMaintenanceStatus,
+  IndexOptimizationStats,
+  SearchMode,
+} from "./store-types";
 
-/**
- * Search mode for queries
- */
-export type SearchMode = "vector" | "fts" | "hybrid";
-
-/**
- * Options for hybrid search
- */
-export interface HybridSearchOptions {
-  /** Search mode: vector only, fts only, or hybrid (default: hybrid) */
-  mode?: SearchMode;
-  /** Weight for vector search in hybrid mode (0-1, default: 0.5) */
-  vectorWeight?: number;
-  /** RRF constant k for rank fusion (default: 60) */
-  rrfK?: number;
-}
-
-/**
- * Reciprocal Rank Fusion (RRF) to combine ranked lists
- *
- * RRF score = sum(1 / (k + rank_i)) for each list
- * where k is a constant (typically 60) and rank_i is the 1-based rank in list i
- */
-function rrfFusion(
-  vectorResults: SearchResult[],
-  ftsResults: SearchResult[],
-  k = 60,
-): SearchResult[] {
-  const scores = new Map<string, { score: number; result: SearchResult }>();
-
-  // Add vector results with RRF scoring
-  vectorResults.forEach((result, index) => {
-    const rank = index + 1;
-    const rrfScore = 1 / (k + rank);
-    const existing = scores.get(result.chunk.id);
-    if (existing) {
-      existing.score += rrfScore;
-    } else {
-      scores.set(result.chunk.id, { score: rrfScore, result });
-    }
-  });
-
-  // Add FTS results with RRF scoring
-  ftsResults.forEach((result, index) => {
-    const rank = index + 1;
-    const rrfScore = 1 / (k + rank);
-    const existing = scores.get(result.chunk.id);
-    if (existing) {
-      existing.score += rrfScore;
-    } else {
-      scores.set(result.chunk.id, { score: rrfScore, result });
-    }
-  });
-
-  // Sort by combined RRF score (higher is better)
-  const combined = Array.from(scores.values())
-    .sort((a, b) => b.score - a.score)
-    .map(({ score, result }) => ({
-      ...result,
-      score, // Replace distance with RRF score
-    }));
-
-  return combined;
-}
-
-/**
- * Type for LanceDB row results
- */
-interface LanceDBRow {
-  id: string;
-  content: string;
-  filePath: string;
-  language: string;
-  startLine: number;
-  endLine: number;
-  symbolName: string;
-  symbolType: string;
-  vector: number[];
-  _distance?: number;
-}
-
-/**
- * LanceDB vector store wrapper
- */
 export class VectorStore {
   private db: lancedb.Connection | null = null;
   private table: lancedb.Table | null = null;
   private readonly indexPath: string;
+  private readonly directory: string;
+  private readonly metadataStore: IndexMetadataStore;
   private ftsIndexCreated = false;
 
-  constructor(
-    directory: string,
-    _config: Pick<EmbeddingConfig, "embeddingDimensions">,
-  ) {
-    this.indexPath = path.join(directory, INDEX_DIR_NAME);
+  private async getChunkIdsForFiles(filePaths: Iterable<string>): Promise<string[]> {
+    if (!this.table) {
+      return [];
+    }
+
+    const normalizedPaths = new Set(
+      Array.from(filePaths, (filePath) => normalizeFilePath(filePath)),
+    );
+    const rows = (await this.table.query().select(["id", "filePath"]).toArray()) as Pick<
+      LanceDBRow,
+      "id" | "filePath"
+    >[];
+    return rows
+      .filter((row) => normalizedPaths.has(normalizeFilePath(row.filePath)))
+      .map((row) => row.id);
+  }
+
+  private async refreshTable(): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    const tableNames = await this.db.tableNames();
+    this.table = tableNames.includes(TABLE_NAME) ? await this.db.openTable(TABLE_NAME) : null;
+  }
+
+  private async addChunksUnlocked(chunks: EmbeddedChunk[]): Promise<void> {
+    if (!this.db) {
+      throw new Error("Database not connected. Call connect() first.");
+    }
+
+    this.assertMetadataCompatible();
+    const records = toLanceRecords(chunks);
+    if (records.length === 0) {
+      return;
+    }
+
+    if (!this.table) {
+      this.table = await this.db.createTable(TABLE_NAME, records);
+    } else {
+      await this.table.add(records);
+    }
+    this.metadataStore.write();
+  }
+
+  constructor(directory: string, config: VectorStoreConfig) {
+    this.directory = path.resolve(directory);
+    this.indexPath = path.join(this.directory, INDEX_DIR_NAME);
+    this.metadataStore = new IndexMetadataStore(this.indexPath, config);
   }
 
   /**
    * Initialize the database connection
    */
   async connect(): Promise<void> {
+    assertSecureStateDirectory(this.directory, this.indexPath);
+    fs.mkdirSync(this.indexPath, { recursive: true });
+    assertSecureStateDirectory(this.directory, this.indexPath);
     this.db = await lancedb.connect(this.indexPath);
+
+    try {
+      assertSecureStateDirectory(this.directory, this.indexPath);
+    } catch (error) {
+      this.db.close();
+      this.db = null;
+      throw error;
+    }
 
     const tableNames = await this.db.tableNames();
     if (tableNames.includes(TABLE_NAME)) {
       this.table = await this.db.openTable(TABLE_NAME);
     }
+    this.metadataStore.load();
   }
 
   /**
    * Close the database connection
    */
   close(): void {
+    this.table?.close();
+    this.db?.close();
     this.db = null;
     this.table = null;
+  }
+
+  getMetadata(): IndexMetadata | undefined {
+    return this.metadataStore.value;
+  }
+
+  getMetadataError(): string | undefined {
+    return this.metadataStore.error;
+  }
+
+  /** Persist the source revision represented by the current index. */
+  setSourceFingerprint(sourceFingerprint: string): void {
+    this.metadataStore.setSourceFingerprint(sourceFingerprint);
+  }
+
+  assertMetadataCompatible(): void {
+    this.metadataStore.assertCompatible();
   }
 
   /**
    * Check if the index exists
    */
   exists(): boolean {
-    return fs.existsSync(this.indexPath);
+    return hasIndexData(path.dirname(this.indexPath));
   }
 
   /**
@@ -153,23 +175,10 @@ export class VectorStore {
       throw new Error("Database not connected. Call connect() first.");
     }
 
-    const records = chunks.map((chunk) => ({
-      id: chunk.id,
-      content: chunk.content,
-      filePath: chunk.filePath,
-      language: chunk.language,
-      startLine: chunk.startLine,
-      endLine: chunk.endLine,
-      symbolName: chunk.symbolName ?? "",
-      symbolType: chunk.symbolType ?? "",
-      vector: chunk.vector,
-    }));
-
-    if (!this.table) {
-      this.table = await this.db.createTable(TABLE_NAME, records);
-    } else {
-      await this.table.add(records);
-    }
+    await withIndexWriteLock(this.indexPath, async () => {
+      await this.refreshTable();
+      await this.addChunksUnlocked(chunks);
+    });
   }
 
   /**
@@ -184,6 +193,7 @@ export class VectorStore {
     try {
       await this.table.createIndex("content", {
         config: lancedb.Index.fts(),
+        replace: false,
       });
       this.ftsIndexCreated = true;
       logger.debug("FTS index created on content column");
@@ -204,195 +214,253 @@ export class VectorStore {
    * Search for similar chunks using vector similarity
    */
   async search(queryVector: number[], limit = 10): Promise<SearchResult[]> {
-    if (!this.table) {
-      return [];
-    }
-
-    const results = (await this.table
-      .vectorSearch(queryVector)
-      .limit(limit)
-      .toArray()) as LanceDBRow[];
-
-    return results.map((row) => ({
-      chunk: {
-        id: row.id,
-        content: row.content,
-        filePath: row.filePath,
-        language: row.language,
-        startLine: row.startLine,
-        endLine: row.endLine,
-        symbolName: row.symbolName || undefined,
-        symbolType: row.symbolType || undefined,
-      },
-      score: row._distance ?? 0,
-    }));
+    return searchVector(this.table, queryVector, limit);
   }
 
-  /**
-   * Full-text search using BM25
-   */
+  async searchLexical(queryText: string, limit = 10): Promise<SearchResult[]> {
+    return findLexical(this.table, queryText, limit);
+  }
+
   async searchFts(queryText: string, limit = 10): Promise<SearchResult[]> {
-    if (!this.table) {
-      return [];
-    }
-
-    // Ensure FTS index exists
-    await this.createFtsIndex();
-
-    try {
-      const results = (await this.table
-        .query()
-        .nearestToText(queryText)
-        .limit(limit)
-        .toArray()) as LanceDBRow[];
-
-      return results.map((row, index) => ({
-        chunk: {
-          id: row.id,
-          content: row.content,
-          filePath: row.filePath,
-          language: row.language,
-          startLine: row.startLine,
-          endLine: row.endLine,
-          symbolName: row.symbolName || undefined,
-          symbolType: row.symbolType || undefined,
-        },
-        // FTS doesn't return distance, use rank-based score
-        score: 1 / (index + 1),
-      }));
-    } catch (error) {
-      logger.warn(
-        `FTS search failed, falling back to empty results: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return [];
-    }
+    return findFts(this.table, async () => this.createFtsIndex(), queryText, limit);
   }
 
-  /**
-   * Hybrid search combining vector similarity and full-text search
-   * Uses Reciprocal Rank Fusion (RRF) to combine results
-   */
   async searchHybrid(
     queryVector: number[],
     queryText: string,
     limit = 10,
     options: HybridSearchOptions = {},
   ): Promise<SearchResult[]> {
-    const { mode = "hybrid", rrfK = 60 } = options;
+    return findHybrid(
+      this.table,
+      async () => this.createFtsIndex(),
+      queryVector,
+      queryText,
+      limit,
+      options,
+    );
+  }
 
-    if (!this.table) {
-      return [];
+  async getAdjacentChunks(filePath: string, chunkId: string, window = 1): Promise<AdjacentChunks> {
+    validateAbsoluteFilePath(filePath, "getAdjacentChunks");
+    return findAdjacentChunks(this.table, filePath, chunkId, window);
+  }
+
+  async getMaintenanceStatus(): Promise<IndexMaintenanceStatus> {
+    return readMaintenanceStatus(this.table, this.metadataStore.value, this.metadataStore.error);
+  }
+
+  /** Compact fragments and prune old local Lance table versions. */
+  async optimizeIndex(
+    cleanupOlderThanDays = 7,
+    deleteUnverified = false,
+  ): Promise<IndexOptimizationStats> {
+    if (!this.db) {
+      throw new Error("Database not connected. Call connect() first.");
     }
+    this.assertMetadataCompatible();
+    const days = Math.min(3_650, Math.max(0, cleanupOlderThanDays));
+    return withIndexWriteLock(this.indexPath, async () => {
+      await this.refreshTable();
+      if (!this.table) {
+        throw new Error("Index table does not exist");
+      }
+      const result = await this.table.optimize({
+        cleanupOlderThan: new Date(Date.now() - days * 86_400_000),
+        deleteUnverified,
+      });
+      return {
+        compaction: {
+          fragmentsRemoved: nonNegativeInteger(result.compaction.fragmentsRemoved),
+          fragmentsAdded: nonNegativeInteger(result.compaction.fragmentsAdded),
+          filesRemoved: nonNegativeInteger(result.compaction.filesRemoved),
+          filesAdded: nonNegativeInteger(result.compaction.filesAdded),
+        },
+        prune: {
+          bytesRemoved: nonNegativeInteger(result.prune.bytesRemoved),
+          oldVersionsRemoved: nonNegativeInteger(result.prune.oldVersionsRemoved),
+        },
+      };
+    });
+  }
 
-    // Vector-only search
-    if (mode === "vector") {
-      return this.search(queryVector, limit);
+  /** Migrate the local Lance manifest paths when the installed SDK supports it. */
+  async migrateIndexStorage(): Promise<boolean> {
+    if (!this.db) {
+      throw new Error("Database not connected. Call connect() first.");
     }
-
-    // FTS-only search
-    if (mode === "fts") {
-      return this.searchFts(queryText, limit);
-    }
-
-    // Hybrid search: run both searches in parallel
-    const [vectorResults, ftsResults] = await Promise.all([
-      this.search(queryVector, limit * 2), // Get more results for fusion
-      this.searchFts(queryText, limit * 2),
-    ]);
-
-    // Fuse results using RRF
-    const fusedResults = rrfFusion(vectorResults, ftsResults, rrfK);
-
-    // Return top N results
-    return fusedResults.slice(0, limit);
+    return withIndexWriteLock(this.indexPath, async () => {
+      await this.refreshTable();
+      if (!this.table) {
+        return false;
+      }
+      const manifestTable = this.table as unknown as {
+        usesV2ManifestPaths?: () => Promise<boolean>;
+        migrateManifestPathsV2?: () => Promise<void>;
+      };
+      if (
+        typeof manifestTable.usesV2ManifestPaths !== "function" ||
+        typeof manifestTable.migrateManifestPathsV2 !== "function"
+      ) {
+        throw new Error("The installed LanceDB runtime cannot migrate manifest paths");
+      }
+      const alreadyMigrated = await manifestTable.usesV2ManifestPaths.call(this.table);
+      if (alreadyMigrated) {
+        return false;
+      }
+      await manifestTable.migrateManifestPathsV2.call(this.table);
+      return true;
+    });
   }
 
   /**
-   * Delete chunks by file path
+   * Delete chunks by file path.
+   *
+   * NOTE: LanceDB does not support parameterized queries, so we use manual
+   * single-quote escaping. The filePath is validated to be absolute to prevent
+   * injection via relative or crafted paths.
    */
   async deleteByFilePath(filePath: string): Promise<void> {
+    validateAbsoluteFilePath(filePath, "deleteByFilePath");
+
     if (!this.table) {
       return;
     }
 
-    await this.table.delete(`"filePath" = '${filePath.replace(/'/g, "''")}'`);
+    await withIndexWriteLock(this.indexPath, async () => {
+      await this.refreshTable();
+      const chunkIds = await this.getChunkIdsForFiles([filePath]);
+      if (chunkIds.length > 0) {
+        await this.table?.delete(chunkIdPredicate(chunkIds));
+      }
+    });
+  }
+
+  /**
+   * Atomically replace every indexed chunk for one file.
+   *
+   * LanceDB merge-insert commits the updates, inserts, and removal of stale
+   * rows as one table version. Empty replacements are a single delete.
+   */
+  async replaceFileChunks(filePath: string, chunks: EmbeddedChunk[]): Promise<void> {
+    validateAbsoluteFilePath(filePath, "replaceFileChunks");
+    await this.replaceFilesChunks(new Map([[filePath, chunks]]));
+  }
+
+  /** Atomically replace chunks for one or more files in a single table version. */
+  async replaceFilesChunks(replacements: ReadonlyMap<string, EmbeddedChunk[]>): Promise<void> {
+    if (replacements.size === 0) {
+      return;
+    }
+
+    for (const [filePath, chunks] of replacements) {
+      validateAbsoluteFilePath(filePath, "replaceFilesChunks");
+
+      const mismatchedChunk = chunks.find(
+        (chunk) => normalizeFilePath(chunk.filePath) !== normalizeFilePath(filePath),
+      );
+      if (mismatchedChunk) {
+        throw new Error(
+          `replaceFilesChunks received a chunk for another file: ${mismatchedChunk.filePath}`,
+        );
+      }
+    }
+
+    if (!this.db) {
+      throw new Error("Database not connected. Call connect() first.");
+    }
+
+    this.assertMetadataCompatible();
+
+    await withIndexWriteLock(this.indexPath, async () => {
+      await this.refreshTable();
+      const replacementChunks = Array.from(replacements.values()).flat();
+
+      if (!this.table) {
+        const tableNames = await this.db?.tableNames();
+        if (tableNames?.includes(TABLE_NAME)) {
+          this.table = (await this.db?.openTable(TABLE_NAME)) ?? null;
+        }
+      }
+
+      if (!this.table) {
+        if (replacementChunks.length > 0) {
+          await this.addChunksUnlocked(replacementChunks);
+        }
+        return;
+      }
+
+      const replacementRows = toLanceRecords(replacementChunks);
+      const uniqueIds = new Set(replacementRows.map((row) => row.id));
+      if (uniqueIds.size !== replacementRows.length) {
+        throw new Error("replaceFilesChunks requires unique replacement chunk IDs");
+      }
+
+      const oldChunkIds = await this.getChunkIdsForFiles(replacements.keys());
+      if (replacementRows.length === 0) {
+        if (oldChunkIds.length > 0) {
+          await this.table.delete(chunkIdPredicate(oldChunkIds));
+        }
+        return;
+      }
+
+      let merge = this.table.mergeInsert("id").whenMatchedUpdateAll().whenNotMatchedInsertAll();
+      if (oldChunkIds.length > 0) {
+        merge = merge.whenNotMatchedBySourceDelete({
+          where: chunkIdPredicate(oldChunkIds),
+        });
+      }
+      await merge.execute(replacementRows);
+      this.metadataStore.write();
+    });
   }
 
   /**
    * Clear all data from the store
    */
   async clear(): Promise<void> {
-    if (this.db && this.table) {
-      await this.db.dropTable(TABLE_NAME);
-      this.table = null;
-    }
+    await withIndexWriteLock(this.indexPath, async () => {
+      if (this.db) {
+        await this.refreshTable();
+        if (this.table) {
+          await this.db.dropTable(TABLE_NAME);
+          this.table = null;
+        }
+      }
+      this.metadataStore.clear();
+      this.ftsIndexCreated = false;
+    });
   }
 
   /**
    * Get index status
    */
   async getStatus(directory: string): Promise<IndexStatus> {
-    const status: IndexStatus = {
+    return readIndexStatus(
+      this.table,
       directory,
-      indexPath: this.indexPath,
-      exists: this.exists(),
-      totalChunks: 0,
-      totalFiles: 0,
-      languages: {},
-    };
-
-    if (!this.table) {
-      return status;
-    }
-
-    const allRows = (await this.table.query().toArray()) as LanceDBRow[];
-
-    status.totalChunks = allRows.length;
-
-    const uniqueFiles = new Set<string>();
-    const languageCounts: Record<string, number> = {};
-
-    for (const row of allRows) {
-      uniqueFiles.add(row.filePath);
-      const lang = row.language;
-      languageCounts[lang] = (languageCounts[lang] ?? 0) + 1;
-    }
-
-    status.totalFiles = uniqueFiles.size;
-    status.languages = languageCounts;
-
-    return status;
+      this.indexPath,
+      this.exists(),
+      this.metadataStore.value,
+      this.metadataStore.error,
+    );
   }
 
-  /**
-   * Get all indexed file paths
-   */
+  /** Revision of the table snapshot used by this store's queries. */
+  async getRevision(): Promise<number | undefined> {
+    return this.table?.version();
+  }
+
+  /** Get all indexed file paths. */
   async getIndexedFiles(): Promise<string[]> {
-    if (!this.table) {
-      return [];
-    }
-
-    const rows = (await this.table
-      .query()
-      .select(["filePath"])
-      .toArray()) as Pick<LanceDBRow, "filePath">[];
-    const uniqueFiles = new Set<string>();
-
-    for (const row of rows) {
-      uniqueFiles.add(row.filePath);
-    }
-
-    return Array.from(uniqueFiles);
+    return readIndexedFiles(this.table);
   }
 }
 
 /**
  * Create a vector store for a directory
  */
-export function createVectorStore(
-  directory: string,
-  config: Pick<EmbeddingConfig, "embeddingDimensions">,
-): VectorStore {
+export function createVectorStore(directory: string, config: VectorStoreConfig): VectorStore {
   return new VectorStore(directory, config);
 }
 

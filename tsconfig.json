@@ -33,27 +33,26 @@
     "types": ["node", "vitest/globals"],
 
     // Path Aliases
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core": ["src/core"],
-      "@core/*": ["src/core/*"],
-      "@features": ["src/features"],
-      "@features/*": ["src/features/*"],
-      "@tools": ["src/tools"],
-      "@tools/*": ["src/tools/*"],
-      "@resources": ["src/resources"],
-      "@resources/*": ["src/resources/*"],
-      "@prompts": ["src/prompts"],
-      "@prompts/*": ["src/prompts/*"],
-      "@cli": ["src/cli"],
-      "@cli/*": ["src/cli/*"],
-      "@config": ["src/config"],
-      "@types": ["src/types"],
-      "@types/*": ["src/types/*"],
-      "@utils": ["src/utils"],
-      "@utils/*": ["src/utils/*"]
+      "@/*": ["./src/*"],
+      "@core": ["./src/core"],
+      "@core/*": ["./src/core/*"],
+      "@features": ["./src/features"],
+      "@features/*": ["./src/features/*"],
+      "@tools": ["./src/tools"],
+      "@tools/*": ["./src/tools/*"],
+      "@resources": ["./src/resources"],
+      "@resources/*": ["./src/resources/*"],
+      "@prompts": ["./src/prompts"],
+      "@prompts/*": ["./src/prompts/*"],
+      "@cli": ["./src/cli"],
+      "@cli/*": ["./src/cli/*"],
+      "@config": ["./src/config"],
+      "@types": ["./src/types"],
+      "@types/*": ["./src/types/*"],
+      "@utils": ["./src/utils"],
+      "@utils/*": ["./src/utils/*"]
     }
   },
-  "include": ["src/**/*.ts", "*.config.ts", "*.config.mjs"]
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "*.config.ts", "*.config.mjs"]
 }

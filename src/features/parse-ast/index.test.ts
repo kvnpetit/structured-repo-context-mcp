@@ -44,6 +44,18 @@ describe("parse_ast feature", () => {
       });
       expect(result.success).toBe(true);
     });
+
+    test("applies a bounded per-node text default", () => {
+      const result = parseAstSchema.safeParse({
+        content: "const x = 1;",
+        language: "javascript",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.max_text_bytes).toBe(2_000);
+        expect(result.data.max_nodes).toBe(10_000);
+      }
+    });
   });
 
   describe("execute", () => {
@@ -108,17 +120,11 @@ describe("parse_ast feature", () => {
       expect(shallowResult.success).toBe(true);
       expect(deepResult.success).toBe(true);
 
-      const shallowRoot = (
-        shallowResult.data as { root: { children?: unknown[] } }
-      ).root;
-      const deepRoot = (deepResult.data as { root: { children?: unknown[] } })
-        .root;
+      const shallowRoot = (shallowResult.data as { root: { children?: unknown[] } }).root;
+      const deepRoot = (deepResult.data as { root: { children?: unknown[] } }).root;
 
       // Shallow should have children but they shouldn't have deeply nested children
-      const hasDeepChildren = (
-        node: { children?: unknown[] },
-        depth: number,
-      ): boolean => {
+      const hasDeepChildren = (node: { children?: unknown[] }, depth: number): boolean => {
         if (depth > 2) {
           return true;
         }
@@ -132,6 +138,42 @@ describe("parse_ast feature", () => {
 
       expect(hasDeepChildren(shallowRoot, 0)).toBe(false);
       expect(hasDeepChildren(deepRoot, 0)).toBe(true);
+    });
+
+    test("bounds repeated AST node text", async () => {
+      const result = await execute({
+        content: "function veryLongName() { return 'a very long body'; }",
+        language: "javascript",
+        max_text_bytes: 8,
+      });
+
+      expect(result.success).toBe(true);
+      const root = (result.data as { root: { text: string; text_truncated?: boolean } }).root;
+      expect(root.text.length).toBeLessThanOrEqual(8);
+      expect(root.text_truncated).toBe(true);
+    });
+
+    test("bounds AST node materialization", async () => {
+      const code = Array.from(
+        { length: 20 },
+        (_, index) => `const value${String(index)} = ${String(index)};`,
+      ).join("\n");
+      const result = await execute({
+        content: code,
+        language: "javascript",
+        max_nodes: 5,
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) {
+        return;
+      }
+      const data = result.data as {
+        node_count_truncated: boolean;
+        root: { children_truncated?: boolean };
+      };
+      expect(data.node_count_truncated).toBe(true);
+      expect(data.root.children_truncated).toBe(true);
     });
 
     test("returns error for unsupported language", async () => {

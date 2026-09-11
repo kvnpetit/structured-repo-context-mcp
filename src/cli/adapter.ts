@@ -1,11 +1,20 @@
 import { defineCommand, type CommandDef } from "citty";
+
+import { normalizeCliArgs, zodToCittyArgs } from "@cli/parser";
+import { executeFeature, finalizeFeatureResult, formatFeatureResult } from "@features/runtime";
 import type { Feature } from "@features/types";
-import { zodToCittyArgs } from "@cli/parser";
 import { colors } from "@utils";
 
-/**
- * Convert a Feature to a citty CommandDef
- */
+function validationMessage(issues: readonly { path: PropertyKey[]; message: string }[]): string {
+  return issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? `--${issue.path.join(".")}: ` : "";
+      return `${path}${issue.message}`;
+    })
+    .join("; ");
+}
+
+/** Convert a Feature to an awaited, schema-validating Citty command. */
 export function featureToCittyCommand(feature: Feature): CommandDef {
   return defineCommand({
     meta: {
@@ -13,29 +22,34 @@ export function featureToCittyCommand(feature: Feature): CommandDef {
       description: feature.description,
     },
     args: zodToCittyArgs(feature.schema),
-    run({ args }) {
-      const result = feature.execute(args);
-
-      const handleResult = (
-        res: Awaited<ReturnType<typeof feature.execute>>,
-      ): void => {
-        if (res.success) {
-          const output = res.message ?? JSON.stringify(res.data, null, 2);
-          console.log(colors.formatSuccess(output));
-        } else {
-          console.error(colors.formatError(res.error ?? "Unknown error"));
-          process.exit(1);
+    async run({ args }) {
+      try {
+        const input = normalizeCliArgs(feature.schema, args);
+        const parsed = feature.schema.safeParse(input);
+        if (!parsed.success) {
+          console.error(
+            colors.formatError(`Invalid arguments: ${validationMessage(parsed.error.issues)}`),
+          );
+          process.exitCode = 1;
+          return;
         }
-      };
 
-      if (result instanceof Promise) {
-        result.then(handleResult).catch((err: unknown) => {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          console.error(colors.formatError(`Unexpected error: ${errorMsg}`));
-          process.exit(1);
+        const result = await executeFeature(feature, parsed.data);
+        const formatted = finalizeFeatureResult(feature, result);
+        const output = JSON.stringify(formatted.structuredContent, null, 2);
+        if (!formatted.isError) {
+          console.log(output);
+          return;
+        }
+        console.error(output);
+        process.exitCode = 1;
+      } catch {
+        const failure = formatFeatureResult({
+          success: false,
+          error: "Tool execution failed",
         });
-      } else {
-        handleResult(result);
+        console.error(JSON.stringify(failure.structuredContent, null, 2));
+        process.exitCode = 1;
       }
     },
   });

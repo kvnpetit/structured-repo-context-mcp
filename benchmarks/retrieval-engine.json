@@ -1,0 +1,83 @@
+[
+  {
+    "query": "UserService findUserById",
+    "relevant": ["typescript/user-service.ts"]
+  },
+  {
+    "query": "TokenAuthenticator local token authentication",
+    "relevant": ["python/authentication.py"]
+  },
+  {
+    "query": "HandleRequest ResponseWriter",
+    "relevant": ["go/http_handler.go"]
+  },
+  {
+    "query": "parse_configuration endpoint to_owned",
+    "relevant": ["rust/config.rs"]
+  },
+  {
+    "query": "OrderService createOrder customerId",
+    "relevant": ["java/OrderService.java"]
+  },
+  {
+    "query": "symbol graph local index retrieval",
+    "relevant": ["docs/architecture.md"]
+  },
+  {
+    "query": "InventoryService reserve inventory sku",
+    "relevant": ["csharp/InventoryService.cs"]
+  },
+  {
+    "query": "SessionRepository loadSessionById",
+    "relevant": ["kotlin/SessionRepository.kt"]
+  },
+  {
+    "query": "EmailDispatcher dispatchWelcomeEmail",
+    "relevant": ["scala/EmailDispatcher.scala"]
+  },
+  {
+    "query": "PaymentGateway authorizePayment card token",
+    "relevant": ["ruby/PaymentGateway.rb"]
+  },
+  {
+    "query": "ReportController generateAuditReport project",
+    "relevant": ["php/ReportController.php"]
+  },
+  {
+    "query": "analytics dashboard conversion metrics",
+    "relevant": ["html/dashboard.html"]
+  },
+  { "query": "find user by id", "relevant": ["typescript/user-service.ts"] },
+  {
+    "query": "validate access token",
+    "relevant": ["python/authentication.py", "typescript/user-service.ts"]
+  },
+  { "query": "HTTP request handler", "relevant": ["go/http_handler.go"] },
+  { "query": "configuration endpoint", "relevant": ["rust/config.rs"] },
+  { "query": "create order customer", "relevant": ["java/OrderService.java"] },
+  {
+    "query": "source files isolated by project",
+    "relevant": ["docs/architecture.md"]
+  },
+  {
+    "query": "reserve inventory quantity",
+    "relevant": ["csharp/InventoryService.cs"]
+  },
+  {
+    "query": "load session by id",
+    "relevant": ["kotlin/SessionRepository.kt"]
+  },
+  {
+    "query": "dispatch welcome email address",
+    "relevant": ["scala/EmailDispatcher.scala"]
+  },
+  {
+    "query": "authorize payment amount",
+    "relevant": ["ruby/PaymentGateway.rb"]
+  },
+  {
+    "query": "generate audit report",
+    "relevant": ["php/ReportController.php"]
+  },
+  { "query": "conversion summary", "relevant": ["html/dashboard.html"] }
+]

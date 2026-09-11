@@ -5,6 +5,7 @@ import {
   extractCodeInfo,
   extractExports,
   extractImports,
+  extractTypeHierarchy,
   extractSymbols,
   findSymbolByName,
   getSymbolAtPosition,
@@ -27,11 +28,7 @@ describe("Symbol Extraction - JavaScript", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(symbols.length).toBeGreaterThan(0);
     expect(summary.functions).toBeGreaterThan(0);
@@ -50,11 +47,7 @@ describe("Symbol Extraction - JavaScript", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.classes).toBe(1);
 
@@ -71,11 +64,7 @@ describe("Symbol Extraction - JavaScript", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.constants + summary.variables).toBeGreaterThan(0);
 
@@ -91,12 +80,9 @@ describe("Symbol Extraction - JavaScript", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { types: ["function"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      types: ["function"],
+    });
 
     // Should only have functions
     expect(symbols.every((s) => s.type === "function")).toBe(true);
@@ -109,15 +95,39 @@ describe("Symbol Extraction - JavaScript", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { excludeTypes: ["class"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      excludeTypes: ["class"],
+    });
 
     // Should not have classes
     expect(symbols.every((s) => s.type !== "class")).toBe(true);
+  });
+});
+
+describe("Type hierarchy extraction", () => {
+  test("extracts TypeScript inheritance and implementation edges", () => {
+    const relations = extractTypeHierarchy(
+      "class Child extends Base implements Serializable {}",
+      "typescript",
+    );
+
+    expect(relations).toEqual([
+      {
+        name: "Child",
+        kind: "class",
+        parents: ["Base", "Serializable"],
+        line: 1,
+      },
+    ]);
+  });
+
+  test("extracts Python bases and Rust trait implementations", () => {
+    expect(extractTypeHierarchy("class Child(Base, Mixin):\n  pass", "python")).toEqual([
+      { name: "Child", kind: "class", parents: ["Base", "Mixin"], line: 1 },
+    ]);
+    expect(extractTypeHierarchy("impl Display for Child {}", "rust")).toEqual([
+      { name: "Child", kind: "impl", parents: ["Display"], line: 1 },
+    ]);
   });
 });
 
@@ -139,11 +149,7 @@ describe("Symbol Extraction - TypeScript", () => {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.interfaces).toBe(1);
 
@@ -158,11 +164,7 @@ describe("Symbol Extraction - TypeScript", () => {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.types).toBe(1);
 
@@ -180,11 +182,7 @@ describe("Symbol Extraction - TypeScript", () => {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.enums).toBe(1);
 
@@ -213,11 +211,7 @@ def greet(name):
     `;
     const result = await parseCode(code, { language: "python" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "python",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "python");
 
     expect(summary.functions).toBe(2);
 
@@ -234,11 +228,7 @@ class MyClass:
     `;
     const result = await parseCode(code, { language: "python" });
 
-    const { summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "python",
-    );
+    const { summary } = extractSymbols(result.tree, result.languageInstance, "python");
 
     expect(summary.classes).toBe(1);
   });
@@ -261,11 +251,7 @@ describe("Import Extraction", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBeGreaterThan(0);
   });
@@ -278,11 +264,7 @@ from typing import List, Dict
     `;
     const result = await parseCode(code, { language: "python" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "python",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "python");
 
     expect(imports.length).toBeGreaterThan(0);
   });
@@ -305,11 +287,7 @@ describe("Export Extraction", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBeGreaterThan(0);
 
@@ -334,11 +312,7 @@ describe("Symbol Utilities", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     const functions = getSymbolsByType(symbols, "function");
     expect(functions.every((s) => s.type === "function")).toBe(true);
@@ -351,11 +325,7 @@ describe("Symbol Utilities", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     const found = findSymbolByName(symbols, "hello");
     expect(found).toBeDefined();
@@ -366,11 +336,7 @@ describe("Symbol Utilities", () => {
     const code = `function hello() {}`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     const found = findSymbolByName(symbols, "unknown");
     expect(found).toBeUndefined();
@@ -380,11 +346,7 @@ describe("Symbol Utilities", () => {
     const code = `function hello() { return 1; }`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     const found = getSymbolAtPosition(symbols, 1, 15);
     expect(found).toBeDefined();
@@ -411,11 +373,7 @@ describe("Code Info Extraction", () => {
     `;
     const parseResult = await parseCode(code, { language: "javascript" });
 
-    const info = extractCodeInfo(
-      parseResult.tree,
-      parseResult.languageInstance,
-      "javascript",
-    );
+    const info = extractCodeInfo(parseResult.tree, parseResult.languageInstance, "javascript");
 
     expect(info.symbols.symbols.length).toBeGreaterThan(0);
     expect(info.imports.length).toBeGreaterThan(0);
@@ -436,11 +394,7 @@ describe("Import Edge Cases", () => {
     const code = `import React from 'react';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     expect(imports[0]).toBeDefined();
@@ -450,11 +404,7 @@ describe("Import Edge Cases", () => {
     const code = `import { useState, useEffect, useCallback } from 'react';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     expect(imports[0]).toBeDefined();
@@ -464,11 +414,7 @@ describe("Import Edge Cases", () => {
     const code = `import React, { useState, useEffect } from 'react';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     expect(imports[0]).toBeDefined();
@@ -482,11 +428,7 @@ import * as utils from './utils';
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBeGreaterThanOrEqual(2);
   });
@@ -495,11 +437,7 @@ import * as utils from './utils';
     const code = `import * as fs from 'fs';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     expect(imports[0]).toBeDefined();
@@ -519,11 +457,7 @@ describe("Export Edge Cases", () => {
     const code = `export default function hello() {}`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(1);
     expect(exports[0]?.isDefault).toBe(true);
@@ -533,11 +467,7 @@ describe("Export Edge Cases", () => {
     const code = `export default class MyClass {}`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(1);
     expect(exports[0]?.isDefault).toBe(true);
@@ -547,11 +477,7 @@ describe("Export Edge Cases", () => {
     const code = `export const a = 1; export let b = 2; export var c = 3;`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(3);
   });
@@ -560,11 +486,7 @@ describe("Export Edge Cases", () => {
     const code = `export interface User { name: string; }`;
     const result = await parseCode(code, { language: "typescript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "typescript");
 
     expect(exports.length).toBeGreaterThan(0);
   });
@@ -573,11 +495,7 @@ describe("Export Edge Cases", () => {
     const code = `export type Status = 'active' | 'inactive';`;
     const result = await parseCode(code, { language: "typescript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "typescript");
 
     expect(exports.length).toBeGreaterThan(0);
   });
@@ -586,11 +504,7 @@ describe("Export Edge Cases", () => {
     const code = `export enum Color { Red, Green, Blue }`;
     const result = await parseCode(code, { language: "typescript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "typescript");
 
     expect(exports.length).toBeGreaterThan(0);
   });
@@ -609,11 +523,7 @@ describe("Function Signature Extraction", () => {
     const code = `const greet = (name: string): string => name;`;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(symbols.length).toBeGreaterThan(0);
   });
@@ -628,11 +538,7 @@ def add(a: int, b: int) -> int:
     `;
     const result = await parseCode(code, { language: "python" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "python",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "python");
 
     expect(summary.functions).toBe(2);
     expect(symbols.some((s) => s.name === "greet")).toBe(true);
@@ -652,11 +558,7 @@ func (s *Server) Start() error {
     `;
     const result = await parseCode(code, { language: "go" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "go",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "go");
 
     expect(symbols.length).toBeGreaterThan(0);
   });
@@ -678,11 +580,7 @@ import { render } from 'react-dom';
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBeGreaterThanOrEqual(1);
   });
@@ -696,11 +594,7 @@ export class MyClass {}
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     // Each export should appear only once
     const names = exports.map((e) => e.name);
@@ -729,11 +623,7 @@ class MyClass {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.methods).toBeGreaterThan(0);
     expect(symbols.some((s) => s.type === "method")).toBe(true);
@@ -751,11 +641,7 @@ const asyncArrow = async () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.functions).toBeGreaterThan(0);
     expect(symbols.some((s) => s.modifiers?.includes("async"))).toBe(true);
@@ -769,11 +655,7 @@ function hello() { return 1; }
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Position in comment area (line 1)
     const found = getSymbolAtPosition(symbols, 1, 0);
@@ -792,11 +674,7 @@ type Callback<T> = (value: T) => void;
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.types).toBeGreaterThan(0);
     expect(symbols.some((s) => s.name === "StringOrNumber")).toBe(true);
@@ -812,11 +690,7 @@ function* numberGenerator() {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(symbols.length).toBeGreaterThan(0);
     expect(symbols.some((s) => s.name === "numberGenerator")).toBe(true);
@@ -835,11 +709,7 @@ func (s Server) Stop() {
     `;
     const result = await parseCode(code, { language: "go" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "go",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "go");
 
     expect(symbols.length).toBeGreaterThan(0);
   });
@@ -852,11 +722,7 @@ export default function() {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.some((e) => e.isDefault)).toBe(true);
   });
@@ -877,11 +743,7 @@ def prop(self):
     `;
     const result = await parseCode(code, { language: "python" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "python",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "python");
 
     expect(symbols.length).toBeGreaterThan(0);
   });
@@ -904,11 +766,7 @@ impl Person {
     `;
     const result = await parseCode(code, { language: "rust" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "rust",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "rust");
 
     // Rust symbol extraction may not capture all constructs
     // but should at least not fail
@@ -933,12 +791,10 @@ const x = 1;
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { types: ["function", "class"], excludeTypes: ["class"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      types: ["function", "class"],
+      excludeTypes: ["class"],
+    });
 
     // Should have functions but not classes
     expect(symbols.every((s) => s.type === "function")).toBe(true);
@@ -953,12 +809,9 @@ const x = 1;
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { excludeTypes: ["function"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      excludeTypes: ["function"],
+    });
 
     // Should not have any functions
     expect(symbols.every((s) => s.type !== "function")).toBe(true);
@@ -973,17 +826,12 @@ let y = 2;
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { types: ["variable", "constant"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      types: ["variable", "constant"],
+    });
 
     // Should only have variables or constants
-    expect(
-      symbols.every((s) => s.type === "variable" || s.type === "constant"),
-    ).toBe(true);
+    expect(symbols.every((s) => s.type === "variable" || s.type === "constant")).toBe(true);
   });
 
   test("filter types only - interfaces and types", async () => {
@@ -995,18 +843,13 @@ function hello() {}
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-      { types: ["interface", "type", "enum"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "typescript", {
+      types: ["interface", "type", "enum"],
+    });
 
     // Should only have interfaces, types, or enums
     expect(
-      symbols.every(
-        (s) => s.type === "interface" || s.type === "type" || s.type === "enum",
-      ),
+      symbols.every((s) => s.type === "interface" || s.type === "type" || s.type === "enum"),
     ).toBe(true);
   });
 
@@ -1018,12 +861,9 @@ function hello() {}
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-      { excludeTypes: ["interface"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "typescript", {
+      excludeTypes: ["interface"],
+    });
 
     // Should not have interfaces
     expect(symbols.every((s) => s.type !== "interface")).toBe(true);
@@ -1038,12 +878,9 @@ function standalone() {}
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-      { excludeTypes: ["method"] },
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript", {
+      excludeTypes: ["method"],
+    });
 
     // Should not have methods
     expect(symbols.every((s) => s.type !== "method")).toBe(true);
@@ -1068,11 +905,7 @@ class Calculator {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.methods).toBeGreaterThan(0);
   });
@@ -1086,11 +919,7 @@ class MyClass {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     expect(summary.functions).toBeGreaterThan(0);
     expect(summary.methods).toBeGreaterThan(0);
@@ -1115,11 +944,7 @@ interface IUser {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.interfaces).toBe(1);
     expect(symbols.find((s) => s.name === "IUser")?.type).toBe("interface");
@@ -1136,11 +961,7 @@ type Person struct {
     `;
     const result = await parseCode(code, { language: "go" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "go",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "go");
 
     // Go structs may be detected - at minimum should not error
     expect(symbols).toBeDefined();
@@ -1163,11 +984,7 @@ const MAX_SIZE = 100;
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Variables query may not be available for all languages
     // At minimum should not error
@@ -1182,11 +999,7 @@ var total = 0;
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { summary } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Either constants or variables should be detected
     expect(summary.constants + summary.variables).toBeGreaterThanOrEqual(0);
@@ -1210,11 +1023,7 @@ interface Config {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     const configSymbol = symbols.find((s) => s.name === "Config");
     expect(configSymbol?.type).toBe("interface");
@@ -1231,11 +1040,7 @@ enum Direction {
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.enums).toBe(1);
     const directionEnum = symbols.find((s) => s.name === "Direction");
@@ -1249,11 +1054,7 @@ type Handler = (event: Event) => void;
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const { symbols, summary } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const { symbols, summary } = extractSymbols(result.tree, result.languageInstance, "typescript");
 
     expect(summary.types).toBeGreaterThan(0);
     expect(symbols.some((s) => s.name === "ID")).toBe(true);
@@ -1273,11 +1074,7 @@ describe("Import Edge Cases - Names and Sources", () => {
     const code = `import { useState } from 'react';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     // Source extraction depends on query pattern
     // At minimum the import should be detected
@@ -1292,11 +1089,7 @@ describe("Import Edge Cases - Names and Sources", () => {
     const code = `import 'polyfill';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBeGreaterThanOrEqual(0);
   });
@@ -1305,11 +1098,7 @@ describe("Import Edge Cases - Names and Sources", () => {
     const code = `import React from 'react';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     // Default import should have isDefault flag or contain name
@@ -1320,11 +1109,7 @@ describe("Import Edge Cases - Names and Sources", () => {
     const code = `import { a, b, c } from 'module';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     expect(imports[0]?.names.length).toBeGreaterThanOrEqual(0);
@@ -1344,11 +1129,7 @@ describe("Export Edge Cases - Name Extraction", () => {
     const code = `export const API_URL = "https://api.example.com";`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(1);
     expect(exports[0]?.name).toBeDefined();
@@ -1358,11 +1139,7 @@ describe("Export Edge Cases - Name Extraction", () => {
     const code = `export let counter = 0;`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(1);
   });
@@ -1371,11 +1148,7 @@ describe("Export Edge Cases - Name Extraction", () => {
     const code = `export var globalVar = "value";`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBe(1);
   });
@@ -1384,11 +1157,7 @@ describe("Export Edge Cases - Name Extraction", () => {
     const code = `export default { key: "value" };`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     const defaultExport = exports.find((e) => e.isDefault);
     expect(defaultExport).toBeDefined();
@@ -1415,16 +1184,10 @@ import { useEffect, useCallback, useMemo } from 'react';
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     // Ensure no duplicates based on position
-    const positions = imports.map(
-      (i) => `${String(i.start.line)}:${String(i.start.column)}`,
-    );
+    const positions = imports.map((i) => `${String(i.start.line)}:${String(i.start.column)}`);
     const uniquePositions = [...new Set(positions)];
     expect(positions.length).toBe(uniquePositions.length);
   });
@@ -1439,16 +1202,10 @@ export class MyClass {}
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     // Ensure no duplicates based on position
-    const positions = exports.map(
-      (e) => `${String(e.start.line)}:${String(e.start.column)}`,
-    );
+    const positions = exports.map((e) => `${String(e.start.line)}:${String(e.start.column)}`);
     const uniquePositions = [...new Set(positions)];
     expect(positions.length).toBe(uniquePositions.length);
   });
@@ -1459,11 +1216,7 @@ import React, { useState, useEffect, useRef } from 'react';
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     // Should have names extracted
@@ -1477,11 +1230,7 @@ import { x, y, z } from 'xyz';
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(2);
   });
@@ -1494,11 +1243,7 @@ export default function() {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "javascript");
 
     const defaultExport = exports.find((e) => e.isDefault);
     expect(defaultExport).toBeDefined();
@@ -1510,11 +1255,7 @@ export default function() {
     const code = `import DefaultExport from 'module';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     // Default import should be captured, names array may or may not have content
@@ -1526,11 +1267,7 @@ export default function() {
     const code = `import { namedA, namedB, namedC } from 'module';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(1);
     // Named imports should be in the names array
@@ -1545,11 +1282,7 @@ import * as namespace from 'namespace';
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "typescript");
 
     expect(imports.length).toBeGreaterThanOrEqual(2);
   });
@@ -1562,11 +1295,7 @@ export * from 'all';
     `;
     const result = await parseCode(code, { language: "typescript" });
 
-    const exports = extractExports(
-      result.tree,
-      result.languageInstance,
-      "typescript",
-    );
+    const exports = extractExports(result.tree, result.languageInstance, "typescript");
 
     expect(exports.length).toBeGreaterThanOrEqual(1);
   });
@@ -1575,11 +1304,7 @@ export * from 'all';
     const code = `import 'side-effect';`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = extractImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = extractImports(result.tree, result.languageInstance, "javascript");
 
     // Side-effect imports may or may not be captured depending on query
     expect(imports.length).toBeGreaterThanOrEqual(0);
@@ -1599,11 +1324,7 @@ describe("getSymbolAtPosition Edge Cases", () => {
     const code = `function hello() { return 1; }`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Position at very start
     const found = getSymbolAtPosition(symbols, 1, 0);
@@ -1614,11 +1335,7 @@ describe("getSymbolAtPosition Edge Cases", () => {
     const code = `function hello() { return 1; }`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Position at end of first line
     const found = getSymbolAtPosition(symbols, 1, 30);
@@ -1631,11 +1348,7 @@ describe("getSymbolAtPosition Edge Cases", () => {
 function hello() { return 1; }`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Position at line 1 which is empty
     const found = getSymbolAtPosition(symbols, 1, 0);
@@ -1649,11 +1362,7 @@ function hello() { return 1; }`;
 }`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const { symbols } = extractSymbols(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const { symbols } = extractSymbols(result.tree, result.languageInstance, "javascript");
 
     // Position in middle of function
     const found = getSymbolAtPosition(symbols, 2, 5);

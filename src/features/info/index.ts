@@ -1,13 +1,10 @@
 import { z } from "zod";
 import type { Feature, FeatureResult } from "@features/types";
 import { config } from "@config";
+import { createFeatureResultSchema } from "@features/utils";
 
 export const infoSchema = z.object({
-  format: z
-    .enum(["json", "text"])
-    .optional()
-    .default("text")
-    .describe("Output format"),
+  format: z.enum(["json", "text"]).optional().default("text").describe("Output format"),
 });
 
 export type InfoInput = z.infer<typeof infoSchema>;
@@ -18,6 +15,17 @@ export interface ServerInfo {
   version: string;
   description: string | undefined;
 }
+
+const serverInfoDataSchema = z
+  .object({
+    name: z.string(),
+    fullName: z.string(),
+    version: z.string(),
+    description: z.string().optional(),
+  })
+  .strict();
+
+export const infoOutputSchema = createFeatureResultSchema(serverInfoDataSchema);
 
 export function getServerInfo(): ServerInfo {
   return {
@@ -40,8 +48,7 @@ export function execute(input: InfoInput): FeatureResult {
   }
 
   const description = info.description ?? "";
-  const text =
-    `${info.fullName} (${info.name}) v${info.version}\n${description}`.trim();
+  const text = `${info.fullName} (${info.name}) v${info.version}\n${description}`.trim();
 
   return {
     success: true,
@@ -53,7 +60,8 @@ export function execute(input: InfoInput): FeatureResult {
 export const infoFeature: Feature<typeof infoSchema> = {
   name: "get_server_info",
   description:
-    "Get SRC server version and capabilities. Use to verify the MCP server is running correctly.",
+    "Get SRC server identity, version, and description. Use to verify the MCP server is running correctly.",
   schema: infoSchema,
+  outputSchema: infoOutputSchema,
   execute,
 };

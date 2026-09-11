@@ -10,20 +10,45 @@ export type {
   EmbeddingConfig,
   EnrichedChunk,
   IndexStatus,
+  IndexMetadata,
   SearchResult,
 } from "@core/embeddings/types";
 
 // Ollama client
-export { OllamaClient, createOllamaClient } from "@core/embeddings/client";
+export {
+  OllamaClient,
+  LexicalEmbeddingClient,
+  createOllamaClient,
+  createLexicalEmbeddingClient,
+  validateEmbeddingBatch,
+  type EmbeddingClient,
+} from "@core/embeddings/client";
 
 // Vector store
 export {
   VectorStore,
+  computeSourceFingerprint,
   createVectorStore,
   getIndexPath,
+  hasIndexData,
+  type AdjacentChunkResult,
+  type AdjacentChunks,
+  type IndexMaintenanceStatus,
+  type IndexOptimizationStats,
   type SearchMode,
   type HybridSearchOptions,
 } from "@core/embeddings/store";
+
+// Incremental source-hash cache
+export {
+  HASH_CACHE_FILE,
+  hashCachePath,
+  indexWriteLockPath,
+  readHashCache,
+  writeHashCache,
+  type HashCache,
+  type HashCacheReadResult,
+} from "@core/embeddings/hash-cache";
 
 // Chunker
 export {
@@ -32,6 +57,7 @@ export {
   detectLanguage,
   shouldIndexFile,
   SUPPORTED_EXTENSIONS,
+  SUPPORTED_FILENAMES,
 } from "@core/embeddings/chunker";
 
 // Watcher

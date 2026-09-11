@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -6,7 +6,12 @@ import { execute, getCallGraphSchema } from "@features/get-call-graph";
 import * as embeddings from "@core/embeddings";
 
 // Mock the entire embeddings module
-vi.mock("@core/embeddings");
+vi.mock("@core/embeddings", () => ({
+  shouldIndexFile: vi.fn(),
+  buildCallGraph: vi.fn(),
+  getCallContext: vi.fn(),
+  formatCallContext: vi.fn(),
+}));
 
 describe("getCallGraphSchema", () => {
   test("applies default directory", () => {
@@ -51,6 +56,8 @@ describe("getCallGraphSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.maxDepth).toBe(2);
+      expect(result.data.maxNodes).toBe(200);
+      expect(result.data.maxFiles).toBe(500);
       expect(result.data.exclude).toEqual([]);
     }
   });
@@ -71,9 +78,9 @@ describe("execute", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "call-graph-test-"));
     vi.clearAllMocks();
 
-    vi.mocked(embeddings.shouldIndexFile).mockReturnValue(true);
+    (embeddings.shouldIndexFile as Mock).mockReturnValue(true);
 
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map([
         [
           "/test/file.ts:testFunction",
@@ -106,7 +113,7 @@ describe("execute", () => {
       edgeCount: 1,
     });
 
-    vi.mocked(embeddings.getCallContext).mockReturnValue({
+    (embeddings.getCallContext as Mock).mockReturnValue({
       callers: [],
       callees: [
         {
@@ -122,9 +129,7 @@ describe("execute", () => {
       ],
     });
 
-    vi.mocked(embeddings.formatCallContext).mockReturnValue(
-      "Calls: helperFunction",
-    );
+    (embeddings.formatCallContext as Mock).mockReturnValue("Calls: helperFunction");
   });
 
   afterEach(() => {
@@ -143,7 +148,7 @@ describe("execute", () => {
   });
 
   test("returns success with no files when directory is empty", async () => {
-    vi.mocked(embeddings.shouldIndexFile).mockReturnValue(false);
+    (embeddings.shouldIndexFile as Mock).mockReturnValue(false);
 
     const result = await execute({
       directory: tempDir,
@@ -182,6 +187,65 @@ function helperFunction() {
     expect(embeddings.buildCallGraph).toHaveBeenCalled();
   });
 
+  test("bounds files analyzed and reports file truncation", async () => {
+    fs.writeFileSync(path.join(tempDir, "a.ts"), "function a() {}");
+    fs.writeFileSync(path.join(tempDir, "b.ts"), "function b() {}");
+
+    const result = await execute({
+      directory: tempDir,
+      maxFiles: 1,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      filesAnalyzed: 1,
+      filesTruncated: true,
+      truncated: true,
+    });
+    expect(embeddings.buildCallGraph).toHaveBeenCalledWith([
+      expect.objectContaining({ path: path.join(tempDir, "a.ts") }),
+    ]);
+  });
+
+  test("bounds full graph output and reports truncation", async () => {
+    const testFile = path.join(tempDir, "test.ts");
+    fs.writeFileSync(testFile, "function test() {}");
+
+    const nodes = new Map<string, unknown>();
+    for (const name of ["alpha", "beta", "gamma"]) {
+      nodes.set(`${testFile}:${name}`, {
+        name,
+        qualifiedName: `${testFile}:${name}`,
+        filePath: testFile,
+        type: "function",
+        start: { line: 1, column: 0, offset: 0 },
+        end: { line: 1, column: 18, offset: 18 },
+        calls: name === "alpha" ? [`${testFile}:beta`] : [],
+        calledBy: name === "beta" ? [`${testFile}:alpha`] : [],
+      });
+    }
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
+      nodes,
+      files: [testFile],
+      edgeCount: 1,
+    });
+
+    const result = await execute({
+      directory: tempDir,
+      maxDepth: 2,
+      maxNodes: 2,
+      exclude: [],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      truncated: true,
+      maxNodes: 2,
+    });
+    expect(Object.keys((result.data as { graph: { nodes: object } }).graph.nodes)).toHaveLength(2);
+  });
+
   test("queries specific function when functionName is provided", async () => {
     // Create a test file
     const testFile = path.join(tempDir, "test.ts");
@@ -202,8 +266,8 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.getCallContext).mockReturnValue(null);
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.getCallContext as Mock).mockReturnValue(null);
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map(),
       files: [testFile],
       edgeCount: 0,
@@ -224,9 +288,7 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.buildCallGraph).mockRejectedValue(
-      new Error("Parse error"),
-    );
+    (embeddings.buildCallGraph as Mock).mockRejectedValue(new Error("Parse error"));
 
     const result = await execute({
       directory: tempDir,
@@ -242,7 +304,7 @@ function helperFunction() {
     const testFile = path.join(tempDir, "test.ts");
     fs.writeFileSync(testFile, "function test() {}");
 
-    vi.mocked(embeddings.buildCallGraph).mockRejectedValue("String error");
+    (embeddings.buildCallGraph as Mock).mockRejectedValue("String error");
 
     const result = await execute({
       directory: tempDir,
@@ -275,14 +337,12 @@ function helperFunction() {
 
     // First call returns null (not found in specified path)
     // Second call finds it in the graph
-    vi.mocked(embeddings.getCallContext)
-      .mockReturnValueOnce(null)
-      .mockReturnValue({
-        callers: [],
-        callees: [],
-      });
+    (embeddings.getCallContext as Mock).mockReturnValueOnce(null).mockReturnValue({
+      callers: [],
+      callees: [],
+    });
 
-    vi.mocked(embeddings.buildCallGraph).mockResolvedValue({
+    (embeddings.buildCallGraph as Mock).mockResolvedValue({
       nodes: new Map([
         [
           `${testFile}:testFunction`,
@@ -320,8 +380,8 @@ function helperFunction() {
     fs.writeFileSync(excludedFile, "function spec() {}");
 
     // Make shouldIndexFile return false for spec files based on the name
-    vi.mocked(embeddings.shouldIndexFile).mockImplementation(
-      (name) => !name.includes(".spec."),
+    (embeddings.shouldIndexFile as Mock).mockImplementation(
+      (name: string) => !name.includes(".spec."),
     );
 
     const result = await execute({

@@ -14,7 +14,7 @@ jobs:
   release:
     name: Release & Publish
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
     permissions:
       contents: write
       id-token: write
@@ -23,18 +23,19 @@ jobs:
       url: https://www.npmjs.com/package/src-mcp
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
-      - name: Check if release commit
+      - name: Check release marker
         id: check
         run: |
           MESSAGE=$(git log -1 --pretty=%B)
           echo "Commit message: $MESSAGE"
-          if [[ "$MESSAGE" == *"[release]"* ]] || [[ "$MESSAGE" == *"chore(release)"* ]]; then
+          if [[ "$MESSAGE" == *"[release]"* ]]; then
             echo "should-release=true" >> $GITHUB_OUTPUT
             echo "✅ Release commit detected" >> $GITHUB_STEP_SUMMARY
           else
@@ -51,80 +52,86 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION" >> $GITHUB_STEP_SUMMARY
 
-      - name: Check if already released
-        if: steps.check.outputs.should-release == 'true'
-        id: tag
-        run: |
-          if git tag -l "v${{ steps.version.outputs.version }}" | grep -q .; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⏭️ Skipped - v${{ steps.version.outputs.version }} already released" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Setup Bun
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        uses: oven-sh/setup-bun@v2
+        if: steps.check.outputs.should-release == 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
       - name: Setup Node.js
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        uses: actions/setup-node@v6
+        if: steps.check.outputs.should-release == 'true'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Update npm
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        run: npm install -g npm@latest
+      - name: Read npm and GitHub publication state
+        if: steps.check.outputs.should-release == 'true'
+        id: published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          async function exists(url, headers = {}) {
+            const response = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+            if (response.status === 404) return false;
+            if (!response.ok) throw new Error(`Publication lookup failed: HTTP ${response.status}`);
+            return true;
+          }
+          const npm = await exists(`https://registry.npmjs.org/${encodeURIComponent(pkg.name)}/${encodeURIComponent(pkg.version)}`);
+          const github = await exists(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/releases/tags/v${encodeURIComponent(pkg.version)}`, {
+            Authorization: `Bearer ${process.env.GH_TOKEN}`,
+            Accept: 'application/vnd.github+json'
+          });
+          appendFileSync(process.env.GITHUB_OUTPUT, `npm=${npm}\ngithub=${github}\n`);
+          NODE
 
       - name: Cache dependencies
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        uses: actions/cache@v5
+        if: steps.check.outputs.should-release == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
+        if: steps.check.outputs.should-release == 'true'
         run: bun install --frozen-lockfile
 
+      - name: Validate changelog structure
+        if: steps.check.outputs.should-release == 'true'
+        run: bun run changelog:check
+
       - name: Build
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
+        if: steps.check.outputs.should-release == 'true'
         run: bun run build
 
-      - name: Generate changelog
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        run: bun run changelog
+      - name: Verify published package
+        if: steps.check.outputs.should-release == 'true'
+        run: bun run pack:verify
 
-      - name: Commit and push changelog
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        id: changelog-commit
+      - name: Validate changelog entry
+        if: steps.check.outputs.should-release == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-
-          if git diff --staged --quiet; then
-            echo "pushed=false" >> $GITHUB_OUTPUT
-            echo "📝 No changelog changes to commit" >> $GITHUB_STEP_SUMMARY
-          else
-            git commit -m "docs: update changelog for v${{ steps.version.outputs.version }}"
-
-            # Try to push to main (non-blocking if it fails)
-            if git push origin HEAD:main 2>&1; then
-              echo "pushed=true" >> $GITHUB_OUTPUT
-              echo "📝 Changelog committed and pushed" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "pushed=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Could not push changelog (main may have moved). Release will continue." >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const version = process.env.RELEASE_VERSION;
+          if (!version) throw new Error('Release version is missing');
+          const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const heading = new RegExp(`^##\\s+\\[${escaped}\\]\\s+-\\s+\\d{4}-\\d{2}-\\d{2}\\s*$`, 'm');
+          const changelog = readFileSync('CHANGELOG.md', 'utf8');
+          if (!heading.test(changelog)) {
+            throw new Error(`CHANGELOG.md has no reviewed entry for v${version}. Ask the AI to update it before releasing.`);
+          }
+          console.log(`CHANGELOG.md contains the reviewed v${version} entry.`);
+          NODE
 
       - name: Extract release notes
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
+        if: steps.check.outputs.should-release == 'true' && steps.published.outputs.github == 'false'
         id: notes
         run: |
           # Extract content between first and second version headers
@@ -153,21 +160,21 @@ jobs:
             echo "RELEASE_NOTES_EOF"
           } >> $GITHUB_OUTPUT
 
+      - name: Publish to npm
+        if: steps.check.outputs.should-release == 'true' && steps.published.outputs.npm == 'false'
+        run: npm publish --provenance --access public
+
       - name: Create GitHub Release
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+        if: steps.check.outputs.should-release == 'true' && steps.published.outputs.github == 'false'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
           body: ${{ steps.notes.outputs.content }}
           target_commitish: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Publish to npm
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
-        run: npm publish --provenance --access public
-
       - name: Release summary
-        if: steps.check.outputs.should-release == 'true' && steps.tag.outputs.exists == 'false'
+        if: steps.check.outputs.should-release == 'true'
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 🚀 Released v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

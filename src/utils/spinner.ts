@@ -21,10 +21,8 @@ export async function withSpinner<T>(
 ): Promise<T> {
   // Skip spinner in non-TTY environments (CI, pipes, etc.)
   if (!process.stdout.isTTY) {
-    // eslint-disable-next-line no-console
     console.log(text);
     const result = await fn();
-    // eslint-disable-next-line no-console
     console.log(successText ?? "Done");
     return result;
   }

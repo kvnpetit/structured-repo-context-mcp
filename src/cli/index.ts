@@ -11,6 +11,6 @@ const main = defineCommand({
   subCommands,
 });
 
-export function runCLI(): void {
-  void runMain(main);
+export async function runCLI(): Promise<void> {
+  await runMain(main);
 }

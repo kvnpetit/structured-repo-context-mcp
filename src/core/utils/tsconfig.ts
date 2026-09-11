@@ -113,11 +113,7 @@ function parseTsConfig(content: string): TsConfig | null {
  *   "@core": "src/core"
  *   "@core/": "src/core/"
  */
-function convertPaths(
-  paths: TsConfigPaths,
-  baseUrl: string,
-  projectRoot: string,
-): PathAliases {
+function convertPaths(paths: TsConfigPaths, baseUrl: string, projectRoot: string): PathAliases {
   const aliases: PathAliases = {};
 
   for (const [pattern, targets] of Object.entries(paths)) {
@@ -129,14 +125,14 @@ function convertPaths(
     // Handle wildcard patterns like "@core/*" -> ["src/core/*"]
     if (pattern.endsWith("/*") && target.endsWith("/*")) {
       // Remove the /* from both pattern and target
-      const aliasPrefix = pattern.slice(0, -2) + "/";
-      const targetPath = target.slice(0, -2) + "/";
+      const aliasPrefix = `${pattern.slice(0, -2)}/`;
+      const targetPath = `${target.slice(0, -2)}/`;
 
       // Resolve relative to baseUrl
       const resolvedTarget = path.join(projectRoot, baseUrl, targetPath);
       const relativeTarget = path.relative(projectRoot, resolvedTarget);
 
-      aliases[aliasPrefix] = relativeTarget.replace(/\\/g, "/") + "/";
+      aliases[aliasPrefix] = `${relativeTarget.replace(/\\/g, "/")}/`;
     } else {
       // Handle exact matches like "@core" -> ["src/core"]
       const resolvedTarget = path.join(projectRoot, baseUrl, target);
@@ -186,9 +182,7 @@ export function readPathAliases(projectRoot: string): PathAliases {
     }
 
     const aliases = convertPaths(paths, baseUrl, projectRoot);
-    logger.debug(
-      `Loaded ${String(Object.keys(aliases).length)} path aliases from tsconfig.json`,
-    );
+    logger.debug(`Loaded ${String(Object.keys(aliases).length)} path aliases from tsconfig.json`);
 
     return aliases;
   } catch (error) {

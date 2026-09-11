@@ -10,32 +10,32 @@
  */
 
 import { z } from "zod";
-import * as fs from "node:fs";
 import * as path from "node:path";
-import * as crypto from "node:crypto";
-import ignore, { type Ignore } from "ignore";
-import type { Feature, FeatureResult } from "@features/types";
+import type { Feature, FeatureExecutionContext, FeatureResult } from "@features/types";
 import { EMBEDDING_CONFIG } from "@config";
 import {
   chunkFile,
   createOllamaClient,
+  createLexicalEmbeddingClient,
   createVectorStore,
+  computeSourceFingerprint,
   enrichChunksFromFile,
-  shouldIndexFile,
+  validateEmbeddingBatch,
   type EmbeddedChunk,
   type EnrichmentOptions,
 } from "@core/embeddings";
+import { computeContentHash, readHashCache, writeHashCache } from "@core/embeddings/hash-cache";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 import { readPathAliasesCached } from "@core/utils";
+import { readSecureTextFile, resolveSecureDirectory, safeErrorMessage } from "@core/security";
+import { createFeatureResultSchema } from "@features/utils";
+import { buildDryRunMessage, buildResultMessage } from "./messages";
 
-/** Cache file name for storing hashes */
-const HASH_CACHE_FILE = ".src-index-hashes.json";
+/** Default concurrency for parallel file processing */
+const DEFAULT_CONCURRENCY = 4;
 
 export const updateIndexSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Path to the indexed directory"),
+  directory: z.string().optional().default(".").describe("Path to the indexed directory"),
   dryRun: z
     .boolean()
     .optional()
@@ -46,9 +46,23 @@ export const updateIndexSchema = z.object({
     .optional()
     .default(false)
     .describe("Force re-index of all files (ignore hash cache)"),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .max(32)
+    .optional()
+    .default(DEFAULT_CONCURRENCY)
+    .describe("Number of files to process in parallel (default: 4)"),
 });
 
-export type UpdateIndexInput = z.infer<typeof updateIndexSchema>;
+export type UpdateIndexInput = z.input<typeof updateIndexSchema>;
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error("Operation cancelled");
+  }
+}
 
 type HashCache = Record<string, string>;
 
@@ -62,126 +76,118 @@ interface UpdateResult {
   errors: string[];
 }
 
-/**
- * Compute SHA-256 hash of content
- */
-function computeHash(content: string): string {
-  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
-}
+const updateIndexDataSchema = z
+  .object({
+    directory: z.string(),
+    dryRun: z.boolean(),
+    added: z.string().array(),
+    modified: z.string().array(),
+    removed: z.string().array(),
+    unchanged: z.number().int().nonnegative(),
+    errors: z.string().array(),
+  })
+  .strict();
 
-/**
- * Get hash cache file path
- */
-function getHashCachePath(directory: string): string {
-  return path.join(directory, ".src-index", HASH_CACHE_FILE);
-}
+export const updateIndexOutputSchema = createFeatureResultSchema(updateIndexDataSchema);
 
 /**
  * Load hash cache from disk
  */
 function loadHashCache(directory: string): HashCache {
-  const cachePath = getHashCachePath(directory);
-  if (fs.existsSync(cachePath)) {
-    try {
-      const content = fs.readFileSync(cachePath, "utf-8");
-      return JSON.parse(content) as HashCache;
-    } catch {
-      return {};
-    }
-  }
-  return {};
+  const result = readHashCache(directory);
+  return result.valid ? result.cache : {};
 }
 
 /**
  * Save hash cache to disk
  */
-function saveHashCache(directory: string, cache: HashCache): void {
-  const cachePath = getHashCachePath(directory);
-  const cacheDir = path.dirname(cachePath);
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true });
-  }
-  fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2));
+async function saveHashCache(
+  directory: string,
+  cache: HashCache,
+  vectorStore: unknown,
+): Promise<void> {
+  const setSourceFingerprint = (
+    vectorStore as {
+      setSourceFingerprint?: (fingerprint: string) => void;
+    }
+  ).setSourceFingerprint;
+  await writeHashCache(directory, cache, () => {
+    if (typeof setSourceFingerprint === "function") {
+      setSourceFingerprint.call(vectorStore, computeSourceFingerprint(cache));
+    }
+  });
 }
 
 /**
- * Create gitignore filter
+ * Process files in parallel with a concurrency limit
  */
-function createIgnoreFilter(directory: string): Ignore {
-  const ig = ignore();
-  ig.add(["node_modules", ".git", "dist", "build", ".src-index"]);
+async function parallelMap<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: (R | undefined)[] = new Array<R | undefined>(items.length);
+  let currentIndex = 0;
+  let stopped = false;
 
-  const gitignorePath = path.join(directory, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
-    ig.add(content);
-  }
-
-  return ig;
-}
-
-/**
- * Check if a name starts with a dot (hidden)
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
-}
-
-/**
- * Recursively collect files
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name)) {
-      continue;
+  const worker = async (): Promise<void> => {
+    while (!stopped && currentIndex < items.length) {
+      const index = currentIndex++;
+      const item = items[index];
+      if (item !== undefined) {
+        try {
+          results[index] = await processor(item);
+        } catch (error) {
+          stopped = true;
+          throw error;
+        }
+      }
     }
+  };
 
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => worker());
+  await Promise.all(workers);
 
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
+  return results.filter((r): r is R => r !== undefined);
 }
 
 /**
  * Execute the update_index feature
  */
-export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
-  const { directory, dryRun, force } = input;
+export async function execute(
+  input: UpdateIndexInput,
+  context?: FeatureExecutionContext,
+): Promise<FeatureResult> {
+  const { directory, dryRun, force, concurrency } = updateIndexSchema.parse(input);
 
-  // Validate directory
-  if (!fs.existsSync(directory)) {
+  if (context?.signal?.aborted) {
+    return { success: false, error: "Operation cancelled" };
+  }
+
+  const secureDirectory = resolveSecureDirectory(directory);
+  if (!secureDirectory.ok) {
     return {
       success: false,
-      error: `Directory not found: ${directory}`,
+      error:
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
-  const absoluteDir = path.resolve(directory);
+  const absoluteDir = secureDirectory.path;
 
   // Initialize components
   const ollamaClient = createOllamaClient(EMBEDDING_CONFIG);
+  const embeddingClient =
+    EMBEDDING_CONFIG.embeddingProvider === "lexical"
+      ? createLexicalEmbeddingClient(EMBEDDING_CONFIG.embeddingDimensions)
+      : ollamaClient;
   const vectorStore = createVectorStore(absoluteDir, EMBEDDING_CONFIG);
 
   // Check if index exists
   if (!vectorStore.exists()) {
     return {
       success: false,
-      error: `No index found for directory. Run index_codebase first: ${absoluteDir}`,
+      error: "No index found for directory. Run index_codebase first.",
     };
   }
 
@@ -198,7 +204,7 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
   try {
     // Check Ollama health (only if not dry run)
     if (!dryRun) {
-      const health = await ollamaClient.healthCheck();
+      const health = await embeddingClient.healthCheck();
       if (!health.ok) {
         return {
           success: false,
@@ -209,14 +215,36 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
 
     // Connect to vector store
     await vectorStore.connect();
+    throwIfAborted(context?.signal);
+    try {
+      vectorStore.assertMetadataCompatible();
+    } catch (error) {
+      if (!force || dryRun) {
+        throw error;
+      }
+      // An explicit force update is the consent boundary for rebuilding an
+      // index whose provider/model/dimensions no longer match the workspace.
+      await vectorStore.clear();
+    }
 
     // Load hash cache
     const hashCache = force ? {} : loadHashCache(absoluteDir);
-    const newHashCache: HashCache = {};
-
+    // Start from the last committed cache. This preserves old hashes for
+    // files whose replacement fails, so the next update retries them instead
+    // of silently considering a failed update complete.
     // Collect current files
     const ig = createIgnoreFilter(absoluteDir);
-    const currentFiles = new Set(collectFiles(absoluteDir, ig, absoluteDir));
+    const currentFiles = new Set(
+      collectFiles(absoluteDir, ig, absoluteDir, { signal: context?.signal }).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    );
+    const newHashCache: HashCache = {};
+    for (const [cachedFile, hash] of Object.entries(hashCache)) {
+      if (currentFiles.has(cachedFile)) {
+        newHashCache[cachedFile] = hash;
+      }
+    }
 
     // Get indexed files from vector store
     const indexedFiles = new Set(await vectorStore.getIndexedFiles());
@@ -225,9 +253,15 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
     const filesToProcess: { path: string; type: "add" | "modify" }[] = [];
 
     for (const filePath of currentFiles) {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const hash = computeHash(content);
-      newHashCache[filePath] = hash;
+      throwIfAborted(context?.signal);
+      const readResult = readSecureTextFile(filePath, absoluteDir);
+      if (!readResult.ok || readResult.content === undefined) {
+        const readError = readResult.ok ? "File cannot be read" : readResult.error;
+        result.errors.push(`Cannot read ${path.relative(absoluteDir, filePath)}: ${readError}`);
+        continue;
+      }
+      const content = readResult.content;
+      const hash = computeContentHash(content);
 
       if (!indexedFiles.has(filePath)) {
         // New file
@@ -238,17 +272,18 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
         result.modified.push(path.relative(absoluteDir, filePath));
         filesToProcess.push({ path: filePath, type: "modify" });
       } else {
+        newHashCache[filePath] = hash;
         result.unchanged++;
       }
     }
 
     // Find removed files
     for (const filePath of indexedFiles) {
+      throwIfAborted(context?.signal);
       if (!currentFiles.has(filePath)) {
         result.removed.push(path.relative(absoluteDir, filePath));
       }
     }
-
     // If dry run, just report what would be done
     if (dryRun) {
       vectorStore.close();
@@ -271,37 +306,53 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
       includeCrossFileContext: true,
     };
 
-    // Process files
-    const embeddedChunks: EmbeddedChunk[] = [];
+    // Process files in parallel with concurrency limit
+    interface FileProcessResult {
+      filePath: string;
+      hash: string;
+      chunks: EmbeddedChunk[];
+      error?: string;
+    }
 
-    for (const { path: filePath, type } of filesToProcess) {
+    const processFile = async ({
+      path: filePath,
+    }: {
+      path: string;
+      type: "add" | "modify";
+    }): Promise<FileProcessResult> => {
       try {
-        // Delete existing chunks if modifying
-        if (type === "modify") {
-          await vectorStore.deleteByFilePath(filePath);
+        throwIfAborted(context?.signal);
+        const readResult = readSecureTextFile(filePath, absoluteDir);
+        if (!readResult.ok || readResult.content === undefined) {
+          const readError = readResult.ok ? "File cannot be read" : readResult.error;
+          return {
+            filePath,
+            hash: "",
+            chunks: [],
+            error: `Error processing ${path.relative(absoluteDir, filePath)}: ${readError}`,
+          };
         }
-
-        const content = fs.readFileSync(filePath, "utf-8");
+        const content = readResult.content;
+        const hash = computeContentHash(content);
         const chunks = await chunkFile(filePath, content, EMBEDDING_CONFIG);
 
         if (chunks.length === 0) {
-          continue;
+          return { filePath, hash, chunks: [] };
         }
 
-        const enrichedChunks = await enrichChunksFromFile(
-          chunks,
-          content,
-          enrichmentOptions,
-        );
+        const enrichedChunks = await enrichChunksFromFile(chunks, content, enrichmentOptions);
 
         const texts = enrichedChunks.map((c) => c.enrichedContent);
-        const embeddings = await ollamaClient.embedBatch(texts);
+        const embeddings = await embeddingClient.embedBatch(texts);
+        throwIfAborted(context?.signal);
+        validateEmbeddingBatch(embeddings, texts.length, EMBEDDING_CONFIG.embeddingDimensions);
 
+        const embedded: EmbeddedChunk[] = [];
         for (let i = 0; i < enrichedChunks.length; i++) {
           const chunk = enrichedChunks[i];
           const vector = embeddings[i];
           if (chunk && vector) {
-            embeddedChunks.push({
+            embedded.push({
               id: chunk.id,
               content: chunk.content,
               filePath: chunk.filePath,
@@ -314,25 +365,63 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
             });
           }
         }
+        return { filePath, hash, chunks: embedded };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Error processing ${filePath}: ${errorMsg}`);
+        if (context?.signal?.aborted) {
+          throw new Error("Operation cancelled");
+        }
+        const errorMsg = safeErrorMessage(err, "File processing failed");
+        return {
+          filePath,
+          hash: "",
+          chunks: [],
+          error: `Error processing ${path.relative(absoluteDir, filePath)}: ${errorMsg}`,
+        };
+      }
+    };
+
+    let processedFiles = 0;
+    const fileResults = await parallelMap(
+      filesToProcess,
+      async (file) => {
+        const fileResult = await processFile(file);
+        throwIfAborted(context?.signal);
+        processedFiles += 1;
+        await context?.reportProgress?.(
+          processedFiles,
+          filesToProcess.length,
+          `Processed ${String(processedFiles)} of ${String(filesToProcess.length)} files`,
+        );
+        return fileResult;
+      },
+      concurrency,
+    );
+
+    const replacements = new Map<string, EmbeddedChunk[]>();
+    throwIfAborted(context?.signal);
+    for (const fileResult of fileResults) {
+      if (fileResult.error) {
+        result.errors.push(fileResult.error);
+      } else {
+        replacements.set(fileResult.filePath, fileResult.chunks);
+        newHashCache[fileResult.filePath] = fileResult.hash;
       }
     }
 
-    // Add new chunks
-    if (embeddedChunks.length > 0) {
-      await vectorStore.addChunks(embeddedChunks);
-    }
-
-    // Remove deleted files
+    // Deleted files participate in the same atomic replacement transaction.
     for (const relativePath of result.removed) {
       const filePath = path.join(absoluteDir, relativePath);
-      await vectorStore.deleteByFilePath(filePath);
+      replacements.set(filePath, []);
+    }
+
+    if (replacements.size > 0) {
+      throwIfAborted(context?.signal);
+      await vectorStore.replaceFilesChunks(replacements);
     }
 
     // Save new hash cache
-    saveHashCache(absoluteDir, newHashCache);
+    throwIfAborted(context?.signal);
+    await saveHashCache(absoluteDir, newHashCache, vectorStore);
 
     vectorStore.close();
 
@@ -345,7 +434,7 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
     };
   } catch (err) {
     vectorStore.close();
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorMsg = safeErrorMessage(err, "Index update operation failed");
     return {
       success: false,
       error: `Update failed: ${errorMsg}`,
@@ -353,95 +442,11 @@ export async function execute(input: UpdateIndexInput): Promise<FeatureResult> {
   }
 }
 
-/**
- * Build message for dry run
- */
-function buildDryRunMessage(result: UpdateResult): string {
-  const lines: string[] = ["Dry run - changes detected:"];
-
-  if (result.added.length > 0) {
-    lines.push(`\nFiles to add (${String(result.added.length)}):`);
-    for (const f of result.added.slice(0, 10)) {
-      lines.push(`  + ${f}`);
-    }
-    if (result.added.length > 10) {
-      lines.push(`  ... and ${String(result.added.length - 10)} more`);
-    }
-  }
-
-  if (result.modified.length > 0) {
-    lines.push(`\nFiles to update (${String(result.modified.length)}):`);
-    for (const f of result.modified.slice(0, 10)) {
-      lines.push(`  ~ ${f}`);
-    }
-    if (result.modified.length > 10) {
-      lines.push(`  ... and ${String(result.modified.length - 10)} more`);
-    }
-  }
-
-  if (result.removed.length > 0) {
-    lines.push(`\nFiles to remove (${String(result.removed.length)}):`);
-    for (const f of result.removed.slice(0, 10)) {
-      lines.push(`  - ${f}`);
-    }
-    if (result.removed.length > 10) {
-      lines.push(`  ... and ${String(result.removed.length - 10)} more`);
-    }
-  }
-
-  lines.push(`\nUnchanged: ${String(result.unchanged)} files`);
-
-  if (
-    result.added.length === 0 &&
-    result.modified.length === 0 &&
-    result.removed.length === 0
-  ) {
-    return "Index is up to date - no changes detected.";
-  }
-
-  lines.push("\nRun without --dryRun to apply changes.");
-
-  return lines.join("\n");
-}
-
-/**
- * Build message for actual update
- */
-function buildResultMessage(result: UpdateResult): string {
-  const changes =
-    result.added.length + result.modified.length + result.removed.length;
-
-  if (changes === 0) {
-    return "Index is up to date - no changes needed.";
-  }
-
-  const lines: string[] = ["Index updated successfully:"];
-
-  if (result.added.length > 0) {
-    lines.push(`  Added: ${String(result.added.length)} files`);
-  }
-  if (result.modified.length > 0) {
-    lines.push(`  Modified: ${String(result.modified.length)} files`);
-  }
-  if (result.removed.length > 0) {
-    lines.push(`  Removed: ${String(result.removed.length)} files`);
-  }
-  lines.push(`  Unchanged: ${String(result.unchanged)} files`);
-
-  if (result.errors.length > 0) {
-    lines.push(`\nErrors (${String(result.errors.length)}):`);
-    for (const err of result.errors.slice(0, 5)) {
-      lines.push(`  - ${err}`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
 export const updateIndexFeature: Feature<typeof updateIndexSchema> = {
   name: "update_index",
   description:
     "Refresh the search index after code changes. USE THIS instead of re-indexing - it's fast because it only processes changed files (SHA-256 hash detection). Use dryRun=true to preview changes first.",
   schema: updateIndexSchema,
+  outputSchema: updateIndexOutputSchema,
   execute,
 };

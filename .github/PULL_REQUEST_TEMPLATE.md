@@ -23,12 +23,13 @@ Closes #(issue number)
 ## Testing
 
 - [ ] I have added tests that prove my fix/feature works
-- [ ] All new and existing tests pass (`bun run test` or `npm test`)
-- [ ] Code checks pass (`bun run check` or `npm run check`)
+- [ ] All new and existing tests pass (`bun run test`)
+- [ ] Code checks pass (`bun run check`)
 
 ## Checklist
 
 - [ ] My code follows the project's style guidelines
+- [ ] My commit messages follow Conventional Commits (`type(scope): summary`)
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code where necessary
 - [ ] I have updated the documentation if needed

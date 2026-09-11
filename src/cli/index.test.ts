@@ -13,8 +13,8 @@ describe("CLI Index", () => {
     expect(typeof runCLI).toBe("function");
   });
 
-  test("runCLI calls runMain", () => {
-    runCLI();
+  test("runCLI calls and awaits runMain", async () => {
+    await runCLI();
     expect(runMain).toHaveBeenCalled();
   });
 });

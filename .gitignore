@@ -20,7 +20,6 @@ logs/
 !.env.example
 
 # Cache
-.eslintcache
 .cache/
 *.tsbuildinfo
 
@@ -34,3 +33,6 @@ logs/
 .DS_Store
 Thumbs.db
 .src-index
+
+# Local agent orchestration run artifacts
+.agents/apex/runs/

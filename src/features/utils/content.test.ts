@@ -1,9 +1,12 @@
-import { unlinkSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import * as nodeFs from "node:fs";
 
 import { hasContentSource, readContent } from "@features/utils";
+
+vi.mock("node:fs", { spy: true });
 
 describe("Content Utilities", () => {
   let tempFilePath: string;
@@ -59,9 +62,7 @@ describe("Content Utilities", () => {
       const result = readContent();
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toBe(
-          "Either file_path or content must be provided",
-        );
+        expect(result.error).toBe("Either file_path or content must be provided");
       }
     });
 
@@ -71,6 +72,17 @@ describe("Content Utilities", () => {
       if (result.success) {
         expect(result.content).toBe("");
       }
+    });
+
+    test("bounds direct content using the same limit as file reads", () => {
+      vi.stubEnv("SRC_MAX_FILE_BYTES", "3");
+
+      const result = readContent(undefined, "1234");
+
+      expect(result).toEqual({
+        success: false,
+        error: "Content exceeds the 3-byte safety limit",
+      });
     });
   });
 
@@ -98,20 +110,27 @@ describe("Content Utilities", () => {
 });
 
 describe("Content Utilities - Error Handling", () => {
-  test("handles non-Error thrown values", async () => {
-    // Mock fs.readFileSync to throw a non-Error value
-    vi.doMock("fs", () => ({
-      readFileSync: () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw "string error"; // Throw a string instead of Error
-      },
-    }));
+  let readErrorPath: string;
 
-    vi.resetModules();
-    const { readContent: freshReadContent } =
-      await import("@features/utils/content");
+  beforeAll(() => {
+    readErrorPath = join(tmpdir(), `test-content-errors-${String(Date.now())}.ts`);
+    writeFileSync(readErrorPath, "const value = 1;");
+  });
 
-    const result = freshReadContent("/some/path.ts");
+  afterAll(() => {
+    try {
+      unlinkSync(readErrorPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  test("handles non-Error thrown values", () => {
+    vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
+      throw "string error"; // Throw a string instead of Error
+    });
+
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -119,23 +138,15 @@ describe("Content Utilities - Error Handling", () => {
       expect(result.error).toContain("string error");
     }
 
-    vi.doUnmock("fs");
-    vi.resetModules();
+    vi.restoreAllMocks();
   });
 
-  test("handles thrown numbers", async () => {
-    vi.doMock("fs", () => ({
-      readFileSync: () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw 42; // Throw a number
-      },
-    }));
+  test("handles thrown numbers", () => {
+    vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
+      throw 42; // Throw a number
+    });
 
-    vi.resetModules();
-    const { readContent: freshReadContent } =
-      await import("@features/utils/content");
-
-    const result = freshReadContent("/some/path.ts");
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -143,30 +154,21 @@ describe("Content Utilities - Error Handling", () => {
       expect(result.error).toContain("42");
     }
 
-    vi.doUnmock("fs");
-    vi.resetModules();
+    vi.restoreAllMocks();
   });
 
-  test("handles thrown objects", async () => {
-    vi.doMock("fs", () => ({
-      readFileSync: () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw { code: "EACCES", message: "Permission denied" };
-      },
-    }));
+  test("handles thrown objects", () => {
+    vi.spyOn(nodeFs, "readFileSync").mockImplementation(() => {
+      throw { code: "EACCES", message: "Permission denied" };
+    });
 
-    vi.resetModules();
-    const { readContent: freshReadContent } =
-      await import("@features/utils/content");
-
-    const result = freshReadContent("/some/path.ts");
+    const result = readContent(readErrorPath);
 
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("Failed to read file");
     }
 
-    vi.doUnmock("fs");
-    vi.resetModules();
+    vi.restoreAllMocks();
   });
 });

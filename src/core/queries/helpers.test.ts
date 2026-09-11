@@ -59,20 +59,14 @@ describe("Query Helpers", () => {
         mockCapture("name", "MyClass", 10),
       ];
 
-      const result = findCaptureByNames(captures, [
-        "definition.function",
-        "definition.class",
-      ]);
+      const result = findCaptureByNames(captures, ["definition.function", "definition.class"]);
       expect(result?.name).toBe("definition.class");
     });
 
     test("returns undefined when no names match", () => {
       const captures = [mockCapture("name", "foo", 0)];
       expect(
-        findCaptureByNames(captures, [
-          "definition.function",
-          "definition.class",
-        ]),
+        findCaptureByNames(captures, ["definition.function", "definition.class"]),
       ).toBeUndefined();
     });
   });
@@ -104,10 +98,7 @@ describe("Query Helpers", () => {
 
       const result = filterCapturesByPrefix(captures, "import.");
       expect(result).toHaveLength(2);
-      expect(result.map((c) => c.name)).toEqual([
-        "import.source",
-        "import.name",
-      ]);
+      expect(result.map((c) => c.name)).toEqual(["import.source", "import.name"]);
     });
 
     test("returns empty array when no matches", () => {
@@ -118,9 +109,7 @@ describe("Query Helpers", () => {
 
   describe("getCaptureKind", () => {
     test("extracts kind from capture name", () => {
-      expect(getCaptureKind("definition.function", "definition.")).toBe(
-        "function",
-      );
+      expect(getCaptureKind("definition.function", "definition.")).toBe("function");
       expect(getCaptureKind("reference.call", "reference.")).toBe("call");
     });
 
@@ -171,10 +160,7 @@ describe("Query Helpers", () => {
         mockMatch([mockCapture("definition.function", "func", 0)]), // duplicate
       ];
 
-      const result = deduplicateNodes(matches, [
-        "definition.function",
-        "definition.class",
-      ]);
+      const result = deduplicateNodes(matches, ["definition.function", "definition.class"]);
       expect(result).toHaveLength(2);
     });
   });
@@ -198,10 +184,7 @@ describe("Query Helpers", () => {
         mockMatch([mockCapture("method.definition", "method1", 20)]),
       ];
 
-      const result = extractNodes(matches, [
-        "function.definition",
-        "method.definition",
-      ]);
+      const result = extractNodes(matches, ["function.definition", "method.definition"]);
       expect(result).toHaveLength(2);
     });
 

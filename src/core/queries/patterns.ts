@@ -27,10 +27,7 @@ const GENERIC_PATTERNS: Partial<Record<QueryPreset, string>> = {
   ]`,
 };
 
-export const FALLBACK_PATTERNS: Record<
-  string,
-  Partial<Record<QueryPreset, string>>
-> = {
+export const FALLBACK_PATTERNS: Record<string, Partial<Record<QueryPreset, string>>> = {
   typescript: {
     functions: `[
       (function_declaration name: (identifier) @function.name) @function.definition
@@ -95,27 +92,16 @@ export const FALLBACK_PATTERNS: Record<
   },
 };
 
-export function getQueryPattern(
-  language: string,
-  preset: QueryPreset,
-): string | undefined {
+export function getQueryPattern(language: string, preset: QueryPreset): string | undefined {
   return FALLBACK_PATTERNS[language]?.[preset] ?? GENERIC_PATTERNS[preset];
 }
 
-export function isPresetAvailable(
-  language: string,
-  preset: QueryPreset,
-): boolean {
+export function isPresetAvailable(language: string, preset: QueryPreset): boolean {
   return getQueryPattern(language, preset) !== undefined;
 }
 
-export function getAvailablePresets(
-  language: string,
-  hasOfficialTagsFile = false,
-): QueryPreset[] {
-  const presets: QueryPreset[] = hasOfficialTagsFile
-    ? ["functions", "classes"]
-    : [];
+export function getAvailablePresets(language: string, hasOfficialTagsFile = false): QueryPreset[] {
+  const presets: QueryPreset[] = hasOfficialTagsFile ? ["functions", "classes"] : [];
   const allPresets: QueryPreset[] = [
     "functions",
     "classes",

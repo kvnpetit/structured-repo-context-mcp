@@ -3,7 +3,42 @@
  *
  * Provides consistent result construction patterns
  */
+import { safeErrorMessage } from "@core/security";
 import type { FeatureResult } from "@features/types";
+import { z } from "zod";
+import { instructionSignalsSchema } from "./schemas";
+
+const FEATURE_RESULT_SCHEMA_VERSION = 1 as const;
+
+export const featureResultMetaSchema = z
+  .object({
+    generated_at: z.string(),
+    local_only: z.literal(true),
+    bounded: z.literal(true),
+    provenance: z.enum(["local-analysis", "local-filesystem", "local-index", "local-lsp"]),
+    source_is_untrusted: z.boolean().optional(),
+    source_revision: z.string().optional(),
+    index_freshness: z.enum(["fresh", "stale", "unknown"]).optional(),
+    truncated: z.boolean().optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    coverage: z.enum(["precise", "approximate", "unknown"]).optional(),
+    instruction_signals: instructionSignalsSchema.optional(),
+  })
+  .strict();
+
+/** Build the strict protocol envelope used by MCP tools with typed data. */
+export function createFeatureResultSchema(dataSchema: z.ZodType): z.ZodType {
+  return z
+    .object({
+      schema_version: z.literal(FEATURE_RESULT_SCHEMA_VERSION),
+      success: z.boolean(),
+      meta: featureResultMetaSchema,
+      data: dataSchema.optional(),
+      message: z.string().optional(),
+      error: z.string().optional(),
+    })
+    .strict();
+}
 
 /**
  * Create an error result with consistent formatting
@@ -13,7 +48,7 @@ import type { FeatureResult } from "@features/types";
  * @returns FeatureResult with success: false
  */
 export function errorResult(action: string, error: unknown): FeatureResult {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = safeErrorMessage(error, "operation failed");
   return {
     success: false,
     error: `Failed to ${action}: ${message}`,

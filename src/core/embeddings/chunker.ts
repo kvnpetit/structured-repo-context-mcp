@@ -8,19 +8,22 @@
 import * as crypto from "node:crypto";
 import type { Symbol } from "@core/ast/types";
 import { parseCode } from "@core/parser";
+import {
+  getConfiguredLanguageFromPath,
+  getIndexableExtensions,
+  getIndexableSpecialFilenames,
+  isIndexableFile,
+} from "@core/parser/languages";
 import { extractSymbols } from "@core/symbols";
 import { logger } from "@utils";
+import { isTextSplitterLanguage, splitCode } from "@core/fallback";
 
 import type { CodeChunk, EmbeddingConfig } from "./types";
 
 /**
  * Generate a unique ID for a chunk
  */
-function generateChunkId(
-  filePath: string,
-  content: string,
-  startLine: number,
-): string {
+function generateChunkId(filePath: string, content: string, startLine: number): string {
   const hash = crypto
     .createHash("md5")
     .update(`${filePath}:${String(startLine)}:${content}`)
@@ -33,56 +36,35 @@ function generateChunkId(
  * Detect language from file extension
  */
 export function detectLanguage(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-
-  const extensionMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "typescript",
-    js: "javascript",
-    jsx: "javascript",
-    mjs: "javascript",
-    cjs: "javascript",
-    py: "python",
-    rs: "rust",
-    go: "go",
-    java: "java",
-    kt: "kotlin",
-    rb: "ruby",
-    php: "php",
-    c: "c",
-    cpp: "cpp",
-    h: "c",
-    hpp: "cpp",
-    cs: "csharp",
-    swift: "swift",
-    scala: "scala",
-    vue: "vue",
-    svelte: "svelte",
-    md: "markdown",
-    json: "json",
-    yaml: "yaml",
-    yml: "yaml",
-    toml: "toml",
-    xml: "xml",
-    html: "html",
-    css: "css",
-    scss: "scss",
-    less: "less",
-    sql: "sql",
-    sh: "bash",
-    bash: "bash",
-    zsh: "bash",
-  };
-
-  return extensionMap[ext] ?? "unknown";
+  const language = getConfiguredLanguageFromPath(filePath);
+  if (language === "tsx" || language === "c_sharp") {
+    return language === "tsx" ? "typescript" : "csharp";
+  }
+  return language ?? "unknown";
 }
 
 /**
  * Get line number from byte offset
  */
-function getLineFromOffset(content: string, offset: number): number {
-  const before = content.slice(0, offset);
-  return (before.match(/\n/g) ?? []).length + 1;
+function createLineLookup(content: string): (offset: number) => number {
+  const starts = [0];
+  for (let index = content.indexOf("\n"); index >= 0; ) {
+    starts.push(index + 1);
+    index = content.indexOf("\n", index + 1);
+  }
+  return (offset: number): number => {
+    let low = 0;
+    let high = starts.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if ((starts[middle] ?? 0) <= offset) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return Math.max(1, low);
+  };
 }
 
 /**
@@ -95,56 +77,90 @@ function getSymbolContent(content: string, symbol: Symbol): string {
 /**
  * Split large content into smaller chunks while respecting line boundaries
  */
+interface SplitPart {
+  content: string;
+  startLine: number;
+  endLine: number;
+}
+
 function splitLargeContent(
   content: string,
   maxSize: number,
   overlap: number,
-): string[] {
+  firstLine = 1,
+): SplitPart[] {
   // Normalize line endings (handle CRLF and CR)
   const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
   if (normalizedContent.length <= maxSize) {
-    return [normalizedContent];
+    return [
+      {
+        content: normalizedContent,
+        startLine: firstLine,
+        endLine: firstLine + linesIn(normalizedContent) - 1,
+      },
+    ];
   }
 
-  const chunks: string[] = [];
+  const chunks: SplitPart[] = [];
   const lines = normalizedContent.split("\n");
-  let currentChunk: string[] = [];
+  let currentChunk: { text: string; line: number }[] = [];
   let currentSize = 0;
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const lineSize = line.length + 1; // +1 for newline
 
     if (currentSize + lineSize > maxSize && currentChunk.length > 0) {
-      chunks.push(currentChunk.join("\n"));
+      const first = currentChunk[0];
+      const last = currentChunk.at(-1);
+      if (first !== undefined && last !== undefined) {
+        chunks.push({
+          content: currentChunk.map((entry) => entry.text).join("\n"),
+          startLine: first.line,
+          endLine: last.line,
+        });
+      }
 
       // Keep overlap lines
-      const overlapLines: string[] = [];
+      const overlapLines: { text: string; line: number }[] = [];
       let overlapSize = 0;
-      for (
-        let i = currentChunk.length - 1;
-        i >= 0 && overlapSize < overlap;
-        i--
-      ) {
+      for (let i = currentChunk.length - 1; i >= 0 && overlapSize < overlap; i--) {
         const l = currentChunk[i];
         if (l !== undefined) {
           overlapLines.unshift(l);
-          overlapSize += l.length + 1;
+          overlapSize += l.text.length + 1;
         }
       }
       currentChunk = overlapLines;
       currentSize = overlapSize;
     }
 
-    currentChunk.push(line);
+    currentChunk.push({ text: line, line: firstLine + index });
     currentSize += lineSize;
   }
 
   if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join("\n"));
+    const first = currentChunk[0];
+    const last = currentChunk.at(-1);
+    if (first !== undefined && last !== undefined) {
+      chunks.push({
+        content: currentChunk.map((entry) => entry.text).join("\n"),
+        startLine: first.line,
+        endLine: last.line,
+      });
+    }
   }
 
   return chunks;
+}
+
+function linesIn(value: string): number {
+  let lines = 1;
+  for (let index = value.indexOf("\n"); index >= 0; ) {
+    lines += 1;
+    index = value.indexOf("\n", index + 1);
+  }
+  return lines;
 }
 
 /**
@@ -201,6 +217,7 @@ export async function chunkFile(
   const language = detectLanguage(filePath);
   const maxSize = config.defaultChunkSize;
   const overlap = config.defaultChunkOverlap;
+  const lineAt = createLineLookup(content);
 
   // Try to parse with tree-sitter
   let symbols: Symbol[] = [];
@@ -228,9 +245,7 @@ export async function chunkFile(
   }
 
   // Sort symbols by start offset
-  const sortedSymbols = [...symbols].sort(
-    (a, b) => a.start.offset - b.start.offset,
-  );
+  const sortedSymbols = [...symbols].sort((a, b) => a.start.offset - b.start.offset);
 
   // Build regions: symbols + gaps between them
   const regions: ContentRegion[] = [];
@@ -239,16 +254,14 @@ export async function chunkFile(
   for (const symbol of sortedSymbols) {
     // Add gap before this symbol (if any significant content)
     if (symbol.start.offset > lastEndOffset) {
-      const gapContent = content
-        .slice(lastEndOffset, symbol.start.offset)
-        .trim();
+      const gapContent = content.slice(lastEndOffset, symbol.start.offset).trim();
       if (gapContent.length > 0) {
         regions.push({
           content: content.slice(lastEndOffset, symbol.start.offset),
           startOffset: lastEndOffset,
           endOffset: symbol.start.offset,
-          startLine: getLineFromOffset(content, lastEndOffset),
-          endLine: getLineFromOffset(content, symbol.start.offset),
+          startLine: lineAt(lastEndOffset),
+          endLine: lineAt(symbol.start.offset),
         });
       }
     }
@@ -276,8 +289,8 @@ export async function chunkFile(
         content: content.slice(lastEndOffset),
         startOffset: lastEndOffset,
         endOffset: content.length,
-        startLine: getLineFromOffset(content, lastEndOffset),
-        endLine: getLineFromOffset(content, content.length),
+        startLine: lineAt(lastEndOffset),
+        endLine: lineAt(content.length),
       });
     }
   }
@@ -286,10 +299,14 @@ export async function chunkFile(
   const chunks: CodeChunk[] = [];
 
   for (const region of regions) {
-    const regionContent = region.content.trim();
+    const leftTrimmed = region.content.trimStart();
+    const leadingCharacters = region.content.length - leftTrimmed.length;
+    const regionContent = leftTrimmed.trimEnd();
     if (regionContent.length === 0) {
       continue;
     }
+    const regionStartLine = lineAt(region.startOffset + leadingCharacters);
+    const regionEndLine = regionStartLine + linesIn(regionContent) - 1;
 
     if (regionContent.length <= maxSize) {
       // Small enough, create single chunk
@@ -298,31 +315,28 @@ export async function chunkFile(
           filePath,
           language,
           regionContent,
-          region.startLine,
-          region.endLine,
+          regionStartLine,
+          regionEndLine,
           region.symbolName,
           region.symbolType,
         ),
       );
     } else {
       // Too large, split it
-      const parts = splitLargeContent(regionContent, maxSize, overlap);
-      let currentLine = region.startLine;
+      const parts = splitLargeContent(regionContent, maxSize, overlap, regionStartLine);
 
       for (const part of parts) {
-        const partLines = (part.match(/\n/g) ?? []).length + 1;
         chunks.push(
           createChunk(
             filePath,
             language,
-            part,
-            currentLine,
-            currentLine + partLines - 1,
+            part.content,
+            part.startLine,
+            part.endLine,
             region.symbolName,
             region.symbolType,
           ),
         );
-        currentLine += partLines - Math.floor(overlap / 50); // Approximate line overlap
       }
     }
   }
@@ -334,34 +348,33 @@ export async function chunkFile(
  * Fallback chunking when tree-sitter fails or finds no symbols
  * Uses simple line-based splitting
  */
-function fallbackChunk(
+async function fallbackChunk(
   filePath: string,
   content: string,
   language: string,
   maxSize: number,
   overlap: number,
-): CodeChunk[] {
+): Promise<CodeChunk[]> {
   // Handle empty content
   if (content.trim().length === 0) {
     return [];
   }
 
+  if (isTextSplitterLanguage(language)) {
+    const result = await splitCode(content, language, {
+      chunkSize: maxSize,
+      chunkOverlap: overlap,
+    });
+    return result.chunks.map((chunk) =>
+      createChunk(filePath, language, chunk.content, chunk.startLine, chunk.endLine),
+    );
+  }
+
   const chunks: CodeChunk[] = [];
   const parts = splitLargeContent(content, maxSize, overlap);
 
-  let currentLine = 1;
   for (const part of parts) {
-    const partLines = (part.match(/\n/g) ?? []).length + 1;
-    chunks.push(
-      createChunk(
-        filePath,
-        language,
-        part,
-        currentLine,
-        currentLine + partLines - 1,
-      ),
-    );
-    currentLine += partLines - Math.floor(overlap / 50);
+    chunks.push(createChunk(filePath, language, part.content, part.startLine, part.endLine));
   }
 
   return chunks;
@@ -387,36 +400,12 @@ export async function chunkFiles(
 /**
  * Supported file extensions for indexing
  */
-export const SUPPORTED_EXTENSIONS = [
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".py",
-  ".rs",
-  ".go",
-  ".java",
-  ".kt",
-  ".rb",
-  ".php",
-  ".c",
-  ".cpp",
-  ".h",
-  ".hpp",
-  ".cs",
-  ".swift",
-  ".scala",
-  ".vue",
-  ".svelte",
-  ".md",
-];
+export const SUPPORTED_EXTENSIONS = getIndexableExtensions();
+export const SUPPORTED_FILENAMES = getIndexableSpecialFilenames();
 
 /**
  * Check if a file should be indexed
  */
 export function shouldIndexFile(filePath: string): boolean {
-  const ext = "." + (filePath.split(".").pop()?.toLowerCase() ?? "");
-  return SUPPORTED_EXTENSIONS.includes(ext);
+  return isIndexableFile(filePath);
 }

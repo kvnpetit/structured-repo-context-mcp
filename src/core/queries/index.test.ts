@@ -11,6 +11,7 @@ import {
   findImports,
   findStrings,
   getAvailablePresets,
+  getCompiledQueryCacheStats,
   getClassName,
   getFunctionName,
   getQueryPattern,
@@ -120,17 +121,27 @@ describe("Query Execution - JavaScript", () => {
     expect(queryResult.count).toBe(1);
   });
 
+  test("reuses bounded compiled preset queries and clears them with parser state", async () => {
+    const parsed = await parseCode("function cached() {}", {
+      language: "javascript",
+    });
+    executePresetQuery(parsed.tree, parsed.languageInstance, "javascript", "functions");
+    const first = getCompiledQueryCacheStats();
+    executePresetQuery(parsed.tree, parsed.languageInstance, "javascript", "functions");
+
+    expect(first.queries).toBeGreaterThan(0);
+    expect(getCompiledQueryCacheStats()).toEqual(first);
+    expect(first.queries).toBeLessThanOrEqual(first.limit);
+    resetParser();
+    expect(getCompiledQueryCacheStats().queries).toBe(0);
+  });
+
   test("executeQuery throws for invalid query", async () => {
     const code = `const x = 1;`;
     const result = await parseCode(code, { language: "javascript" });
 
     expect(() =>
-      executeQuery(
-        result.tree,
-        result.languageInstance,
-        "(invalid_pattern @x",
-        "javascript",
-      ),
+      executeQuery(result.tree, result.languageInstance, "(invalid_pattern @x", "javascript"),
     ).toThrow("Invalid query");
   });
 
@@ -153,12 +164,7 @@ describe("Query Execution - JavaScript", () => {
     const result = await parseCode(code, { language: "javascript" });
 
     expect(() =>
-      executePresetQuery(
-        result.tree,
-        result.languageInstance,
-        "unknown_lang",
-        "functions",
-      ),
+      executePresetQuery(result.tree, result.languageInstance, "unknown_lang", "functions"),
     ).toThrow("No 'functions' query pattern available");
   });
 });
@@ -271,11 +277,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const functions = findFunctions(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const functions = findFunctions(result.tree, result.languageInstance, "javascript");
 
     expect(functions.length).toBeGreaterThan(0);
   });
@@ -287,11 +289,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const classes = findClasses(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const classes = findClasses(result.tree, result.languageInstance, "javascript");
 
     expect(classes.length).toBe(2);
   });
@@ -303,11 +301,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const imports = findImports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const imports = findImports(result.tree, result.languageInstance, "javascript");
 
     expect(imports.length).toBe(2);
   });
@@ -320,11 +314,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const exports = findExports(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const exports = findExports(result.tree, result.languageInstance, "javascript");
 
     expect(exports.length).toBeGreaterThan(0);
   });
@@ -337,11 +327,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const comments = findComments(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const comments = findComments(result.tree, result.languageInstance, "javascript");
 
     expect(comments.length).toBe(2);
   });
@@ -354,11 +340,7 @@ describe("Helper Functions", () => {
     `;
     const result = await parseCode(code, { language: "javascript" });
 
-    const strings = findStrings(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const strings = findStrings(result.tree, result.languageInstance, "javascript");
 
     expect(strings.length).toBe(3);
   });
@@ -377,16 +359,11 @@ describe("Name Extraction", () => {
     const code = `function myFunction() {}`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const functions = findFunctions(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const functions = findFunctions(result.tree, result.languageInstance, "javascript");
 
     expect(functions.length).toBeGreaterThan(0);
     const fn = functions[0];
     expect(fn).toBeDefined();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated with expect().toBeDefined()
     const name = getFunctionName(fn!);
     expect(name).toBe("myFunction");
   });
@@ -508,16 +485,11 @@ describe("Name Extraction", () => {
     const code = `class MyClass {}`;
     const result = await parseCode(code, { language: "javascript" });
 
-    const classes = findClasses(
-      result.tree,
-      result.languageInstance,
-      "javascript",
-    );
+    const classes = findClasses(result.tree, result.languageInstance, "javascript");
 
     expect(classes.length).toBe(1);
     const cls = classes[0];
     expect(cls).toBeDefined();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated with expect().toBeDefined()
     const name = getClassName(cls!);
     expect(name).toBe("MyClass");
   });

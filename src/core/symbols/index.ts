@@ -3,21 +3,22 @@
  */
 import type { Language, Tree } from "web-tree-sitter";
 
-import type {
-  Export,
-  Import,
-  ImportedName,
-  Symbol,
-  SymbolType,
-} from "@core/ast/types";
+import type { Export, Import, QueryMatch, Symbol, SymbolType } from "@core/ast/types";
 import {
-  createOffsetTracker,
+  executeQuery,
   executePresetQuery,
+  extractSymbolsFromTags,
   findCapture,
   findCaptureByNames,
   getClassName,
   getFunctionName,
+  getQueryPattern,
+  hasOfficialTags,
 } from "@core/queries";
+import { extractExports, extractImports } from "./imports";
+
+export * from "./hierarchy";
+export * from "./imports";
 
 /**
  * Symbol filter options
@@ -74,6 +75,36 @@ export function extractSymbols(
     return true;
   };
 
+  const officialDefinitions =
+    (shouldInclude("function") ||
+      shouldInclude("method") ||
+      shouldInclude("class") ||
+      shouldInclude("interface")) &&
+    hasOfficialTags(language)
+      ? extractSymbolsFromTags(tree, languageInstance, language).definitions
+      : undefined;
+
+  const matchesFor = (preset: "functions" | "classes", kinds: readonly string[]): QueryMatch[] => {
+    if (officialDefinitions === undefined) {
+      return executePresetQuery(tree, languageInstance, language, preset).matches;
+    }
+    const matching = officialDefinitions.filter((definition) => kinds.includes(definition.kind));
+    if (matching.length > 0) {
+      const singular = preset === "functions" ? "function" : "class";
+      return matching.map((definition) => ({
+        pattern: 0,
+        captures: [
+          { name: `${singular}.definition`, node: definition.node },
+          { name: `${singular}.name`, node: definition.nameNode },
+        ],
+      }));
+    }
+    const fallback = getQueryPattern(language, preset);
+    return fallback === undefined
+      ? []
+      : executeQuery(tree, languageInstance, fallback, language).matches;
+  };
+
   // Extract functions and classes using official tags.scm when available
   if (
     shouldInclude("function") ||
@@ -81,22 +112,16 @@ export function extractSymbols(
     shouldInclude("class") ||
     shouldInclude("interface")
   ) {
-    const tagsResult = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "functions",
-    );
+    const matches = matchesFor("functions", ["function", "method"]);
 
     // Process function definitions
     if (shouldInclude("function") || shouldInclude("method")) {
-      for (const match of tagsResult.matches) {
+      for (const match of matches) {
         const defCapture = findCapture(match.captures, "function.definition");
         const nameCapture = findCapture(match.captures, "function.name");
 
         if (defCapture) {
-          const name =
-            nameCapture?.node.text ?? getFunctionName(defCapture.node);
+          const name = nameCapture?.node.text ?? getFunctionName(defCapture.node);
           if (name) {
             const isMethod =
               defCapture.node.type.includes("method") ||
@@ -120,14 +145,9 @@ export function extractSymbols(
 
   // Extract classes
   if (shouldInclude("class") || shouldInclude("interface")) {
-    const classResult = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "classes",
-    );
+    const matches = matchesFor("classes", ["class", "interface", "module"]);
 
-    for (const match of classResult.matches) {
+    for (const match of matches) {
       const defCapture = findCapture(match.captures, "class.definition");
       const nameCapture = findCapture(match.captures, "class.name");
 
@@ -137,10 +157,7 @@ export function extractSymbols(
           // Determine type based on AST node type
           const nodeType = defCapture.node.type;
           let symbolType: SymbolType = "class";
-          if (
-            nodeType.includes("interface") ||
-            nodeType === "interface_declaration"
-          ) {
+          if (nodeType.includes("interface") || nodeType === "interface_declaration") {
             symbolType = "interface";
           } else if (nodeType.includes("struct")) {
             symbolType = "interface";
@@ -163,12 +180,7 @@ export function extractSymbols(
   // Extract variables and constants
   if (shouldInclude("variable") || shouldInclude("constant")) {
     try {
-      const varResult = executePresetQuery(
-        tree,
-        languageInstance,
-        language,
-        "variables",
-      );
+      const varResult = executePresetQuery(tree, languageInstance, language, "variables");
 
       for (const match of varResult.matches) {
         const nameCapture = findCaptureByNames(match.captures, [
@@ -205,18 +217,9 @@ export function extractSymbols(
   }
 
   // Extract types (interfaces, type aliases, enums)
-  if (
-    shouldInclude("interface") ||
-    shouldInclude("type") ||
-    shouldInclude("enum")
-  ) {
+  if (shouldInclude("interface") || shouldInclude("type") || shouldInclude("enum")) {
     try {
-      const typeResult = executePresetQuery(
-        tree,
-        languageInstance,
-        language,
-        "types",
-      );
+      const typeResult = executePresetQuery(tree, languageInstance, language, "types");
 
       for (const match of typeResult.matches) {
         const nameCapture = findCaptureByNames(match.captures, [
@@ -283,10 +286,9 @@ function extractFunctionSignature(node: {
   const text = node.text;
 
   // For JavaScript/TypeScript-like syntax
-  const jsMatch =
-    /^(async\s+)?function\s*\*?\s*(\w*)\s*(<[^>]*>)?\s*\([^)]*\)(\s*:\s*[^{]+)?/.exec(
-      text,
-    );
+  const jsMatch = /^(async\s+)?function\s*\*?\s*(\w*)\s*(<[^>]*>)?\s*\([^)]*\)(\s*:\s*[^{]+)?/.exec(
+    text,
+  );
   if (jsMatch) {
     return jsMatch[0].trim();
   }
@@ -350,179 +352,6 @@ function extractModifiers(node: { text: string }): string[] | undefined {
   }
 
   return modifiers.length > 0 ? modifiers : undefined;
-}
-
-/**
- * Extract imports from parsed code
- */
-export function extractImports(
-  tree: Tree,
-  languageInstance: Language,
-  language: string,
-): Import[] {
-  const imports: Import[] = [];
-
-  try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "imports",
-    );
-
-    const tracker = createOffsetTracker();
-
-    for (const match of result.matches) {
-      const stmtCapture = findCaptureByNames(match.captures, [
-        "import.statement",
-        "include.statement",
-      ]);
-
-      if (!stmtCapture || tracker.has(stmtCapture.node)) {
-        continue;
-      }
-      tracker.add(stmtCapture.node);
-
-      const sourceCapture = findCaptureByNames(match.captures, [
-        "import.source",
-        "import.path",
-        "include.path",
-      ]);
-      const defaultCapture = findCapture(match.captures, "import.default");
-      const nameCaptures = match.captures.filter(
-        (c) => c.name === "import.name",
-      );
-
-      const source = sourceCapture
-        ? sourceCapture.node.text.replace(/['"]/g, "")
-        : "";
-
-      const names: ImportedName[] = [];
-
-      if (defaultCapture) {
-        names.push({ name: defaultCapture.node.text });
-      }
-
-      for (const nameCapture of nameCaptures) {
-        names.push({ name: nameCapture.node.text });
-      }
-
-      imports.push({
-        source,
-        names,
-        isDefault: !!defaultCapture && nameCaptures.length === 0,
-        start: stmtCapture.node.start,
-        end: stmtCapture.node.end,
-      });
-    }
-  } catch {
-    // Query not available
-  }
-
-  return imports;
-}
-
-/**
- * Extract exports from parsed code
- */
-export function extractExports(
-  tree: Tree,
-  languageInstance: Language,
-  language: string,
-): Export[] {
-  const exportList: Export[] = [];
-
-  try {
-    const result = executePresetQuery(
-      tree,
-      languageInstance,
-      language,
-      "exports",
-    );
-
-    const tracker = createOffsetTracker();
-
-    for (const match of result.matches) {
-      const stmtCapture = findCaptureByNames(match.captures, [
-        "export.statement",
-        "export.function",
-        "export.class",
-        "export.type",
-      ]);
-
-      if (!stmtCapture || tracker.has(stmtCapture.node)) {
-        continue;
-      }
-      tracker.add(stmtCapture.node);
-
-      const nameCapture = findCapture(match.captures, "export.name");
-
-      const text = stmtCapture.node.text;
-      const isDefault = text.includes("export default");
-
-      // Try to extract name from declaration if not captured
-      let name = nameCapture?.node.text;
-      if (!name) {
-        // Try to extract from export statement
-        const nameMatch =
-          /export\s+(?:default\s+)?(?:function|class|const|let|var|interface|type|enum)\s+(\w+)/.exec(
-            text,
-          );
-        if (nameMatch?.[1]) {
-          name = nameMatch[1];
-        }
-      }
-
-      exportList.push({
-        name: name ?? "default",
-        isDefault,
-        start: stmtCapture.node.start,
-        end: stmtCapture.node.end,
-      });
-    }
-  } catch {
-    // Query not available
-  }
-
-  return exportList;
-}
-
-/**
- * Get symbols by type
- */
-export function getSymbolsByType(
-  symbols: Symbol[],
-  type: SymbolType,
-): Symbol[] {
-  return symbols.filter((s) => s.type === type);
-}
-
-/**
- * Find symbol by name
- */
-export function findSymbolByName(
-  symbols: Symbol[],
-  name: string,
-): Symbol | undefined {
-  return symbols.find((s) => s.name === name);
-}
-
-/**
- * Get symbol at position
- */
-export function getSymbolAtPosition(
-  symbols: Symbol[],
-  line: number,
-  column: number,
-): Symbol | undefined {
-  return symbols.find((s) => {
-    const afterStart =
-      line > s.start.line ||
-      (line === s.start.line && column >= s.start.column);
-    const beforeEnd =
-      line < s.end.line || (line === s.end.line && column <= s.end.column);
-    return afterStart && beforeEnd;
-  });
 }
 
 /**

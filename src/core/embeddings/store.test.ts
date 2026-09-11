@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as lancedb from "@lancedb/lancedb";
 import {
   VectorStore,
+  computeSourceFingerprint,
   createVectorStore,
   getIndexPath,
 } from "@core/embeddings/store";
@@ -68,10 +70,30 @@ describe("VectorStore", () => {
       const disconnectedStore = new VectorStore(tempDir, mockConfig);
       const chunks = [createMockChunk("func1", "/test/file1.ts")];
 
-      await expect(disconnectedStore.addChunks(chunks)).rejects.toThrow(
-        "Database not connected",
-      );
+      await expect(disconnectedStore.addChunks(chunks)).rejects.toThrow("Database not connected");
     });
+  });
+
+  test("close releases native handles immediately and the same store can reopen", async () => {
+    await store.addChunks([createMockChunk("lifecycle", "/test/lifecycle.ts")]);
+    const handles = store as unknown as {
+      db: lancedb.Connection;
+      table: lancedb.Table;
+    };
+    const connection = handles.db;
+    const table = handles.table;
+    expect(connection.isOpen()).toBe(true);
+    expect(table.isOpen()).toBe(true);
+    store.close();
+    expect(connection.isOpen()).toBe(false);
+    expect(table.isOpen()).toBe(false);
+    expect(() => {
+      store.close();
+    }).not.toThrow();
+
+    await store.connect();
+    expect((await store.getStatus(tempDir)).totalChunks).toBe(1);
+    expect((await store.searchLexical("lifecycle", 1))[0]?.chunk.id).toBe("lifecycle");
   });
 
   describe("search", () => {
@@ -92,16 +114,38 @@ describe("VectorStore", () => {
     });
 
     test("returns empty array when table does not exist", async () => {
-      const emptyStore = new VectorStore(
-        path.join(tempDir, "empty"),
-        mockConfig,
-      );
+      const emptyStore = new VectorStore(path.join(tempDir, "empty"), mockConfig);
       await emptyStore.connect();
 
       const queryVector: number[] = new Array<number>(768).fill(0);
       const results = await emptyStore.search(queryVector);
 
       expect(results).toEqual([]);
+    });
+
+    test("returns bounded adjacent chunks in source order", async () => {
+      const filePath = path.resolve(tempDir, "module.ts");
+      const before = createMockChunk("before", filePath);
+      before.startLine = 1;
+      before.endLine = 3;
+      const middle = createMockChunk("middle", filePath);
+      middle.startLine = 5;
+      middle.endLine = 8;
+      const after = createMockChunk("after", filePath);
+      after.startLine = 10;
+      after.endLine = 12;
+      const other = createMockChunk("other", path.resolve(tempDir, "other.ts"));
+
+      await store.addChunks([before, middle, after, other]);
+
+      expect(await store.getIndexedFiles()).toContain(filePath);
+
+      const adjacent = await store.getAdjacentChunks(filePath, "middle", 1);
+
+      expect(adjacent.truncated).toBe(false);
+      expect(adjacent.candidatesConsidered).toBe(3);
+      expect(adjacent.neighbors.map((item) => item.result.chunk.id)).toEqual(["before", "after"]);
+      expect(adjacent.neighbors.map((item) => item.distance)).toEqual([1, 1]);
     });
   });
 
@@ -113,22 +157,140 @@ describe("VectorStore", () => {
       ];
       await store.addChunks(chunks);
 
-      // Just verify it resolves - LanceDB filter syntax may vary
       await store.deleteByFilePath("/test/file1.ts");
-      // If we get here without throwing, the test passes
-      expect(true).toBe(true);
+      const status = await store.getStatus(tempDir);
+      expect(status.totalChunks).toBe(1);
     });
 
     test("does nothing when table does not exist", async () => {
-      const emptyStore = new VectorStore(
-        path.join(tempDir, "empty"),
-        mockConfig,
-      );
+      const emptyStore = new VectorStore(path.join(tempDir, "empty"), mockConfig);
       await emptyStore.connect();
 
       // Should not throw even without a table
       await emptyStore.deleteByFilePath("/test/file.ts");
       expect(true).toBe(true);
+    });
+
+    test("throws when path is not absolute", async () => {
+      await expect(store.deleteByFilePath("relative/path.ts")).rejects.toThrow(
+        "deleteByFilePath requires an absolute path",
+      );
+    });
+  });
+
+  describe("replaceFileChunks", () => {
+    test("atomically replaces a file while preserving other files", async () => {
+      const targetPath = path.resolve(tempDir, "target.ts");
+      const otherPath = path.resolve(tempDir, "other.ts");
+      await store.addChunks([
+        createMockChunk("old-1", targetPath),
+        createMockChunk("old-2", targetPath),
+        createMockChunk("other", otherPath),
+      ]);
+
+      const replacement = createMockChunk("new-1", targetPath);
+      replacement.content = "replacement content";
+      await store.replaceFileChunks(targetPath, [replacement]);
+
+      const status = await store.getStatus(tempDir);
+      expect(status.totalChunks).toBe(2);
+      expect(status.totalFiles).toBe(2);
+
+      const indexedFiles = await store.getIndexedFiles();
+      expect(indexedFiles).toContain(targetPath);
+      expect(indexedFiles).toContain(otherPath);
+    });
+
+    test("removes stale chunks when the replacement is empty", async () => {
+      const targetPath = path.resolve(tempDir, "empty.ts");
+      await store.addChunks([createMockChunk("old", targetPath)]);
+
+      await store.replaceFileChunks(targetPath, []);
+
+      expect(await store.getIndexedFiles()).not.toContain(targetPath);
+    });
+
+    test("rejects chunks from another file before changing the store", async () => {
+      const targetPath = path.resolve(tempDir, "target.ts");
+      const otherPath = path.resolve(tempDir, "other.ts");
+      await store.addChunks([createMockChunk("old", targetPath)]);
+
+      await expect(
+        store.replaceFileChunks(targetPath, [createMockChunk("wrong", otherPath)]),
+      ).rejects.toThrow("chunk for another file");
+
+      expect(await store.getIndexedFiles()).toContain(targetPath);
+    });
+
+    test("requires an absolute file path", async () => {
+      await expect(store.replaceFileChunks("relative.ts", [])).rejects.toThrow(
+        "replaceFileChunks requires an absolute path",
+      );
+    });
+
+    test("preserves concurrent replacements for different files", async () => {
+      const firstPath = path.resolve(tempDir, "first.ts");
+      const secondPath = path.resolve(tempDir, "second.ts");
+      await store.addChunks([
+        createMockChunk("first-old", firstPath),
+        createMockChunk("second-old", secondPath),
+      ]);
+
+      const secondStore = new VectorStore(tempDir, mockConfig);
+      await secondStore.connect();
+      try {
+        await Promise.all([
+          store.replaceFileChunks(firstPath, [
+            createMockChunk("first-new-1", firstPath),
+            createMockChunk("first-new-2", firstPath),
+          ]),
+          secondStore.replaceFileChunks(secondPath, [
+            createMockChunk("second-new-1", secondPath),
+            createMockChunk("second-new-2", secondPath),
+          ]),
+        ]);
+
+        const observer = new VectorStore(tempDir, mockConfig);
+        await observer.connect();
+        try {
+          const status = await observer.getStatus(tempDir);
+          expect(status.totalChunks).toBe(4);
+          expect(status.totalFiles).toBe(2);
+        } finally {
+          observer.close();
+        }
+      } finally {
+        secondStore.close();
+      }
+    });
+
+    test("serializes concurrent replacements for the same file", async () => {
+      const targetPath = path.resolve(tempDir, "same.ts");
+      await store.addChunks([createMockChunk("same-old", targetPath)]);
+
+      const secondStore = new VectorStore(tempDir, mockConfig);
+      await secondStore.connect();
+      try {
+        await Promise.all([
+          store.replaceFileChunks(targetPath, [createMockChunk("first-version", targetPath)]),
+          secondStore.replaceFileChunks(targetPath, [
+            createMockChunk("second-version-1", targetPath),
+            createMockChunk("second-version-2", targetPath),
+          ]),
+        ]);
+
+        const observer = new VectorStore(tempDir, mockConfig);
+        await observer.connect();
+        try {
+          const status = await observer.getStatus(tempDir);
+          expect(status.totalChunks).toBe(2);
+          expect(status.totalFiles).toBe(1);
+        } finally {
+          observer.close();
+        }
+      } finally {
+        secondStore.close();
+      }
     });
   });
 
@@ -180,6 +342,10 @@ describe("VectorStore", () => {
   });
 
   describe("exists", () => {
+    test("returns false for an empty index directory", () => {
+      expect(store.exists()).toBe(false);
+    });
+
     test("returns true when index exists", async () => {
       const chunks = [createMockChunk("func1", "/test/file1.ts")];
       await store.addChunks(chunks);
@@ -188,12 +354,111 @@ describe("VectorStore", () => {
     });
 
     test("returns false when index does not exist", () => {
-      const newStore = new VectorStore(
-        path.join(tempDir, "nonexistent"),
-        mockConfig,
-      );
+      const newStore = new VectorStore(path.join(tempDir, "nonexistent"), mockConfig);
       expect(newStore.exists()).toBe(false);
     });
+  });
+});
+
+describe("source fingerprints", () => {
+  test("is independent of hash insertion order", () => {
+    expect(
+      computeSourceFingerprint({
+        "src/b.ts": "hash-b",
+        "src/a.ts": "hash-a",
+      }),
+    ).toBe(
+      computeSourceFingerprint({
+        "src/a.ts": "hash-a",
+        "src/b.ts": "hash-b",
+      }),
+    );
+  });
+
+  test("rejects an index when chunking configuration changes", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-metadata-test-"));
+    const baseConfig = {
+      embeddingProvider: "lexical" as const,
+      embeddingModel: "lexical-v1",
+      embeddingDimensions: 768,
+      defaultChunkSize: 1000,
+      defaultChunkOverlap: 200,
+    };
+
+    try {
+      const first = new VectorStore(tempDir, baseConfig);
+      await first.connect();
+      await first.addChunks([
+        {
+          id: "chunk",
+          content: "const value = true;",
+          filePath: path.join(tempDir, "file.ts"),
+          language: "typescript",
+          startLine: 1,
+          endLine: 1,
+          vector: new Array<number>(768).fill(0),
+        },
+      ]);
+      first.close();
+
+      const changed = new VectorStore(tempDir, {
+        ...baseConfig,
+        defaultChunkSize: 1200,
+      });
+      await changed.connect();
+      expect(changed.getMetadataError()).toContain("configuration mismatch");
+      expect(() => {
+        changed.assertMetadataCompatible();
+      }).toThrow("configuration mismatch");
+      changed.close();
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test("fails closed when persisted metadata is corrupt or oversized", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "lancedb-corrupt-metadata-test-"));
+    const makeChunk = (id: string, filePath: string): EmbeddedChunk => ({
+      id,
+      content: `function ${id}() { return true; }`,
+      filePath,
+      language: "typescript",
+      startLine: 1,
+      endLine: 1,
+      vector: new Array<number>(768).fill(0),
+    });
+    const config = { embeddingDimensions: 768 };
+
+    try {
+      const first = new VectorStore(tempDir, config);
+      await first.connect();
+      await first.addChunks([makeChunk("persisted", path.join(tempDir, "file.ts"))]);
+      first.close();
+
+      const metadataPath = path.join(tempDir, ".src-index", "metadata.json");
+      fs.writeFileSync(metadataPath, "{not-json", "utf8");
+      const corrupt = new VectorStore(tempDir, config);
+      await corrupt.connect();
+      expect(corrupt.getMetadataError()).toMatch(/invalid|unreadable/u);
+      expect(() => {
+        corrupt.assertMetadataCompatible();
+      }).toThrow();
+      await expect(
+        corrupt.addChunks([makeChunk("must-not-write", path.join(tempDir, "file.ts"))]),
+      ).rejects.toThrow();
+      corrupt.close();
+
+      fs.writeFileSync(metadataPath, `{"padding":"${"x".repeat(70_000)}"}`);
+      const oversized = new VectorStore(tempDir, config);
+      await oversized.connect();
+      expect(oversized.getMetadataError()).toMatch(/invalid|unreadable/u);
+      expect(() => {
+        oversized.assertMetadataCompatible();
+      }).toThrow();
+      oversized.close();
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -331,11 +596,7 @@ describe("VectorStore hybrid search", () => {
     embeddingDimensions: 768,
   };
 
-  const createMockChunk = (
-    id: string,
-    content: string,
-    filePath: string,
-  ): EmbeddedChunk => ({
+  const createMockChunk = (id: string, content: string, filePath: string): EmbeddedChunk => ({
     id,
     content,
     filePath,
@@ -370,16 +631,8 @@ describe("VectorStore hybrid search", () => {
     const store = new VectorStore(tempDir, mockConfig);
     await store.connect();
 
-    const chunk1 = createMockChunk(
-      "func1",
-      "function hello() { return 'hello'; }",
-      "/a.ts",
-    );
-    const chunk2 = createMockChunk(
-      "func2",
-      "function world() { return 'world'; }",
-      "/b.ts",
-    );
+    const chunk1 = createMockChunk("func1", "function hello() { return 'hello'; }", "/a.ts");
+    const chunk2 = createMockChunk("func2", "function world() { return 'world'; }", "/b.ts");
     await store.addChunks([chunk1, chunk2]);
 
     const results = await store.searchHybrid(chunk1.vector, "hello", 5, {
@@ -474,5 +727,26 @@ describe("VectorStore hybrid search", () => {
     // Should not throw
     await store.createFtsIndex();
     store.close();
+  });
+
+  test("reopening FTS preserves the persisted index and searches appended rows", async () => {
+    const first = new VectorStore(tempDir, mockConfig);
+    await first.connect();
+    await first.addChunks([createMockChunk("old", "original apple", "/a.ts")]);
+    await first.createFtsIndex();
+    await first.addChunks([createMockChunk("new", "unique banana", "/b.ts")]);
+    first.close();
+    const db = await lancedb.connect(getIndexPath(tempDir));
+    const table = await db.openTable("code_chunks");
+    const version = await table.version();
+
+    const reopened = new VectorStore(tempDir, mockConfig);
+    await reopened.connect();
+    const matches = await reopened.searchFts("banana", 10);
+    expect(matches.some((match) => match.chunk.id === "new")).toBe(true);
+    reopened.close();
+    await table.checkoutLatest();
+    expect(await table.version()).toBe(version);
+    db.close();
   });
 });

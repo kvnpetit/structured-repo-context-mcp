@@ -7,6 +7,7 @@ import {
   getLanguageByName,
   getLanguageFromExtension,
   getLanguageFromPath,
+  getGrammarMetadata,
   getLanguages,
   getSupportedExtensions,
   getSupportedLanguages,
@@ -86,6 +87,14 @@ describe("Parser Languages", () => {
     expect(languages.javascript?.name).toBe("javascript");
     expect(languages.typescript?.extensions).toContain(".ts");
   });
+
+  test("reports the exact digest of a bundled grammar", () => {
+    const grammar = getGrammarMetadata("typescript");
+    expect(grammar?.asset).toBe("tree-sitter-typescript.wasm");
+    expect(grammar?.sha256).toMatch(/^[a-f0-9]{64}$/u);
+    expect(grammar?.bytes).toBeGreaterThan(0);
+    expect(getGrammarMetadata("csharp")).toEqual(getGrammarMetadata("c_sharp"));
+  });
 });
 
 describe("Parser Initialization", () => {
@@ -126,6 +135,7 @@ describe("parseCode", () => {
     expect(result.language).toBe("javascript");
     expect(result.tree).toBeDefined();
     expect(result.tree.rootNode.type).toBe("program");
+    expect(result.grammar?.sha256).toMatch(/^[a-f0-9]{64}$/u);
   });
 
   test("parses TypeScript code", async () => {
@@ -382,11 +392,7 @@ describe("Concurrent Initialization", () => {
 
   test("handles concurrent initialization calls", async () => {
     // Call init multiple times concurrently
-    const promises = [
-      initializeParser(),
-      initializeParser(),
-      initializeParser(),
-    ];
+    const promises = [initializeParser(), initializeParser(), initializeParser()];
 
     await Promise.all(promises);
     expect(isParserInitialized()).toBe(true);
@@ -401,5 +407,19 @@ describe("Concurrent Initialization", () => {
 
     await Promise.all([p1, p2]);
     expect(isParserInitialized()).toBe(true);
+  });
+
+  test("parses concurrent files that share a grammar", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 8 }, async (_, index) => {
+        const result = await parseCode(`export const value${String(index)} = ${String(index)};`, {
+          language: "typescript",
+        });
+        return result;
+      }),
+    );
+
+    expect(results).toHaveLength(8);
+    expect(results.every((result) => result.language === "typescript")).toBe(true);
   });
 });

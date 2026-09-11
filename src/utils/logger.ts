@@ -23,9 +23,7 @@ function isValidLogLevel(level: string): level is LogLevel {
 
 function shouldLog(level: LogLevel): boolean {
   const configLevel = ENV.logLevel;
-  const currentLevel = isValidLogLevel(configLevel)
-    ? LOG_LEVELS[configLevel]
-    : LOG_LEVELS.info;
+  const currentLevel = isValidLogLevel(configLevel) ? LOG_LEVELS[configLevel] : LOG_LEVELS.info;
   return LOG_LEVELS[level] >= currentLevel;
 }
 

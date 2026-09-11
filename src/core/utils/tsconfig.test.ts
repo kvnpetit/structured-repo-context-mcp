@@ -1,12 +1,10 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-  readPathAliases,
-  readPathAliasesCached,
-  clearPathAliasCache,
-} from "./tsconfig";
+import { readPathAliases, readPathAliasesCached, clearPathAliasCache } from "./tsconfig";
+
+vi.mock("node:fs", { spy: true });
 
 describe("readPathAliases", () => {
   let tempDir: string;
@@ -37,10 +35,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
 
@@ -59,10 +54,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
 
@@ -81,10 +73,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
 
@@ -122,10 +111,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
 
@@ -140,10 +126,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
     expect(result).toEqual({});
@@ -156,10 +139,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
     expect(result).toEqual({});
@@ -168,10 +148,7 @@ describe("readPathAliases", () => {
   test("returns empty object when compilerOptions is not defined", () => {
     const tsconfig = {};
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
     expect(result).toEqual({});
@@ -182,6 +159,18 @@ describe("readPathAliases", () => {
 
     const result = readPathAliases(tempDir);
     expect(result).toEqual({});
+  });
+
+  test("returns empty object when file read throws an error", () => {
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), "{}");
+    const spy = vi.spyOn(fs, "readFileSync").mockImplementationOnce(() => {
+      throw new Error("Permission denied");
+    });
+
+    const result = readPathAliases(tempDir);
+    expect(result).toEqual({});
+
+    spy.mockRestore();
   });
 
   test("skips path entries with empty targets", () => {
@@ -195,10 +184,7 @@ describe("readPathAliases", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     const result = readPathAliases(tempDir);
 
@@ -230,10 +216,7 @@ describe("readPathAliasesCached", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     // First call
     const result1 = readPathAliasesCached(tempDir);
@@ -248,10 +231,7 @@ describe("readPathAliasesCached", () => {
         },
       },
     };
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(newTsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(newTsconfig));
 
     // Second call should return cached result
     const result2 = readPathAliasesCached(tempDir);
@@ -269,10 +249,7 @@ describe("readPathAliasesCached", () => {
       },
     };
 
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(tsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(tsconfig));
 
     // First call
     readPathAliasesCached(tempDir);
@@ -286,10 +263,7 @@ describe("readPathAliasesCached", () => {
         },
       },
     };
-    fs.writeFileSync(
-      path.join(tempDir, "tsconfig.json"),
-      JSON.stringify(newTsconfig),
-    );
+    fs.writeFileSync(path.join(tempDir, "tsconfig.json"), JSON.stringify(newTsconfig));
 
     // Clear cache
     clearPathAliasCache();

@@ -57,10 +57,7 @@ export function parseDate(str: string): Date {
       );
 
       // Create the main file
-      const mainFile = createFile(
-        "src/index.ts",
-        `import { formatDate } from "../utils/helpers";`,
-      );
+      const mainFile = createFile("src/index.ts", `import { formatDate } from "../utils/helpers";`);
 
       const imports: Import[] = [
         {
@@ -117,10 +114,7 @@ export function parseDate(str: string): Date {
       // Create index file
       createFile("src/utils/index.ts", `export function helper(): void {}`);
 
-      const mainFile = createFile(
-        "src/main.ts",
-        `import { helper } from "./utils";`,
-      );
+      const mainFile = createFile("src/main.ts", `import { helper } from "./utils";`);
 
       const imports: Import[] = [
         {
@@ -188,10 +182,7 @@ export const c = 1;`,
     test("limits number of imports", async () => {
       // Create multiple files
       for (let i = 0; i < 15; i++) {
-        createFile(
-          `lib${String(i)}.ts`,
-          `export function fn${String(i)}(): void {}`,
-        );
+        createFile(`lib${String(i)}.ts`, `export function fn${String(i)}(): void {}`);
       }
 
       const mainFile = createFile("main.ts", "");
@@ -219,10 +210,7 @@ export const c = 1;`,
 }`,
       );
 
-      const mainFile = createFile(
-        "main.ts",
-        `import { formatDate } from "./utils";`,
-      );
+      const mainFile = createFile("main.ts", `import { formatDate } from "./utils";`);
 
       const imports: Import[] = [
         {
@@ -242,10 +230,7 @@ export const c = 1;`,
     });
 
     test("handles unresolvable imports gracefully", async () => {
-      const mainFile = createFile(
-        "main.ts",
-        `import { foo } from "./nonexistent";`,
-      );
+      const mainFile = createFile("main.ts", `import { foo } from "./nonexistent";`);
 
       const imports: Import[] = [
         {
@@ -295,10 +280,7 @@ export const c = 1;`,
     test("getCrossFileCacheStats returns cache info", async () => {
       createFile("a.ts", `export const a = 1;`);
       createFile("b.ts", `export const b = 2;`);
-      const mainFile = createFile(
-        "main.ts",
-        `import { a } from "./a"; import { b } from "./b";`,
-      );
+      const mainFile = createFile("main.ts", `import { a } from "./a"; import { b } from "./b";`);
 
       const imports: Import[] = [
         {

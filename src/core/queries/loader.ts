@@ -4,21 +4,15 @@
  * Loads official Tree-sitter .scm query files from local assets directory
  * Supports inheritance via `; inherits: lang1,lang2` directives
  */
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { assetExists, getAssetsDir, registerCache } from "@core/utils";
 
 /**
  * Query type available in Tree-sitter grammars
  */
-export type SCMQueryType =
-  | "tags"
-  | "highlights"
-  | "locals"
-  | "injections"
-  | "indents"
-  | "folds";
+export type SCMQueryType = "tags" | "highlights" | "locals" | "injections" | "indents" | "folds";
 
 /**
  * Cache for loaded SCM queries (with inheritance resolved)
@@ -79,10 +73,7 @@ function normalizeLanguageName(language: string): string {
 /**
  * Get the path to a .scm query file
  */
-export function getSCMPath(
-  language: string,
-  queryType: SCMQueryType,
-): string | undefined {
+export function getSCMPath(language: string, queryType: SCMQueryType): string | undefined {
   const langDir = normalizeLanguageName(language);
   const relativePath = join("queries", langDir, `${queryType}.scm`);
 
@@ -129,10 +120,7 @@ function removeInheritDirectives(content: string): string {
 /**
  * Load a raw .scm file without resolving inheritance
  */
-function loadRawSCM(
-  language: string,
-  queryType: SCMQueryType,
-): string | undefined {
+function loadRawSCM(language: string, queryType: SCMQueryType): string | undefined {
   const assetsDir = getAssetsDir();
   const scmPath = join(assetsDir, "queries", language, `${queryType}.scm`);
 
@@ -195,9 +183,7 @@ export function loadSCMQuery(
   }
 
   // Combine inherited content with own content
-  const finalContent = [...inheritedParts, ownContent]
-    .filter(Boolean)
-    .join("\n\n");
+  const finalContent = [...inheritedParts, ownContent].filter(Boolean).join("\n\n");
 
   if (finalContent) {
     scmCache.set(cacheKey, finalContent);
@@ -231,14 +217,7 @@ export function loadLocalsQuery(language: string): string | undefined {
  * Check which query types are available for a language
  */
 export function getAvailableQueryTypes(language: string): SCMQueryType[] {
-  const types: SCMQueryType[] = [
-    "tags",
-    "highlights",
-    "locals",
-    "injections",
-    "indents",
-    "folds",
-  ];
+  const types: SCMQueryType[] = ["tags", "highlights", "locals", "injections", "indents", "folds"];
 
   return types.filter((type) => getSCMPath(language, type) !== undefined);
 }

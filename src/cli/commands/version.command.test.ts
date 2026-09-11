@@ -14,13 +14,9 @@ describe("Version Command", () => {
     const originalLog = console.log;
     console.log = vi.fn();
 
-    versionCommand.run?.(
-      {} as Parameters<NonNullable<typeof versionCommand.run>>[0],
-    );
+    versionCommand.run?.({} as Parameters<NonNullable<typeof versionCommand.run>>[0]);
 
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringMatching(/^src-mcp v\d+\.\d+\.\d+$/),
-    );
+    expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/^src-mcp v\d+\.\d+\.\d+$/));
 
     console.log = originalLog;
   });

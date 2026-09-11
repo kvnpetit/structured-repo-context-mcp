@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import { serveCommand } from "@cli/commands/serve.command";
 import type { CommandMeta } from "citty";
-import { createIndexWatcher } from "@core/embeddings";
+import { createIndexWatcher, type WatcherOptions } from "@core/embeddings";
 import { startServer } from "@/server";
 import { logger } from "@utils";
 
@@ -44,30 +44,21 @@ describe("Serve Command", () => {
   });
 
   test("has transport arg with default stdio", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.transport).toBeDefined();
     expect(args.transport?.default).toBe("stdio");
   });
 
   test("has directory arg with default current directory", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.directory).toBeDefined();
     expect(args.directory?.default).toBe(".");
   });
 
   test("has watch arg with default true", () => {
-    const args = serveCommand.args as unknown as Record<
-      string,
-      { default?: string | boolean }
-    >;
+    const args = serveCommand.args as unknown as Record<string, { default?: string | boolean }>;
 
     expect(args.watch).toBeDefined();
     expect(args.watch?.default).toBe(true);
@@ -78,6 +69,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: false,
         t: "stdio",
@@ -95,16 +88,18 @@ describe("Serve Command", () => {
   test("run creates and starts watcher when watch=true", async () => {
     const mockStart = vi.fn().mockResolvedValue(undefined);
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: "/test/dir",
         watch: true,
         t: "stdio",
@@ -117,9 +112,7 @@ describe("Serve Command", () => {
 
     expect(createIndexWatcher).toHaveBeenCalledWith({
       directory: "/test/dir",
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       config: expect.any(Object),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       onError: expect.any(Function),
     });
     expect(mockStart).toHaveBeenCalled();
@@ -127,19 +120,19 @@ describe("Serve Command", () => {
   });
 
   test("logs warning when watcher.start() throws Error", async () => {
-    const mockStart = vi
-      .fn()
-      .mockRejectedValue(new Error("Ollama unavailable"));
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    const mockStart = vi.fn().mockRejectedValue(new Error("Ollama unavailable"));
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -150,25 +143,24 @@ describe("Serve Command", () => {
       cmd: serveCommand,
     });
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(logger.warn).toHaveBeenCalledWith(
-      "Watcher disabled: Ollama unavailable",
-    );
+    expect(logger.warn).toHaveBeenCalledWith("Watcher disabled: Ollama unavailable");
     expect(startServer).toHaveBeenCalled();
   });
 
   test("logs warning when watcher.start() throws non-Error", async () => {
     const mockStart = vi.fn().mockRejectedValue("string error");
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: mockStart,
       stop: vi.fn(),
       isRunning: vi.fn().mockReturnValue(false),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -179,26 +171,27 @@ describe("Serve Command", () => {
       cmd: serveCommand,
     });
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(logger.warn).toHaveBeenCalledWith("Watcher disabled: string error");
     expect(startServer).toHaveBeenCalled();
   });
 
   test("onError callback logs watcher errors", async () => {
     let capturedOnError: ((error: Error) => void) | undefined;
-    vi.mocked(createIndexWatcher).mockImplementation((options) => {
+    (createIndexWatcher as Mock).mockImplementation((options: WatcherOptions) => {
       capturedOnError = options.onError;
       return {
         start: vi.fn().mockResolvedValue(undefined),
         stop: vi.fn(),
         isRunning: vi.fn().mockReturnValue(true),
-      } as unknown as ReturnType<typeof createIndexWatcher>;
+      };
     });
 
     await serveCommand.run?.({
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -213,19 +206,16 @@ describe("Serve Command", () => {
     expect(capturedOnError).toBeDefined();
     capturedOnError?.(new Error("File read failed"));
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(logger.error).toHaveBeenCalledWith(
-      "Watcher error: File read failed",
-    );
+    expect(logger.error).toHaveBeenCalledWith("Watcher error: File read failed");
   });
 
   test("registers SIGINT handler that stops watcher", async () => {
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
       return undefined as never;
@@ -235,6 +225,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -247,6 +239,9 @@ describe("Serve Command", () => {
 
     // Emit SIGINT
     process.emit("SIGINT");
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
 
     expect(mockStop).toHaveBeenCalled();
     expect(mockExit).toHaveBeenCalledWith(0);
@@ -256,11 +251,11 @@ describe("Serve Command", () => {
 
   test("registers SIGTERM handler that stops watcher", async () => {
     const mockStop = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(createIndexWatcher).mockReturnValue({
+    (createIndexWatcher as Mock).mockReturnValue({
       start: vi.fn().mockResolvedValue(undefined),
       stop: mockStop,
       isRunning: vi.fn().mockReturnValue(true),
-    } as unknown as ReturnType<typeof createIndexWatcher>);
+    });
 
     const mockExit = vi.spyOn(process, "exit").mockImplementation(() => {
       return undefined as never;
@@ -270,6 +265,8 @@ describe("Serve Command", () => {
       args: {
         _: [],
         transport: "stdio",
+        host: "127.0.0.1",
+        port: "3000",
         directory: ".",
         watch: true,
         t: "stdio",
@@ -282,6 +279,9 @@ describe("Serve Command", () => {
 
     // Emit SIGTERM
     process.emit("SIGTERM");
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
 
     expect(mockStop).toHaveBeenCalled();
     expect(mockExit).toHaveBeenCalledWith(0);

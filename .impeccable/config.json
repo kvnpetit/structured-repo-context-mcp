@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-08-28T08:01:49.500Z",
+        "reason": "CSS parser test fixture, not a user-interface font choice: src/core/unified/index.test.ts:990"
+      }
+    ]
+  }
+}

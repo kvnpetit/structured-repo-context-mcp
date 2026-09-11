@@ -8,25 +8,26 @@
  */
 
 import { z } from "zod";
-import * as fs from "node:fs";
 import * as path from "node:path";
-import ignore, { type Ignore } from "ignore";
 import type { Feature, FeatureResult } from "@features/types";
 import {
   buildCallGraph,
   getCallContext,
   formatCallContext,
-  shouldIndexFile,
   type CallGraphNode,
 } from "@core/embeddings";
+import { collectFiles, createIgnoreFilter } from "@core/files";
 import { logger } from "@utils";
+import {
+  readSecureTextFile,
+  resolveSecureDirectory,
+  resolveSecurePath,
+  safeErrorMessage,
+} from "@core/security";
+import { createFeatureResultSchema, positionSchema } from "@features/utils";
 
 export const getCallGraphSchema = z.object({
-  directory: z
-    .string()
-    .optional()
-    .default(".")
-    .describe("Path to the directory to analyze"),
+  directory: z.string().optional().default(".").describe("Path to the directory to analyze"),
   functionName: z
     .string()
     .optional()
@@ -34,16 +35,31 @@ export const getCallGraphSchema = z.object({
   filePath: z
     .string()
     .optional()
-    .describe(
-      "Optional: file path to narrow down function search (used with functionName)",
-    ),
+    .describe("Optional: file path to narrow down function search (used with functionName)"),
   maxDepth: z
     .number()
     .int()
     .positive()
+    .max(20)
     .optional()
     .default(2)
     .describe("Maximum depth for call chain traversal (default: 2)"),
+  maxNodes: z
+    .number()
+    .int()
+    .positive()
+    .max(2000)
+    .optional()
+    .default(200)
+    .describe("Maximum number of relationship nodes returned (default: 200)"),
+  maxFiles: z
+    .number()
+    .int()
+    .positive()
+    .max(2000)
+    .optional()
+    .default(500)
+    .describe("Maximum number of files to analyze (default: 500)"),
   exclude: z
     .array(z.string())
     .optional()
@@ -51,7 +67,7 @@ export const getCallGraphSchema = z.object({
     .describe("Glob patterns to exclude from analysis"),
 });
 
-export type GetCallGraphInput = z.infer<typeof getCallGraphSchema>;
+export type GetCallGraphInput = z.input<typeof getCallGraphSchema>;
 
 interface CallGraphResult {
   directory: string;
@@ -59,11 +75,15 @@ interface CallGraphResult {
   totalFunctions: number;
   totalCalls: number;
   filesAnalyzed: number;
+  filesTruncated: boolean;
+  truncated: boolean;
+  maxNodes: number;
   query?: {
     functionName: string;
     filePath?: string;
     callers: CallGraphNode[];
     callees: CallGraphNode[];
+    truncated: boolean;
     formattedContext: string;
   };
   graph?: {
@@ -73,94 +93,147 @@ interface CallGraphResult {
   };
 }
 
-/**
- * Create gitignore filter from .gitignore file
- */
-function createIgnoreFilter(
-  directory: string,
-  extraPatterns: string[],
-): Ignore {
-  const ig = ignore();
+const callGraphNodeSchema = z
+  .object({
+    name: z.string(),
+    qualifiedName: z.string(),
+    filePath: z.string(),
+    type: z.string(),
+    start: positionSchema,
+    end: positionSchema,
+    calls: z.string().array(),
+    calledBy: z.string().array(),
+  })
+  .strict();
 
-  // Add default ignores
-  ig.add(["node_modules", ".git", "dist", "build", ".src-index"]);
+const callGraphDataSchema = z
+  .object({
+    directory: z.string(),
+    mode: z.enum(["full", "query"]),
+    totalFunctions: z.number().int().nonnegative(),
+    totalCalls: z.number().int().nonnegative(),
+    filesAnalyzed: z.number().int().nonnegative(),
+    filesTruncated: z.boolean(),
+    truncated: z.boolean(),
+    maxNodes: z.number().int().positive(),
+    query: z
+      .object({
+        functionName: z.string(),
+        filePath: z.string().optional(),
+        callers: callGraphNodeSchema.array(),
+        callees: callGraphNodeSchema.array(),
+        truncated: z.boolean(),
+        formattedContext: z.string(),
+      })
+      .strict()
+      .optional(),
+    graph: z
+      .object({
+        nodes: z.record(z.string(), callGraphNodeSchema),
+        topCallers: z
+          .object({
+            name: z.string(),
+            callCount: z.number().int().nonnegative(),
+          })
+          .strict()
+          .array(),
+        topCallees: z
+          .object({
+            name: z.string(),
+            calledByCount: z.number().int().nonnegative(),
+          })
+          .strict()
+          .array(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
-  // Add extra patterns
-  if (extraPatterns.length > 0) {
-    ig.add(extraPatterns);
-  }
+export const getCallGraphOutputSchema = createFeatureResultSchema(callGraphDataSchema);
 
-  // Read .gitignore if exists
-  const gitignorePath = path.join(directory, ".gitignore");
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, "utf-8");
-    ig.add(content);
-  }
-
-  return ig;
+function publicFilePath(root: string, filePath: string): string {
+  return path.relative(root, filePath).replace(/\\/g, "/");
 }
 
-/**
- * Check if a name starts with a dot (hidden file/folder)
- */
-function isHidden(name: string): boolean {
-  return name.startsWith(".");
+function publicQualifiedName(root: string, qualifiedName: string): string {
+  const separator = qualifiedName.lastIndexOf(":");
+  if (separator <= 0) {
+    return qualifiedName;
+  }
+  const filePath = qualifiedName.slice(0, separator);
+  const suffix = qualifiedName.slice(separator + 1);
+  if (!path.isAbsolute(filePath)) {
+    return qualifiedName;
+  }
+  return `${publicFilePath(root, filePath)}:${suffix}`;
 }
 
-/**
- * Recursively collect files from a directory
- */
-function collectFiles(dir: string, ig: Ignore, baseDir: string): string[] {
-  const files: string[] = [];
+function publicNode(root: string, node: CallGraphNode): CallGraphNode {
+  return {
+    ...node,
+    qualifiedName: publicQualifiedName(root, node.qualifiedName),
+    filePath: publicFilePath(root, node.filePath),
+    calls: node.calls.map((name) => publicQualifiedName(root, name)),
+    calledBy: node.calledBy.map((name) => publicQualifiedName(root, name)),
+  };
+}
 
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (isHidden(entry.name)) {
-      continue;
-    }
-
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
-
-    if (ig.ignores(relativePath)) {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath, ig, baseDir));
-    } else if (entry.isFile() && shouldIndexFile(entry.name)) {
-      files.push(fullPath);
-    }
+function boundQueryRelations(
+  callers: CallGraphNode[],
+  callees: CallGraphNode[],
+  maxNodes: number,
+): {
+  callers: CallGraphNode[];
+  callees: CallGraphNode[];
+  truncated: boolean;
+} {
+  if (callers.length + callees.length <= maxNodes) {
+    return { callers, callees, truncated: false };
   }
 
-  return files;
+  const callerLimit = Math.min(
+    callers.length,
+    callers.length > 0 ? Math.max(1, Math.floor(maxNodes / 2)) : 0,
+  );
+  const calleeLimit = Math.min(callees.length, maxNodes - callerLimit);
+  const remaining = maxNodes - callerLimit - calleeLimit;
+
+  return {
+    callers: callers.slice(0, callerLimit + remaining),
+    callees: callees.slice(0, calleeLimit),
+    truncated: true,
+  };
 }
 
 /**
  * Execute the get_call_graph feature
  */
-export async function execute(
-  input: GetCallGraphInput,
-): Promise<FeatureResult> {
-  const { directory, functionName, filePath, maxDepth, exclude } = input;
+export async function execute(rawInput: GetCallGraphInput): Promise<FeatureResult> {
+  const input = getCallGraphSchema.parse(rawInput);
+  const { directory, functionName, filePath, maxDepth, maxNodes, maxFiles, exclude } = input;
 
-  // Validate directory exists
-  if (!fs.existsSync(directory)) {
+  const secureDirectory = resolveSecureDirectory(directory);
+  if (!secureDirectory.ok) {
     return {
       success: false,
-      error: `Directory not found: ${directory}`,
+      error:
+        secureDirectory.error === "Path not found" ? "Directory not found" : secureDirectory.error,
     };
   }
 
-  const absoluteDir = path.resolve(directory);
+  const absoluteDir = secureDirectory.path;
 
   try {
     // Create ignore filter
     const ig = createIgnoreFilter(absoluteDir, exclude);
 
     // Collect files
-    const files = collectFiles(absoluteDir, ig, absoluteDir);
+    const allFiles = collectFiles(absoluteDir, ig, absoluteDir).sort((left, right) =>
+      left.localeCompare(right),
+    );
+    const files = allFiles.slice(0, maxFiles);
+    const filesTruncated = files.length < allFiles.length;
 
     if (files.length === 0) {
       return {
@@ -172,6 +245,9 @@ export async function execute(
           totalFunctions: 0,
           totalCalls: 0,
           filesAnalyzed: 0,
+          filesTruncated,
+          truncated: filesTruncated,
+          maxNodes,
         } satisfies CallGraphResult,
       };
     }
@@ -179,10 +255,12 @@ export async function execute(
     logger.debug(`Analyzing call graph for ${String(files.length)} files`);
 
     // Read file contents and build call graph
-    const fileContents = files.map((f) => ({
-      path: f,
-      content: fs.readFileSync(f, "utf-8"),
-    }));
+    const fileContents = files.flatMap((f) => {
+      const readResult = readSecureTextFile(f, absoluteDir);
+      return readResult.ok && readResult.content !== undefined
+        ? [{ path: f, content: readResult.content }]
+        : [];
+    });
 
     const graph = await buildCallGraph(fileContents);
 
@@ -195,19 +273,31 @@ export async function execute(
         0,
       ),
       filesAnalyzed: files.length,
+      filesTruncated,
+      truncated: filesTruncated,
+      maxNodes,
     };
 
     // If querying for a specific function
     if (functionName) {
       const targetFilePath = filePath
-        ? path.resolve(directory, filePath)
+        ? resolveSecurePath(path.resolve(absoluteDir, filePath), {
+            kind: "file",
+            root: absoluteDir,
+            allowMissing: true,
+          })
         : undefined;
 
-      const callContext = getCallContext(
-        graph,
-        targetFilePath ?? "",
-        functionName,
-      );
+      if (filePath && targetFilePath?.ok === false) {
+        return {
+          success: false,
+          error: targetFilePath.error,
+        };
+      }
+
+      const targetPath = targetFilePath?.ok === true ? targetFilePath.path : undefined;
+
+      const callContext = getCallContext(graph, targetPath ?? "", functionName);
 
       if (!callContext) {
         // Try to find function in any file
@@ -228,16 +318,15 @@ export async function execute(
         }
 
         if (foundContext) {
+          const bounded = boundQueryRelations(foundContext.callers, foundContext.callees, maxNodes);
+          result.truncated = result.truncated || bounded.truncated;
           result.query = {
             functionName,
-            filePath: foundFilePath,
-            callers: foundContext.callers,
-            callees: foundContext.callees,
-            formattedContext: formatCallContext(
-              foundContext.callers,
-              foundContext.callees,
-              maxDepth,
-            ),
+            filePath: publicFilePath(absoluteDir, foundFilePath),
+            callers: bounded.callers.map((node) => publicNode(absoluteDir, node)),
+            callees: bounded.callees.map((node) => publicNode(absoluteDir, node)),
+            truncated: bounded.truncated,
+            formattedContext: formatCallContext(bounded.callers, bounded.callees, maxDepth),
           };
         } else {
           return {
@@ -246,16 +335,15 @@ export async function execute(
           };
         }
       } else {
+        const bounded = boundQueryRelations(callContext.callers, callContext.callees, maxNodes);
+        result.truncated = result.truncated || bounded.truncated;
         result.query = {
           functionName,
-          filePath: targetFilePath,
-          callers: callContext.callers,
-          callees: callContext.callees,
-          formattedContext: formatCallContext(
-            callContext.callers,
-            callContext.callees,
-            maxDepth,
-          ),
+          filePath: targetPath ? publicFilePath(absoluteDir, targetPath) : undefined,
+          callers: bounded.callers.map((node) => publicNode(absoluteDir, node)),
+          callees: bounded.callees.map((node) => publicNode(absoluteDir, node)),
+          truncated: bounded.truncated,
+          formattedContext: formatCallContext(bounded.callers, bounded.callees, maxDepth),
         };
       }
 
@@ -287,8 +375,26 @@ export async function execute(
       .slice(0, 10)
       .map(([name, calledByCount]) => ({ name, calledByCount }));
 
+    const rankedNodes = Array.from(graph.nodes.entries()).sort(([, left], [, right]) => {
+      const leftDegree = left.calls.length + left.calledBy.length;
+      const rightDegree = right.calls.length + right.calledBy.length;
+      return rightDegree - leftDegree || left.qualifiedName.localeCompare(right.qualifiedName);
+    });
+    const selectedEntries = rankedNodes.slice(0, maxNodes);
+    const selectedKeys = new Set(selectedEntries.map(([name]) => name));
+    result.truncated = result.truncated || selectedEntries.length < rankedNodes.length;
+
     result.graph = {
-      nodes: Object.fromEntries(graph.nodes),
+      nodes: Object.fromEntries(
+        selectedEntries.map(([name, node]) => [
+          publicQualifiedName(absoluteDir, name),
+          publicNode(absoluteDir, {
+            ...node,
+            calls: node.calls.filter((callee) => selectedKeys.has(callee)),
+            calledBy: node.calledBy.filter((caller) => selectedKeys.has(caller)),
+          }),
+        ]),
+      ),
       topCallers,
       topCallees,
     };
@@ -298,9 +404,7 @@ export async function execute(
       .map((c) => `  - ${c.name}: ${String(c.callCount)} calls`)
       .join("\n");
     const topCalleesStr = topCallees
-      .map(
-        (c) => `  - ${c.name}: called by ${String(c.calledByCount)} functions`,
-      )
+      .map((c) => `  - ${c.name}: called by ${String(c.calledByCount)} functions`)
       .join("\n");
 
     const message = `Call graph analysis complete:
@@ -322,7 +426,7 @@ Use functionName parameter to query specific function relationships.`;
       data: result,
     };
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const errorMsg = safeErrorMessage(err, "Call graph operation failed");
     return {
       success: false,
       error: `Call graph analysis failed: ${errorMsg}`,
@@ -335,5 +439,6 @@ export const getCallGraphFeature: Feature<typeof getCallGraphSchema> = {
   description:
     "Analyze function call relationships in a codebase. Query callers/callees for a specific function or get full call graph statistics.",
   schema: getCallGraphSchema,
+  outputSchema: getCallGraphOutputSchema,
   execute,
 };

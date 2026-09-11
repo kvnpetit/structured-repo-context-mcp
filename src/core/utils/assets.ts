@@ -4,9 +4,9 @@
  * Provides consistent access to the assets directory and JSON config loading
  * across all core modules.
  */
-import { existsSync, readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import * as nodeFs from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Cached assets directory path
@@ -26,19 +26,18 @@ export function getAssetsDir(): string {
 
   // Handle both ESM and CJS contexts
   const currentDir =
-    typeof __dirname !== "undefined"
-      ? __dirname
-      : dirname(fileURLToPath(import.meta.url));
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
 
   // Try various paths relative to current file location
   const possiblePaths = [
+    join(currentDir, "..", "assets"), // From a bundled dist/*.mjs file
     join(currentDir, "..", "..", "..", "assets"), // From dist/core/utils
     join(currentDir, "..", "..", "assets"), // From src/core/utils (dev)
     join(process.cwd(), "assets"), // From project root
   ];
 
   for (const p of possiblePaths) {
-    if (existsSync(p)) {
+    if (nodeFs.existsSync(p)) {
       assetsDirCache = p;
       return p;
     }
@@ -60,7 +59,7 @@ export function loadJsonConfig<T>(filename: string, defaultValue: T): T {
   const configPath = join(getAssetsDir(), filename);
 
   try {
-    const content = readFileSync(configPath, "utf-8");
+    const content = nodeFs.readFileSync(configPath, "utf-8");
     return JSON.parse(content) as T;
   } catch {
     return defaultValue;
@@ -84,7 +83,7 @@ export function getAssetPath(...segments: string[]): string {
  * @returns True if the file exists
  */
 export function assetExists(...segments: string[]): boolean {
-  return existsSync(getAssetPath(...segments));
+  return nodeFs.existsSync(getAssetPath(...segments));
 }
 
 /**

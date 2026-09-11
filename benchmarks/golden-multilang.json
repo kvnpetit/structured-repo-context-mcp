@@ -1,0 +1,50 @@
+[
+  {
+    "query": "UserService findUserById",
+    "relevant": ["typescript/user-service.ts"]
+  },
+  {
+    "query": "TokenAuthenticator local token authentication",
+    "relevant": ["python/authentication.py"]
+  },
+  {
+    "query": "HandleRequest ResponseWriter",
+    "relevant": ["go/http_handler.go"]
+  },
+  {
+    "query": "parse_configuration endpoint to_owned",
+    "relevant": ["rust/config.rs"]
+  },
+  {
+    "query": "OrderService createOrder customerId",
+    "relevant": ["java/OrderService.java"]
+  },
+  {
+    "query": "symbol graph local index retrieval",
+    "relevant": ["docs/architecture.md"]
+  },
+  {
+    "query": "InventoryService reserve inventory sku",
+    "relevant": ["csharp/InventoryService.cs"]
+  },
+  {
+    "query": "SessionRepository loadSessionById",
+    "relevant": ["kotlin/SessionRepository.kt"]
+  },
+  {
+    "query": "EmailDispatcher dispatchWelcomeEmail",
+    "relevant": ["scala/EmailDispatcher.scala"]
+  },
+  {
+    "query": "PaymentGateway authorizePayment card token",
+    "relevant": ["ruby/PaymentGateway.rb"]
+  },
+  {
+    "query": "ReportController generateAuditReport project",
+    "relevant": ["php/ReportController.php"]
+  },
+  {
+    "query": "analytics dashboard conversion metrics",
+    "relevant": ["html/dashboard.html"]
+  }
+]

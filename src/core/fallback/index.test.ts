@@ -12,14 +12,7 @@ import {
 // TEST DATA
 // ============================================================
 
-const SUPPORTED_LANGUAGES = [
-  "javascript",
-  "typescript",
-  "python",
-  "go",
-  "rust",
-  "java",
-];
+const SUPPORTED_LANGUAGES = ["javascript", "typescript", "python", "go", "rust", "java"];
 const DIRECT_LANGUAGES = ["js", "cpp", "html"];
 const GENERIC_LANGUAGES = ["json", "yaml", "bash", "vue", "dockerfile"];
 const UNSUPPORTED_LANGUAGES = ["unknown", "brainfuck"];
@@ -176,10 +169,7 @@ describe("Text Splitter Fallback", () => {
     });
 
     test("chunks have correct structure", async () => {
-      const result = await splitCode(
-        "function test() { return 1; }",
-        "javascript",
-      );
+      const result = await splitCode("function test() { return 1; }", "javascript");
 
       expect(result.chunks.length).toBeGreaterThan(0);
 
@@ -231,6 +221,20 @@ describe("Text Splitter Fallback", () => {
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0]?.startLine).toBe(1);
+    });
+
+    test("keeps overlapping chunk ranges within the source file", async () => {
+      const code = Array.from({ length: 12 }, (_, index) => `line ${String(index + 1)}`).join("\n");
+      const result = await splitCode(code, "text", {
+        chunkSize: 24,
+        chunkOverlap: 12,
+      });
+
+      expect(result.chunks.length).toBeGreaterThan(1);
+      for (const chunk of result.chunks) {
+        expect(chunk.startLine).toBeGreaterThanOrEqual(1);
+        expect(chunk.endLine).toBeLessThanOrEqual(12);
+      }
     });
   });
 });
