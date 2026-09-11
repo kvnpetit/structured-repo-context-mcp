@@ -5,10 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/2.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Entries are curated for users; the commit history remains the detailed
-implementation record. The historical `v1.0.0` tag is retained for
+implementation record. The historical `v1.0.0` commit is retained for
 completeness, while `1.0.1` was the first version published to npm.
 
 ## [Unreleased]
+
+### Fixed
+
+- Historical changelog links now resolve to the public GitHub commit or release
+  that represents each version, including the Git-only `v1.0.0` baseline.
 
 ## [2.0.0] - 2026-09-11
 
@@ -212,5 +217,5 @@ This was the initial Git-only release; it was not published to npm.
 [2.0.0]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.3...v2.0.0
 [1.0.3]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.1...v1.0.2
-[1.0.1]: https://github.com/kvnpetit/structured-repo-context-mcp/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/kvnpetit/structured-repo-context-mcp/releases/tag/v1.0.0
+[1.0.1]: https://github.com/kvnpetit/structured-repo-context-mcp/releases/tag/v1.0.1
+[1.0.0]: https://github.com/kvnpetit/structured-repo-context-mcp/commit/bfb09e2a546913a434bc1294aff19405511360d9
